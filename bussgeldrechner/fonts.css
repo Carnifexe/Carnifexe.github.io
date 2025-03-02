@@ -53,6 +53,12 @@
 }
 
 @font-face {
+  font-family: "SecureFont";
+  src: url("data:font/woff2;base64,d09GMgABAAAAAABAAEAA...") format("woff2");
+  unicode-range: U+0020-007F;
+}
+
+@font-face {
   font-family: San-Francisco;
   src: url(SF-Pro-Display-Black.woff);
   font-weight: 700;
