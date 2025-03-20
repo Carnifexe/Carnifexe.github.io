@@ -170,7 +170,13 @@ body {
 
     text-indent: 5px;
 }
-
+#wiederholungstäter {
+    position: relative;
+    left: 5%;
+    width: 90%;
+    margin-top: 1vh;
+    margin-bottom: 0.5vh;
+}
 #contentbox {
     width: 100%;
     height: 94.5%;

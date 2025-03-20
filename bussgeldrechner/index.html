@@ -23,6 +23,36 @@
     <link rel="stylesheet" href="notifications.css">
     <script src="notifications.js"></script>
 	    <style>
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+			z-index: 9999; 
+        }
+
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: 450px;
+            background-color: black;
+            color: #ff4d4d;
+            text-align: center;
+            border-radius: 5px;
+            padding: 5px;
+            position: absolute;
+            z-index: 99999;
+            bottom: 225%; 
+            left: 125%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 14px;
+			pointer-events: none; 
+        }
+
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
         /* CSS für das Video */
         #video_container {
             text-align: center; /* Zentriert das Video */
@@ -91,6 +121,28 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
 .jw-album-image img, .jw-element-image img { pointer-events: none; -webkit-touch-callout: none; }
 .pswp__share-tooltip .pswp__share--download { display: none; }
 </style>
+<style>
+/* Styling für den Button-Look */
+.toggle-button {
+    display: inline-block;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+    background-color: #007bff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.3s;
+    text-align: center;
+    user-select: none;
+}
+
+.toggle-button.active {
+    background-color: #ff0000; /* Rote Farbe, wenn aktiviert */
+}
+
+</style>
 </head>
 <body>
     <div id="loading">
@@ -127,7 +179,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
 <script language="JavaScript" src="https://www.besucherzaehler-kostenlos.de/js/counter.js.php?count=1&id=carnifexe.github.iobussgeldrechner&start=1&design=1g"></script><br><br>
             <table>
                 <tr id="StandDate">
-                    <th style="width: 15%;">Der Bußgeldrechner wurde zuletzt am 07.02.2025 aktualisiert.</th>
+                    <th style="width: 15%;">Der Bußgeldrechner wurde zuletzt am 20.03.2025 aktualisiert.</th>
                 </tr>
 			</table>
 		<br>
@@ -506,7 +558,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                 </tr>
 				<tr class="showing fine" data-fine="ammuRob" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();">
 					<td class="paragraph">StGB §12.1</td>
-					<td class="fineText">Shop Rob / Ammu Rob (Deckt alle Strafen ab)</td>
+					<td class="fineText">Geschäfts Raub / Ammu Rob (Deckt alle Strafen ab)</td>
 					<td class="wantedAmount" data-wantedamount="3">⭐⭐⭐</td>
 					<td class="fineAmount" data-fineamount="25000">$25.000</td>
 				</tr>
@@ -667,25 +719,19 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                     <td class="fineAmount" data-fineamount="25000">$25.000</td>
                 </tr>
                 <tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();" data-removedriverlicence="false" data-removeweaponlicence="false">
-                    <td class="paragraph">StGB §18.1</td>
+                    <td class="paragraph">StGB §18</td>
                     <td class="fineText">Unerlaubtes Betreten eines millitärischen Geländes</td>
                     <td class="wantedAmount" data-wantedamount="5">⭐⭐⭐⭐⭐</td>
                     <td class="fineAmount" data-fineamount="50000">$50.000</td>
                 </tr>
                 <tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();" data-removedriverlicence="false" data-removeweaponlicence="false">
-                    <td class="paragraph">StGB §18.2</td>
-                    <td class="fineText">Unerlaubtes Betreten von Sperrzonen</td>
-                    <td class="wantedAmount" data-wantedamount="2">⭐⭐<font class="extrawanted1 extrawanted" onclick="JavaScript:toggleExtraWanted(event)" data-addedfine="0">☆</font></td>
-                    <td class="fineAmount" data-fineamount="25000">$25.000</td>
-                </tr>
-                <tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();" data-removedriverlicence="false" data-removeweaponlicence="false">
-                    <td class="paragraph">StGB §18.2</td>
+                    <td class="paragraph">StGB §18.1</td>
                     <td class="fineText">Unerlaubtes Betreten von Militärischen-Sperrzone</td>
                     <td class="wantedAmount" data-wantedamount="2">⭐⭐<font class="extrawanted1 extrawanted" onclick="JavaScript:toggleExtraWanted(event)" data-addedfine="0">☆</font></td>
                     <td class="fineAmount" data-fineamount="25000">$25.000</td>
                 </tr>
                 <tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();" data-removedriverlicence="true" data-removeweaponlicence="false">
-                    <td class="paragraph">StGB §18.2</td>
+                    <td class="paragraph">StGB §18.1</td>
                     <td class="fineText">Unerlaubtes Befahren von Sperrzonen</td>
                     <td class="wantedAmount" data-wantedamount="2">⭐⭐<font class="extrawanted1 extrawanted" onclick="JavaScript:toggleExtraWanted(event)" data-addedfine="0">☆</font></td>
                     <td class="fineAmount" data-fineamount="25000">$25.000</td>
@@ -888,9 +934,18 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                     <label for="reue_box">
                         <font id="checkboxfont1" style="line-height: 25px;">Reue</font>
                         <br>
-                        <font style="font-size: 15px; font-weight: 400;">(Entfernt 2 Wanteds, 1 Wanted muss verbleiben gemäß StBG §35 - Reue)</font>
+						<span class="tooltip"><font color="ff0000" style="font-size: 15px; font-weight: 400;"><a>(§35 Abs. 1) - Mouseover -</a><span class="tooltip-text" style="font-size: 20px; font-weight: 400;">Sollte ein Täter oder Mittäter Reue zeigen oder bei der Klärung seiner Tat mitwirken, so kann seine Gesamtstrafe seiner begangenen Taten um bis zu 30 Monate gemindert werden. Die Mindeststrafe von 15 Monaten muss gegeben sein und darf nicht durch die Reue unterschritten werden.
+						(Entfernt 2 Wanteds, 1 Wanted muss verbleiben gemäß StBG §35 - Reue)</span></font></span>
                     </label>
                 </div>
+				<div id="wiederholungstäter">
+					<input type="checkbox" id="wiederholungstäter_box">
+					<label for="wiederholungstäter_box">
+					<font id="checkboxfont1" style="line-height: 25px;">StVO Wiederholungstäter</font>
+                        <br>
+						<span class="tooltip"><font color="red" style="font-size: 15px; font-weight: 400;">(§25 Abs. 2) - Mouseover -<span class="tooltip-text" style="font-size: 20px; font-weight: 400;">Bei Wiederholungstaten kann die Exekutive eine Verdoppelung des Bußgeldes oder der Haftzeit vornehmen, sofern nicht von einer Besserung auszugehen ist.</span></font></span>
+						</label>
+				</div>
                 <div id="systemfehler">
                     <input id="systemfehler_box" onchange="JavaScript:startCalculating()" type="checkbox" name="">
                     <label style="line-height: 25px;" for="systemfehler_box">Systemfehler</label>
@@ -898,12 +953,11 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                 <button id="showAttorneysButton" onclick="JavaScript:showAttorneys()">Anwaltsregister anzeigen</button>
                 <button id="showRightsButton" onclick="showRightsContainer()">Rechte Anzeigen</button>
                 <button id="resetButton" onclick="JavaScript:resetButton()">Zurücksetzen</button>
-
     <!-- Logo Container -->
 	                <table id="finTable">
                     <tr>
                         <th style="width: 80%;">	<div id="logoContainer" style="text-align: center; margin-top: 20px; margin-left: -120px;">
-							<img src="logosahp.png" alt="Logo" id="logo" style="width: 22%; height: auto;"></div></th>
+							<img src="logosahp.png" alt="Logo" id="logo" style="width: 10%; height: auto;"></div></th>
 
                     </tr>
                 </table>
@@ -917,7 +971,6 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                     </tr>
                 </table>
             </div>
-
 <!-- Hintergrund für Modal -->
 <div id="rightsContainer_backdrop" onclick="hideRightsContainer()"></div>
 
