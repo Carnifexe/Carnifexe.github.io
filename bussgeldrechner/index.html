@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 
 
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
@@ -23,36 +23,37 @@
     <link rel="stylesheet" href="notifications.css">
     <script src="notifications.js"></script>
 	    <style>
-        .tooltip {
-            position: relative;
-            display: inline-block;
-            cursor: pointer;
-			z-index: 9999; 
-        }
+    /* Styling für das Tooltip-Fenster */
+    .tooltip {
+        position: relative;
+        display: inline-block;
+        cursor: pointer;
+        z-index: 9999;
+    }
 
-        .tooltip .tooltip-text {
-            visibility: hidden;
-            width: 450px;
-            background-color: black;
-            color: #ff4d4d;
-            text-align: center;
-            border-radius: 5px;
-            padding: 5px;
-            position: absolute;
-            z-index: 99999;
-            bottom: 225%; 
-            left: 90%;
-            transform: translateX(-50%);
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 10px;
-			pointer-events: none; 
-        }
+    .tooltip .tooltip-text {
+        visibility: hidden;
+        width: 450px;
+        background-color: black;
+        color: #ff4d4d;
+        text-align: center;
+        border-radius: 5px;
+        padding: 10px;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 14px;
+        pointer-events: none;
+        z-index: 10000;
+    }
 
-        .tooltip:hover .tooltip-text {
-            visibility: visible;
-            opacity: 1;
-        }
+    .tooltip:hover .tooltip-text {
+        visibility: visible;
+        opacity: 1;
+    }
         /* CSS für das Video */
         #video_container {
             text-align: center; /* Zentriert das Video */
@@ -896,7 +897,8 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
         </div>
         <div id="results">
             <div id="resultsTitle">Ergebnis</div>
-            <div id="infoTitle">Bei den grauen Wanteds ist dem Officer das Strafmaß Freigestellt. Durch anklicken können diese ausgewählt werden. Bei gelben Wanteds ist dieses Festgelegt<b></div>
+            <div id="infoTitle"><span class="tooltip"><font color="ff0000" style="font-size: 15px; font-weight: 400;"><a>- Informationen -</a><span class="tooltip-text" style="font-size: 20px; font-weight: 400;">Bei den grauen Wanteds ist dem Officer das Strafmaß Freigestellt. Durch anklicken können diese ausgewählt werden. Bei gelben Wanteds ist dieses Festgelegt</span></font></span></div>
+
             <hr color="#121212">
             <div class="result" id="fineResult"><b>Geldstrafe:</b> $0</div>
             <div class="result" id="wantedsResult"><b>Wanteds:</b> 0</div>
@@ -905,8 +907,11 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
             <div class="result" id="infoResult"><b>Information:</b></div>
 
             <div id="checkbox">
-                <input id="checkbox_box" onchange="JavaScript:startCalculating()" type="checkbox" name="" checked>
-                <label style="line-height: 25px;" for="checkbox_box">Kurzer Grund</label>
+                <input id="checkbox_box" onchange="JavaScript:startCalculating(); playClickSound(); toggleCheckboxLabel('checkbox_box', 'checkbox_status');" type="checkbox" name="" checked>
+				<label for="checkbox_box">
+				<font id="checkboxfont1" style="line-height: 25px;">Kurzer Grund</font>
+				<span id="checkbox_status" style="color: green;">An</span>
+				</label>
             </div>
 
             <div id="plateInput"><input id="plateInput_input" type="text" maxlength="8" placeholder="Kennzeichen" oninput="JavaScript:startCalculating()"></div>
@@ -929,30 +934,66 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
 						<textarea id="notepadArea_input" placeholder="Schreibe deine Notizen hier..." rows="3"></textarea>
 						<button id="clearButton" contenteditable="false" onclick="clearNotepad()">x</button> <!-- Löschen-Button hinzufügen -->
 				</div>
+<script>
+function playClickSound() {
+    var audio = document.getElementById("clickSound");
+    if (audio) {
+        audio.play().catch(error => console.error("Sound konnte nicht abgespielt werden:", error));
+    }
+}
+</script>
+<script>
+function playbubbleSound() {
+    var audio = document.getElementById("bubbleSound");
+    if (audio) {
+        audio.play().catch(error => console.error("Sound konnte nicht abgespielt werden:", error));
+    }
+}
+</script>
+<audio id="bubbleSound" src="bubble.mp3"></audio>
+<script>
+    function toggleCheckboxLabel(checkboxId, labelId) {
+        var checkbox = document.getElementById(checkboxId);
+        var label = document.getElementById(labelId);
+        if (checkbox.checked) {
+            label.textContent = "An";
+            label.style.color = "green";
+        } else {
+            label.textContent = "Aus";
+            label.style.color = "red";
+        }
+    }
+</script>
                 <div id="reue">
-                    <input id="reue_box" onchange="JavaScript:startCalculating()" type="checkbox" name="">
+                    <input id="reue_box" onchange="JavaScript:startCalculating(); playClickSound(); toggleCheckboxLabel('reue_box', 'reue_status');" type="checkbox" name="">
                     <label for="reue_box">
-                        <font id="checkboxfont1" style="line-height: 25px;">Reue</font>
+                        <font id="checkboxfont2" style="line-height: 25px;">§35 Abs. 1 Reue</font>
+						<span id="reue_status" style="color: red;">Aus</span>
                         <br>
-						<span class="tooltip"><font color="ff0000" style="font-size: 15px; font-weight: 400;"><a>(§35 Abs. 1) - Mouseover -</a><span class="tooltip-text" style="font-size: 20px; font-weight: 400;">Sollte ein Täter oder Mittäter Reue zeigen oder bei der Klärung seiner Tat mitwirken, so kann seine Gesamtstrafe seiner begangenen Taten um bis zu 30 Monate gemindert werden. Die Mindeststrafe von 15 Monaten muss gegeben sein und darf nicht durch die Reue unterschritten werden.
+						<span class="tooltip"><font color="ff0000" style="font-size: 15px; font-weight: 400;"><a>- INFORMATIONEN -</a><span class="tooltip-text" style="font-size: 20px; font-weight: 400;">Sollte ein Täter oder Mittäter Reue zeigen oder bei der Klärung seiner Tat mitwirken, so kann seine Gesamtstrafe seiner begangenen Taten um bis zu 2 Wanteds gemindert werden. Die Mindeststrafe von 1 Wanted muss gegeben sein und darf nicht durch die Reue unterschritten werden.
 						(Entfernt 2 Wanteds, 1 Wanted muss verbleiben gemäß StBG §35 - Reue)</span></font></span>
                     </label>
                 </div>
 				<div id="wiederholungstäter">
-					<input type="checkbox" id="wiederholungstäter_box">
+					<input type="checkbox" id="wiederholungstäter_box" onchange="playClickSound(); toggleCheckboxLabel('wiederholungstäter_box', 'wiederholungstäter_status');">
 					<label for="wiederholungstäter_box">
-					<font id="checkboxfont1" style="line-height: 25px;">StVO Wiederholungstäter</font>
+					<font id="checkboxfont3" style="line-height: 25px;">§25 Abs. 2 StVO Wiederholungstäter</font>
+					<span id="wiederholungstäter_status" style="color: red;">Aus</span>
                         <br>
-						<span class="tooltip"><font color="red" style="font-size: 15px; font-weight: 400;">(§25 Abs. 2) - Mouseover -<span class="tooltip-text" style="font-size: 20px; font-weight: 400;">Bei Wiederholungstaten kann die Exekutive eine Verdoppelung des Bußgeldes oder der Haftzeit vornehmen, sofern nicht von einer Besserung auszugehen ist.<br>Das selbe Strafmaß darf nicht älter als 7 Tage sein, um §25 Abs. 2. in Anspruch zu nehmen.</span></font></span>
+						<span class="tooltip"><font color="red" style="font-size: 15px; font-weight: 400;">- INFORMATIONEN -<span class="tooltip-text" style="font-size: 20px; font-weight: 400;">Bei Wiederholungstaten kann die Exekutive eine Verdoppelung des Bußgeldes oder der Haftzeit vornehmen, sofern nicht von einer Besserung auszugehen ist.<br>Das selbe Strafmaß darf nicht älter als 7 Tage sein, um §25 Abs. 2. in Anspruch zu nehmen.</span></font></span>
 						</label>
 				</div>
                 <div id="systemfehler">
-                    <input id="systemfehler_box" onchange="JavaScript:startCalculating()" type="checkbox" name="">
-                    <label style="line-height: 25px;" for="systemfehler_box">Systemfehler</label>
+                    <input id="systemfehler_box" onchange="JavaScript:startCalculating(); playClickSound(); toggleCheckboxLabel('systemfehler_box', 'systemfehler_status');" type="checkbox" name="">
+                    <label for="systemfehler_box">
+					<font id="checkboxfont4" style="line-height: 25px;">Systemfehler</font>
+					<span id="systemfehler_status" style="color: red;">Aus</span>
+					</label>
                 </div>
                 <button id="showAttorneysButton" onclick="JavaScript:showAttorneys()">Anwaltsregister anzeigen</button>
                 <button id="showRightsButton" onclick="showRightsContainer()">Rechte Anzeigen</button>
-                <button id="resetButton" onclick="JavaScript:resetButton()">Zurücksetzen</button>
+                <button id="resetButton" onclick="JavaScript:resetButton(); playbubbleSound();">Zurücksetzen</button>
+
     <!-- Logo Container -->
 	                <table id="finTable">
                     <tr>

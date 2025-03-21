@@ -648,4 +648,4 @@ async function openDisclaimer() {
 
     disclaimerNode.style.boxShadow = "rgba(0, 0, 0, 0.219) 0px 0px 70px 30vw"
 }
-
+document.documentElement.setAttribute("translate", "no");
