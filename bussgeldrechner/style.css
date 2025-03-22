@@ -1018,27 +1018,58 @@ select {
     );
     display: inline-block;
     margin: 10px;
-    animation: blink 0.5s infinite alternate;
+    animation: blink 1.5s infinite alternate, rotate 5s infinite linear;
 }
 
-/* Unterschiedliche Blinkzeiten für jeden Stern */
 .five-pointed-star:nth-child(1) {
-    animation-delay: 0s;
+    animation-delay: 0s, 0s;
 }
 .five-pointed-star:nth-child(2) {
-    animation-delay: 0.3s;
+    animation-delay: 0.3s, 1s;
 }
 .five-pointed-star:nth-child(3) {
-    animation-delay: 0.6s;
+    animation-delay: 0.6s, 2s;
 }
 .five-pointed-star:nth-child(4) {
-    animation-delay: 0.9s;
+    animation-delay: 0.9s, 1.5s;
 }
 .five-pointed-star:nth-child(5) {
-    animation-delay: 1.2s;
+    animation-delay: 1.2s, 0.5s;
 }
 
+@keyframes rotate {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
 @keyframes blink {
+    0% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.3;
+    }
+}
+  
+#logo {
+    animation: rotateLogo 10s linear infinite, blinkLogo 2.5s infinite alternate;
+}
+
+/* Rotation */
+@keyframes rotateLogo {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Blinken */
+@keyframes blinkLogo {
     0% {
         opacity: 1;
     }
