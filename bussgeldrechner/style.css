@@ -1053,7 +1053,29 @@ select {
         opacity: 0.3;
     }
 }
-  
+body {
+    overflow-x: hidden;
+}
+
+
+#container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+#radioPlayer {
+    width: 100%; /* Nimmt die gesamte verfügbare Breite ein */
+    display: flex;
+    justify-content: center; /* Zentriert den Player unter dem Button */
+    margin-top: 10px; /* Abstand zum Button */
+}
+
+#radioPlayer iframe {
+    width: 70%; /* Feste Breite – gleiche Breite wie der Zurücksetzen-Button */
+}
+
+
 #logo {
     animation: rotateLogo 10s linear infinite, blinkLogo 2.5s infinite alternate;
 }

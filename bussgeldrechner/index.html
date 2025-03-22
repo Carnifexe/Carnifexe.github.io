@@ -80,7 +80,7 @@
 
 #notepadArea_input {
     width: 300px; /* Feste Breite für die Textarea */
-    height: 100px; /* Feste Höhe für die Textarea */
+    height: 80px; /* Feste Höhe für die Textarea */
     resize: none; /* Verhindert, dass der Benutzer die Größe ändern kann */
 }
 #clearButton {
@@ -89,7 +89,7 @@
     font-weight: bold;
     position: relative;
     right: 20px; /* Abstand vom rechten Rand der Textarea */
-    top: -90px; /* Abstand vom oberen Rand der Textarea */
+    top: -70px; /* Abstand vom oberen Rand der Textarea */
     background: none;
     border: none;
     font-size: 16px;
@@ -215,14 +215,22 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
             };
         });
     </script>
-    <div id="header">
+    <div id="header" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; text-align: center; width: 100%; overflow-x: hidden; position: relative;">
+        <div id="credits">Weitergeführt von Maik Bosa und Moritz Yane vom SAHP</div>
 
-        <div id="credits">
-		Weitergeführt von Maik Bosa und Moritz Yane vom SAHP
-		</div>
-        <div id="sahp">San Andreas Highway Patrol</div>
-        <div id="searchbar"><input id="searchbar_input" oninput="JavaScript:searchFine()" type="text" placeholder="Nach einer Straftat suchen"></div>
+        <div style="position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px;">
+            <div id="sahp" style="font-size: 1.5em; font-weight: bold;">San Andreas Highway Patrol</div>
+            
+            <div id="logoContainer" style="text-align: center;">
+                <img src="logosahp.png" alt="Logo" id="logo" style="width: 40px; height: auto;">
+            </div>
+        </div>
+        
+        <div id="searchbar" style="flex-grow: 1; text-align: right;">
+            <input id="searchbar_input" oninput="JavaScript:searchFine()" type="text" placeholder="Nach einer Straftat suchen" style="width: 29.5%; padding: 8px; font-size: 1em;">
+        </div>
     </div>
+    
 
 	<div id="contentbox">
 
@@ -932,7 +940,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                 </div>
 				<div id="notepadArea" contenteditable="false">
 						<textarea id="notepadArea_input" placeholder="Schreibe deine Notizen hier..." rows="3"></textarea>
-						<button id="clearButton" contenteditable="false" onclick="clearNotepad()">x</button> <!-- Löschen-Button hinzufügen -->
+						<button id="clearButton" contenteditable="false" onclick="clearNotepad()">x</button> 
 				</div>
 <script>
 function playClickSound() {
@@ -992,16 +1000,16 @@ function playbubbleSound() {
                 </div>
                 <button id="showAttorneysButton" onclick="JavaScript:showAttorneys()">Anwaltsregister anzeigen</button>
                 <button id="showRightsButton" onclick="showRightsContainer()">Rechte Anzeigen</button>
-                <button id="resetButton" onclick="JavaScript:resetButton(); playbubbleSound();">Zurücksetzen</button>
+				<button id="resetButton" onclick="JavaScript:resetButton(); playbubbleSound();">Zurücksetzen</button>
+    <div id="controls" style="text-align: center; margin-top: 25,,px;">
+        <div id="radioPlayer" style="position: relative; left: -10%;">
+            <iframe 
+                src="https://www.youtube.com/embed/videoseries?list=PLPEwKpHq_H2BL9g_jouctgOf2PMGzix4M"
+                frameborder="0" allow="autoplay; encrypted-media" allowfullscreen>
+            </iframe>
+        </div>
+    </div>
 
-    <!-- Logo Container -->
-	                <table id="finTable">
-                    <tr>
-                        <th style="width: 80%;">	<div id="logoContainer" style="text-align: center; margin-top: 20px; margin-left: -120px;">
-							<img src="logosahp.png" alt="Logo" id="logo" style="width: 10%; height: auto;"></div></th>
-
-                    </tr>
-                </table>
             </div>
             <div id="finesListContainer" style="pointer-events: none;">
                 <div id="finesListContainer_title">Auflistung der zu vergebenen Geldstrafen</div>
