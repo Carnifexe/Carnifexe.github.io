@@ -1007,39 +1007,45 @@ select {
     width: 10vw;
 }
 
-.dots-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    width: 100%;
-    padding-top: 10px;
-  }
-
-  .dot {
-    height: 20px;
-    width: 20px;
-    margin-right: 10px;
-    border-radius: 10px;
+.five-pointed-star {
+    width: 28px;
+    height: 28px;
     background-color: #ffff00;
-    animation: pulse 1.5s infinite ease-in-out;
-  }
-  
-  .dot:last-child {
-    margin-right: 0;
-  }
-  
-  .dot:nth-child(1) {
-    animation-delay: -0.3s;
-  }
-  
-  .dot:nth-child(2) {
-    animation-delay: -0.1s;
-  }
-  
-  .dot:nth-child(3) {
-    animation-delay: 0.1s;
-  }
+    clip-path: polygon(
+        50% 0%, 61% 35%, 98% 35%, 
+        68% 57%, 79% 91%, 50% 70%, 
+        21% 91%, 32% 57%, 2% 35%, 39% 35%
+    );
+    display: inline-block;
+    margin: 10px;
+    animation: blink 0.5s infinite alternate;
+}
+
+/* Unterschiedliche Blinkzeiten für jeden Stern */
+.five-pointed-star:nth-child(1) {
+    animation-delay: 0s;
+}
+.five-pointed-star:nth-child(2) {
+    animation-delay: 0.3s;
+}
+.five-pointed-star:nth-child(3) {
+    animation-delay: 0.6s;
+}
+.five-pointed-star:nth-child(4) {
+    animation-delay: 0.9s;
+}
+.five-pointed-star:nth-child(5) {
+    animation-delay: 1.2s;
+}
+
+@keyframes blink {
+    0% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.3;
+    }
+}
   
   @keyframes pulse {
     0% {
