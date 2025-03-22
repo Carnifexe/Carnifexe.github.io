@@ -215,10 +215,10 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
             };
         });
     </script>
-    <div id="header" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; text-align: center; width: 100%; overflow-x: hidden; position: relative;">
+    <div id="header">
         <div id="credits">Weitergeführt von Maik Bosa und Moritz Yane vom SAHP</div>
 
-        <div style="position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px;">
+        <div id="sahp_container">
             <div id="sahp" style="font-size: 1.5em; font-weight: bold;">San Andreas Highway Patrol</div>
             
             <div id="logoContainer" style="text-align: center;">
@@ -226,8 +226,8 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
             </div>
         </div>
         
-        <div id="searchbar" style="flex-grow: 1; text-align: right;">
-            <input id="searchbar_input" oninput="JavaScript:searchFine()" type="text" placeholder="Nach einer Straftat suchen" style="width: 29.5%; padding: 8px; font-size: 1em;">
+        <div id="searchbar" style="flex-grow: 1;">
+            <input id="searchbar_input" oninput="JavaScript:searchFine()" type="text" placeholder="Nach einer Straftat suchen" style="width: 31.5%; font-size: 1em; margin-right: 6px;">
         </div>
     </div>
     
@@ -905,8 +905,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
         </div>
         <div id="results">
             <div id="resultsTitle">Ergebnis</div>
-            <div id="infoTitle"><span class="tooltip"><font color="ff0000" style="font-size: 15px; font-weight: 400;"><a>- Informationen -</a><span class="tooltip-text" style="font-size: 20px; font-weight: 400;">Bei den grauen Wanteds ist dem Officer das Strafmaß Freigestellt. Durch anklicken können diese ausgewählt werden. Bei gelben Wanteds ist dieses Festgelegt</span></font></span></div>
-
+            <div id="infoTitle">Bei den grauen Wanteds ist dem Officer das Strafmaß Freigestellt. Durch anklicken können diese ausgewählt werden. Bei gelben Wanteds ist dieses Festgelegt<b></div>
             <hr color="#121212">
             <div class="result" id="fineResult"><b>Geldstrafe:</b> $0</div>
             <div class="result" id="wantedsResult"><b>Wanteds:</b> 0</div>
@@ -917,7 +916,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
             <div id="checkbox">
                 <input id="checkbox_box" onchange="JavaScript:startCalculating(); playClickSound(); toggleCheckboxLabel('checkbox_box', 'checkbox_status');" type="checkbox" name="" checked>
 				<label for="checkbox_box">
-				<font id="checkboxfont1" style="line-height: 25px;">Kurzer Grund</font>
+				<span id="checkboxfont1" style="line-height: 25px;">Kurzer Grund</span>
 				<span id="checkbox_status" style="color: green;">An</span>
 				</label>
             </div>
@@ -975,33 +974,33 @@ function playbubbleSound() {
                 <div id="reue">
                     <input id="reue_box" onchange="JavaScript:startCalculating(); playClickSound(); toggleCheckboxLabel('reue_box', 'reue_status');" type="checkbox" name="">
                     <label for="reue_box">
-                        <font id="checkboxfont2" style="line-height: 25px;">§35 Abs. 1 Reue</font>
+                        <span id="checkboxfont2" style="line-height: 25px;">§35 Abs. 1 Reue</span>
 						<span id="reue_status" style="color: red;">Aus</span>
                         <br>
-						<span class="tooltip"><font color="ff0000" style="font-size: 15px; font-weight: 400;"><a>- INFORMATIONEN -</a><span class="tooltip-text" style="font-size: 20px; font-weight: 400;">Sollte ein Täter oder Mittäter Reue zeigen oder bei der Klärung seiner Tat mitwirken, so kann seine Gesamtstrafe seiner begangenen Taten um bis zu 2 Wanteds gemindert werden. Die Mindeststrafe von 1 Wanted muss gegeben sein und darf nicht durch die Reue unterschritten werden.
-						(Entfernt 2 Wanteds, 1 Wanted muss verbleiben gemäß StBG §35 - Reue)</span></font></span>
+						<span class="tooltip"><span color="ff0000" style="font-size: 15px; font-weight: 400; z-index: 100"><a>- INFORMATIONEN -</a><span class="tooltip-text" style="font-size: 20px; font-weight: 400; color: white;">Sollte ein Täter oder Mittäter Reue zeigen oder bei der Klärung seiner Tat mitwirken, so kann seine Gesamtstrafe seiner begangenen Taten um bis zu 2 Wanteds gemindert werden. Die Mindeststrafe von 1 Wanted muss gegeben sein und darf nicht durch die Reue unterschritten werden.
+						(Entfernt 2 Wanteds, 1 Wanted muss verbleiben gemäß StBG §35 - Reue)</span></span></span>
                     </label>
                 </div>
 				<div id="wiederholungstäter">
 					<input type="checkbox" id="wiederholungstäter_box" onchange="playClickSound(); toggleCheckboxLabel('wiederholungstäter_box', 'wiederholungstäter_status');">
 					<label for="wiederholungstäter_box">
-					<font id="checkboxfont3" style="line-height: 25px;">§25 Abs. 2 StVO Wiederholungstäter</font>
+					<span id="checkboxfont3" style="line-height: 25px;">§25 Abs. 2 StVO Wiederholungstäter</span>
 					<span id="wiederholungstäter_status" style="color: red;">Aus</span>
                         <br>
-						<span class="tooltip"><font color="red" style="font-size: 15px; font-weight: 400;">- INFORMATIONEN -<span class="tooltip-text" style="font-size: 20px; font-weight: 400;">Bei Wiederholungstaten kann die Exekutive eine Verdoppelung des Bußgeldes oder der Haftzeit vornehmen, sofern nicht von einer Besserung auszugehen ist.<br>Das selbe Strafmaß darf nicht älter als 7 Tage sein, um §25 Abs. 2. in Anspruch zu nehmen.</span></font></span>
+						<span class="tooltip"><span color="white" style="font-size: 15px; font-weight: 400; z-index: 100;">- INFORMATIONEN -<span class="tooltip-text" style="font-size: 20px; font-weight: 400; color: white;">Bei Wiederholungstaten kann die Exekutive eine Verdoppelung des Bußgeldes oder der Haftzeit vornehmen, sofern nicht von einer Besserung auszugehen ist.<br>Das selbe Strafmaß darf nicht älter als 7 Tage sein, um §25 Abs. 2. in Anspruch zu nehmen.</span></span></span>
 						</label>
 				</div>
                 <div id="systemfehler">
                     <input id="systemfehler_box" onchange="JavaScript:startCalculating(); playClickSound(); toggleCheckboxLabel('systemfehler_box', 'systemfehler_status');" type="checkbox" name="">
                     <label for="systemfehler_box">
-					<font id="checkboxfont4" style="line-height: 25px;">Systemfehler</font>
+					<span id="checkboxfont4" style="line-height: 25px;">Systemfehler</span>
 					<span id="systemfehler_status" style="color: red;">Aus</span>
 					</label>
                 </div>
                 <button id="showAttorneysButton" onclick="JavaScript:showAttorneys()">Anwaltsregister anzeigen</button>
                 <button id="showRightsButton" onclick="showRightsContainer()">Rechte Anzeigen</button>
 				<button id="resetButton" onclick="JavaScript:resetButton(); playbubbleSound();">Zurücksetzen</button>
-    <div id="controls" style="text-align: center; margin-top: 25,,px;">
+    <div id="controls" style="text-align: center; margin-top: 25px;">
         <div id="radioPlayer" style="position: relative; left: -10%;">
             <iframe 
                 src="https://www.youtube.com/embed/videoseries?list=PLPEwKpHq_H2BL9g_jouctgOf2PMGzix4M"
@@ -1056,10 +1055,7 @@ function playbubbleSound() {
 
                 </div>
             </div>
-    
 
-            
-           <div id="standartNotifications">
         </div>
     </div>
     <button class="help-button" onclick="window.open('https://github.com/Carnifexe/Carnifexe.github.io/blob/main/README.md')">

@@ -497,6 +497,7 @@ function resetButton() {
     /* document.getElementById("notepadArea_input").value = "" */
     
     document.getElementById("reue_box").checked = false
+    document.getElementById("wiederholungstäter_box").checked = false
     document.getElementById("systemfehler_box").checked = false
 
     startCalculating()
