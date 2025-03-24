@@ -272,7 +272,25 @@ body {
 
     transition: all 0.3s;
 }
+/* Paragraph */
+.categoryHeader .paragraph-header {
+    color: #FFFFFF !important; /* Weiß für den Text */
+}
 
+/* Straßenverkehrsordnung (StVO) */
+.categoryHeader .strafbestand-header {
+    color: var(--buttonhover); !important; /* Tomatenrot für den Text */
+}
+
+/* Haftstrafe */
+.categoryHeader .haftstrafe-header {
+    color: #FFFFFF !important; /* LimeGreen für den Text */
+}
+
+/* Bußgeld */
+.categoryHeader .bußgeld-header {
+    color: #FFFFFF !important; /* Gold für den Text */
+}
 .fine {
     transition: all 0.3s;
 }

@@ -239,18 +239,20 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
         <div id="fineslist">
             <table>
                 <tr id="finesHeader">
-                    <th style="width: 15%;">Paragraph</th>
+                    <th style="width: 15%;"></th>
                     <th style="width: 55%;">Strafbestand</th>
-                    <th style="width: 15%;">Haftstrafe</th>  
-                    <th style="width: 15%;">Bußgeld</th>
+                    <th style="width: 15%;"></th>  
+                    <th style="width: 15%;"></th>
                 </tr>
 <!-- Benachrichtigungs-Box -->
 <div id="notification"></div>
 
-                <tr class="categoryHeader">
-                    <th></th>
-                    <th>Straßenverkehrsordnung (StVO)</th>
-                </tr>
+<tr class="categoryHeader">
+    <th class="paragraph-header">Paragraph</th>
+    <th class="strafbestand">Straßenverkehrsordnung (StVO)</th>
+    <th class="haftstrafe-header">Haftstrafe</th>
+    <th class="bußgeld-header">Bußgeld</th>
+</tr>
 				<tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();" data-removedriverlicence="true" data-removeweaponlicence="false">
                     <td class="paragraph">StVO §2</td>
                     <td class="fineText">Gefährdung anderer Verkehrsteilnehmer</td>
@@ -414,8 +416,10 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                     <td class="fineAmount" data-fineamount="30000">$30.000</td>
                 </tr> -->
                 <tr class="categoryHeader">
-                    <th></th>
-                    <th>Psychische & Physische Integrität (StGB)</th>
+                    <th class="paragraph-header">Paragraph</th>
+                    <th class="strafbestand">Psychische & Physische Integrität (StGB)</th>
+					<th class="haftstrafe-header">Haftstrafe</th>
+					<th class="bußgeld-header">Bußgeld</th>
                 </tr>
                 <tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();">
                     <td class="paragraph">StGB §3.1</td>
@@ -538,8 +542,10 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                     <td class="fineAmount" data-fineamount="20000">$20.000 + pro ⭐ $5.000 </td>
                 </tr>
                 <tr class="categoryHeader">
-                    <th></th>
-                    <th>Wirtschaftskriminalität (StGB)</th>
+                    <th class="paragraph-header">Paragraph</th>
+                    <th class="strafbestand">Wirtschaftskriminalität (StGB)</th>
+					<th class="haftstrafe-header">Haftstrafe</th>
+					<th class="bußgeld-header">Bußgeld</th>
                 </tr>
                 <tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();">
                     <td class="paragraph">StGB §6 / §9</td>
@@ -608,8 +614,10 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                     <td class="fineAmount" data-fineamount="50000">$50.000</td>
                 </tr>
                 <tr class="categoryHeader">
-                    <th></th>
-                    <th>Umgang mit Beamten (StGB)</th>
+                    <th class="paragraph-header">Paragraph</th>
+                    <th class="strafbestand">Umgang mit Beamten (StGB)</th>
+					<th class="haftstrafe-header">Haftstrafe</th>
+					<th class="bußgeld-header">Bußgeld</th>
                 </tr>
                 <tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();">
                     <td class="paragraph">StGB §15.1</td>
@@ -678,8 +686,10 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                     <td class="fineAmount" data-fineamount="20000">$20.000</td>
                 </tr>
                 <tr class="categoryHeader">
-                    <th></th>
-                    <th>Waffengesetz (WaffG)</th>
+                    <th class="paragraph-header">Paragraph</th>
+                    <th class="strafbestand">Waffengesetz (WaffG)</th>
+					<th class="haftstrafe-header">Haftstrafe</th>
+					<th class="bußgeld-header">Bußgeld</th>
                 </tr>
                 <tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();" data-removedriverlicence="false" data-removeweaponlicence="false">
                     <td class="paragraph">WaffG §1</td>
@@ -712,8 +722,10 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                     <td class="fineAmount" data-fineamount="25000">$25.000</td>
                 </tr>
                 <tr class="categoryHeader">
-                    <th></th>
-                    <th>Sperrzonen / Absperrungen / Kapitalverbrechen (StGB)</th>
+                    <th class="paragraph-header">Paragraph</th>
+                    <th class="strafbestand">Sperrzonen / Absperrungen / Kapitalverbrechen (StGB)</th>
+					<th class="haftstrafe-header">Haftstrafe</th>
+					<th class="bußgeld-header">Bußgeld</th>
                 </tr>
                 <tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();" data-removedriverlicence="false" data-removeweaponlicence="false">
                     <td class="paragraph">StGB §17</td>
@@ -752,8 +764,10 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                     <td class="fineAmount" data-fineamount="25000">$25.000</td>
                 </tr>
                 <tr class="categoryHeader">
-                    <th></th>
-                    <th>Betäubungsmittelgesetz (BtMG)</th>
+                    <th class="paragraph-header">Paragraph</th>
+                    <th class="strafbestand">Betäubungsmittelgesetz (BtMG)</th>
+					<th class="haftstrafe-header">Haftstrafe</th>
+					<th class="bußgeld-header">Bußgeld</th>
                 </tr>
                 <tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();" data-removedriverlicence="false" data-removeweaponlicence="false">
                     <td class="paragraph">BtMG §2.1</td>
@@ -810,8 +824,10 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                     <td class="fineAmount" data-fineamount="25000">$25.000</td>
                 </tr>
                 <tr class="categoryHeader">
-                    <th></th>
-                    <th>Beamtendienstgesetzbuch (Nicht für den Streifendienst) (BDG)</th>
+                    <th class="paragraph-header">Paragraph</th>
+                    <th class="strafbestand">Beamtendienstgesetzbuch (Nicht für den Streifendienst) (BDG)</th>
+					<th class="haftstrafe-header">Haftstrafe</th>
+					<th class="bußgeld-header">Bußgeld</th>
                 </tr>
                 <tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();" data-removedriverlicence="false" data-removeweaponlicence="false">
                     <td class="paragraph">BDG §2</td>
@@ -892,8 +908,10 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                     <td class="fineAmount" data-fineamount="0">max. $50.000</td>
                 </tr>
                 <tr class="categoryHeader">
-                    <th></th>
-                    <th>Strafprozessordnung (StPO)</th>
+                    <th class="paragraph-header">Paragraph</th>
+                    <th class="strafbestand">Strafprozessordnung (StPO)</th>
+					<th class="haftstrafe-header">Haftstrafe</th>
+					<th class="bußgeld-header">Bußgeld</th>
                 </tr>
                 <tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();" data-removedriverlicence="false" data-removeweaponlicence="false">
                     <td class="paragraph">StPO §6</td>
