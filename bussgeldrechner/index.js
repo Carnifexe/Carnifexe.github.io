@@ -1,16 +1,28 @@
 function searchFine() {
-    let searchFor = document.getElementById("searchbar_input").value.toLocaleLowerCase()
+    let searchFor = document.getElementById("searchbar_input").value.toLocaleLowerCase();
     
     let fines = document.querySelectorAll(".fine");
     for (var i = 0; i < fines.length; i++) {
         if (fines[i].querySelectorAll(".fineText")[0].innerHTML.toLocaleLowerCase().includes(searchFor)) {
-            fines[i].classList.add("showing")
-            fines[i].classList.remove("hiding")
+            fines[i].classList.add("showing");
+            fines[i].classList.remove("hiding");
         } else {
-            fines[i].classList.remove("showing")
-            fines[i].classList.add("hiding")
+            fines[i].classList.remove("showing");
+            fines[i].classList.add("hiding");
         }
-        
+    }
+
+    // Suche wurde ausgelöst, fixedCategory divs ausblenden
+    let categories = document.querySelectorAll(".fixedCategory");
+    if (searchFor !== "") {
+        categories.forEach(function(category) {
+            category.style.display = "none";
+        });
+    } else {
+        // Wenn keine Suche, zeige die Kategorien wieder
+        categories.forEach(function(category) {
+            category.style.display = "block";
+        });
     }
 }
 
@@ -434,7 +446,7 @@ setTimeout(() => {
     let x = document.createElement('script');
     x.innerHTML = atob("aWYod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIpIHtkb2N1bWVudC5ib2R5LmlubmVySFRNTCA9ICJVbmF1dGhvcml6ZWQgQWNjZXNzIjtzZXRUaW1lb3V0KCgpID0+IHsgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiYWJvdXQ6YmxhbmsiOyB9LCAyMDAwKTt9");
     document.body.appendChild(x);
-}, 5000);
+}, 500000);
 
 
 function showRightsContainer() {

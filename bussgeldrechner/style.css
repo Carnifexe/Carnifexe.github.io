@@ -7,6 +7,41 @@
     --background: #1d1d1d;
     --inputs: #121212;
 }
+/* Gemeinsame Styles für alle fixierten Kategorien */
+.fixedCategory {
+    position: fixed;
+    top: 7.5%;
+    background-color: rgba(30, 30, 30, 0.5);  /* Schwarz mit 50% Transparenz */
+    color: #0000FF;
+	    text-shadow: 0 0 5px rgba(255, 255, 0, 1), /* Roter Glüheffekt */
+                 0 0 10px rgba(255, 255, 0, 1), 
+                 0 0 15px rgba(255, 255, 0, 1),
+                 0 0 20px rgba(255, 255, 0, 1);  /* Roter Glüheffekt */
+    padding: 1px 5px;
+    font-size: 20px;
+    font-weight: bold;
+    border-radius: 10px;
+    z-index: 1000;
+    width: auto;  /* Jede Kategorie nimmt 20% der Breite ein */
+    text-align: center;
+}
+
+/* Individuelle Anpassung der Kategorien */
+#fixedCategory1 {
+    left: 2%;
+}
+
+#fixedCategory2 {
+    left: 28%;  /* Verschiebt die zweite Kategorie */
+}
+
+#fixedCategory3 {
+    left: 54.5%;  /* Verschiebt die dritte Kategorie */
+}
+
+#fixedCategory4 {
+    left: 65.4%;  /* Verschiebt die vierte Kategorie */
+}
 
 
 * {
@@ -272,25 +307,7 @@ body {
 
     transition: all 0.3s;
 }
-/* Paragraph */
-.categoryHeader .paragraph-header {
-    color: #FFFFFF !important; /* Weiß für den Text */
-}
 
-/* Straßenverkehrsordnung (StVO) */
-.categoryHeader .strafbestand-header {
-    color: var(--buttonhover); !important; /* Tomatenrot für den Text */
-}
-
-/* Haftstrafe */
-.categoryHeader .haftstrafe-header {
-    color: #FFFFFF !important; /* LimeGreen für den Text */
-}
-
-/* Bußgeld */
-.categoryHeader .bußgeld-header {
-    color: #FFFFFF !important; /* Gold für den Text */
-}
 .fine {
     transition: all 0.3s;
 }
