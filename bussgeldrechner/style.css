@@ -25,7 +25,11 @@
     width: auto;  /* Jede Kategorie nimmt 20% der Breite ein */
     text-align: center;
 }
-
+#top {
+  position: fixed;
+  top: 0;
+  z-index: 1000; /* stellt sicher, dass der Header über anderem Inhalt bleibt */
+}
 /* Individuelle Anpassung der Kategorien */
 #fixedCategory1 {
     left: 2%;
