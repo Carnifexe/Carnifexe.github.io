@@ -191,9 +191,9 @@ for (var i = 0; i < fineCollection.length; i++) {
         cache_wanted_amount = parseInt(fineCollection[i].querySelector(".wantedAmount").getAttribute("data-wantedamount")) || 0;
     }
 
-    if (isStVO) {
+    //if (isStVO) {
         cache_wanted_amount += extraWantedCount;
-    }
+    //}
 
     if (cache_fine_amount > 50000) cache_fine_amount = 50000;
 	if (cache_wanted_amount > 5) cache_wanted_amount = 5;
