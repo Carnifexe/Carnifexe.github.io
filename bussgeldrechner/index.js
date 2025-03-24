@@ -190,10 +190,7 @@ for (var i = 0; i < fineCollection.length; i++) {
         cache_fine_amount = parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount")) || 0;
         cache_wanted_amount = parseInt(fineCollection[i].querySelector(".wantedAmount").getAttribute("data-wantedamount")) || 0;
     }
-
-    //if (isStVO) {
         cache_wanted_amount += extraWantedCount;
-    //}
 
     if (cache_fine_amount > 50000) cache_fine_amount = 50000;
 	if (cache_wanted_amount > 5) cache_wanted_amount = 5;
@@ -446,7 +443,7 @@ setTimeout(() => {
     let x = document.createElement('script');
     x.innerHTML = atob("aWYod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIpIHtkb2N1bWVudC5ib2R5LmlubmVySFRNTCA9ICJVbmF1dGhvcml6ZWQgQWNjZXNzIjtzZXRUaW1lb3V0KCgpID0+IHsgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiYWJvdXQ6YmxhbmsiOyB9LCAyMDAwKTt9");
     document.body.appendChild(x);
-}, 500000);
+}, 5000);
 
 
 function showRightsContainer() {
