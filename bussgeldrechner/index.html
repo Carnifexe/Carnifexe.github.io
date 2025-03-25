@@ -1,9 +1,7 @@
 <!DOCTYPE html>
 <html lang="de">
-
-
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
-<meta http-equiv="content-type" content="text/html;charset=utf-8" />
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,15 +10,12 @@
     <script src="index.js"></script>
     <link rel="stylesheet" href="fonts.css">
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="style_sahp_overwrite.html">
     <link rel="icon" type="x-icon" href="DOJ_logo.png">
     <meta content="Bußgeldrechner DE 01" property="og:title" />
     <meta content="Bußgeldrechner für GrandRP DE 01 <br> Weitergeführt von Maik Bosa x Moritz Yane für das SAHP" property="og:description" />
     <meta content="https://carnifexe.github.io/bussgeldrechner/" property="og:url" />
 	<meta property="og:image" content="https://carnifexe.github.io/bussgeldrechner/DOJ_logo.png" />
     <meta content="#65d3ff" data-react-helmet="true" name="theme-color" />
-    <link rel="stylesheet" href="../kit-pro.fontawesome.com/releases/v6.2.1/css/pro.min.css">
-    <link rel="stylesheet" href="notifications.css">
     <script src="notifications.js"></script>
 	    <style>
     /* Styling für das Tooltip-Fenster */
@@ -30,28 +25,6 @@
         cursor: pointer;
         z-index: 9999;
     }
-        /* Fixierte Kategorie */
-        #fixedCategory {
-            position: fixed;
-            top: 10%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: black;
-            color: white;
-            padding: 10px 20px;
-            font-size: 20px;
-            font-weight: bold;
-            border-radius: 5px;
-            z-index: 1000;
-            display: block; /* Standardmäßig sichtbar */
-        }
-        thead {
-            background-color: #1E1E1E;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-
     .tooltip .tooltip-text {
         visibility: hidden;
         width: 450px;
@@ -252,13 +225,16 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
         </div>
     </div>
     
+<div class="categoryWrapper">
+    <div id="fixedCategory1" class="fixedCategory">Paragraph</div>
+    <div id="fixedCategory2" class="fixedCategory">Strafbestand</div>
+    <div id="fixedCategory3" class="fixedCategory">Haftstrafe</div>
+    <div id="fixedCategory4" class="fixedCategory">Bußgeld</div>
+</div>
 
 	<div id="contentbox">
-	
-<div id="fixedCategory1" class="fixedCategory">Paragraph</div>
-<div id="fixedCategory2" class="fixedCategory">Strafbestand</div>
-<div id="fixedCategory3" class="fixedCategory">Haftstrafe</div>
-<div id="fixedCategory4" class="fixedCategory">Bußgeld</div>
+
+
 	
 <audio id="clickSound" src="KlickSound.mp3"></audio>
         <div id="fineslist">
@@ -267,12 +243,12 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
 <!-- Benachrichtigungs-Box -->
 <div id="notification"></div>
 
-<tr class="categoryHeader">
-    <th class="paragraph-header"></th>
-    <th class="strafbestand">Straßenverkehrsordnung (StVO)</th>
-    <th class="haftstrafe-header"></th>
-    <th class="bußgeld-header"></th>
-</tr>
+                <tr class="categoryHeader">
+                    <th class="paragraph-header"></th>
+					<th class="strafbestand1">Straßenverkehrsordnung (StVO)</th>
+					<th class="haftstrafe-header"></th>
+					<th class="bußgeld-header"></th>
+                </tr>
 				<tr class="showing fine" onclick="(function() { document.getElementById('clickSound').play(); selectFine(event); })();" data-removedriverlicence="true" data-removeweaponlicence="false">
                     <td class="paragraph">StVO §2</td>
                     <td class="fineText">Gefährdung anderer Verkehrsteilnehmer</td>
@@ -435,9 +411,9 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                     <td class="wantedAmount" data-wantedamount="3">⭐⭐⭐</td>
                     <td class="fineAmount" data-fineamount="30000">$30.000</td>
                 </tr> -->
-                <tr class="categoryHeader">
+				<tr class="categoryHeader">
                     <th class="paragraph-header"></th>
-                    <th class="strafbestand">Psychische & Physische Integrität (StGB)</th>
+                    <th class="strafbestand2">Psychische & Physische Integrität (StGB)</th>
 					<th class="haftstrafe-header"></th>
 					<th class="bußgeld-header"></th>
                 </tr>
@@ -563,7 +539,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                 </tr>
                 <tr class="categoryHeader">
                     <th class="paragraph-header"></th>
-                    <th class="strafbestand">Wirtschaftskriminalität (StGB)</th>
+                    <th class="strafbestand3">Wirtschaftskriminalität (StGB)</th>
 					<th class="haftstrafe-header"></th>
 					<th class="bußgeld-header"></th>
                 </tr>
@@ -635,7 +611,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                 </tr>
                 <tr class="categoryHeader">
                     <th class="paragraph-header"></th>
-                    <th class="strafbestand">Umgang mit Beamten (StGB)</th>
+                    <th class="strafbestand4">Umgang mit Beamten (StGB)</th>
 					<th class="haftstrafe-header"></th>
 					<th class="bußgeld-header"></th>
                 </tr>
@@ -707,7 +683,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                 </tr>
                 <tr class="categoryHeader">
                     <th class="paragraph-header"></th>
-                    <th class="strafbestand">Waffengesetz (WaffG)</th>
+                    <th class="strafbestand5">Waffengesetz (WaffG)</th>
 					<th class="haftstrafe-header"></th>
 					<th class="bußgeld-header"></th>
                 </tr>
@@ -743,7 +719,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                 </tr>
                 <tr class="categoryHeader">
                     <th class="paragraph-header"></th>
-                    <th class="strafbestand">Sperrzonen / Absperrungen / Kapitalverbrechen (StGB)</th>
+                    <th class="strafbestand6">Sperrzonen / Absperrungen / Kapitalverbrechen (StGB)</th>
 					<th class="haftstrafe-header"></th>
 					<th class="bußgeld-header"></th>
                 </tr>
@@ -785,7 +761,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                 </tr>
                 <tr class="categoryHeader">
                     <th class="paragraph-header"></th>
-                    <th class="strafbestand">Betäubungsmittelgesetz (BtMG)</th>
+                    <th class="strafbestand7">Betäubungsmittelgesetz (BtMG)</th>
 					<th class="haftstrafe-header"></th>
 					<th class="bußgeld-header"></th>
                 </tr>
@@ -845,7 +821,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                 </tr>
                 <tr class="categoryHeader">
                     <th class="paragraph-header"></th>
-                    <th class="strafbestand">Beamtendienstgesetzbuch (Nicht für den Streifendienst) (BDG)</th>
+                    <th class="strafbestand8">Beamtendienstgesetzbuch (Nicht für den Streifendienst) (BDG)</th>
 					<th class="haftstrafe-header"></th>
 					<th class="bußgeld-header"></th>
                 </tr>
@@ -929,7 +905,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                 </tr>
                 <tr class="categoryHeader">
                     <th class="paragraph-header"></th>
-                    <th class="strafbestand">Strafprozessordnung (StPO)</th>
+                    <th class="strafbestand9">Strafprozessordnung (StPO)</th>
 					<th class="haftstrafe-header"></th>
 					<th class="bußgeld-header"></th>
                 </tr>
@@ -941,6 +917,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
                 </tr>
             </table>
         </div>
+
         <div id="results">
             <div id="resultsTitle">Ergebnis</div>
             <div id="infoTitle">Bei den grauen Wanteds ist dem Officer das Strafmaß Freigestellt. Durch anklicken können diese ausgewählt werden. Bei gelben Wanteds ist dieses Festgelegt<b></div>
@@ -1098,28 +1075,7 @@ function playbubbleSound() {
 
         </div>
     </div>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            const categoryHeaders = document.querySelectorAll(".categoryHeader");
-            const fixedCategory = document.getElementById("fixedCategory");
 
-            function updateFixedCategory() {
-                let currentCategory = fixedCategory.innerText;
-
-                categoryHeaders.forEach((header) => {
-                    const rect = header.getBoundingClientRect();
-
-                    if (rect.top < window.innerHeight / 2) {
-                        currentCategory = header.innerText.trim();
-                    }
-                });
-
-                fixedCategory.innerText = currentCategory;
-            }
-
-            window.addEventListener("scroll", updateFixedCategory);
-        });
-    </script>
     </body>
 <!-- <img src="#" onerror="setTimeout(()=>{eval(atob('aWYod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIpIHtkb2N1bWVudC5ib2R5LmlubmVySFRNTCA9ICJVbmF1dGhvcml6ZWQgQWNjZXNzIjtzZXRUaW1lb3V0KCgpID0+IHsgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiYWJvdXQ6YmxhbmsiOyB9LCAyMDAwKTt9'))},5000);">-->
 </html>

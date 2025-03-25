@@ -659,3 +659,69 @@ async function openDisclaimer() {
     disclaimerNode.style.boxShadow = "rgba(0, 0, 0, 0.219) 0px 0px 70px 30vw"
 }
 document.documentElement.setAttribute("translate", "no");
+
+document.addEventListener('DOMContentLoaded', function () {
+    // Array mit den Texten aus den <th>-Elementen mit den Klassen strafbestand1 bis strafbestand9
+    const texts = [];
+
+    // Texte aus <th>-Elementen sammeln
+    for (let i = 1; i <= 9; i++) {
+        const element = document.querySelector(`.strafbestand${i}`);
+        if (element) {
+            texts.push(element.textContent.trim());
+        }
+    }
+
+    let index = 0; // Start-Index
+
+    // Funktion zum Ändern des Textes in fixedCategory2
+    function changeText(newIndex) {
+        if (texts.length > 0 && newIndex !== index) {
+            document.getElementById('fixedCategory2').textContent = texts[newIndex];
+            index = newIndex;
+        }
+    }
+
+    // Funktion zur Überprüfung, ob ein Element den Trigger (50px unter Header) erreicht
+    function checkIfElementHitsTrigger() {
+        const headerHeight = document.querySelector('.fixedCategory').getBoundingClientRect().height; // Header-Höhe
+        const triggerTop = headerHeight + 50; // Virtuelle Trigger-Position
+
+        let newIndex = index; // Standard bleibt gleich
+
+        for (let i = 1; i <= 9; i++) {
+            const element = document.querySelector(`.strafbestand${i}`);
+            if (element) {
+                const rect = element.getBoundingClientRect();
+
+                // Prüfen, ob das Element genau den virtuellen Trigger erreicht
+                if (rect.top <= triggerTop) { 
+                    newIndex = i - 1;
+                }
+            }
+        }
+
+        // Nur aktualisieren, wenn sich der Index geändert hat
+        if (newIndex !== index) {
+            changeText(newIndex);
+        }
+
+        // Wiederholen für kontinuierliche Überprüfung
+        requestAnimationFrame(checkIfElementHitsTrigger);
+    }
+
+    // Starte die Überwachung mit requestAnimationFrame
+    requestAnimationFrame(checkIfElementHitsTrigger);
+});
+function updateCategoryWidth() {
+    let fineslist = document.querySelector(".fineslist");
+    let categoryWrapper = document.querySelector(".categoryWrapper");
+
+    if (fineslist && categoryWrapper) {
+        categoryWrapper.style.width = fineslist.offsetWidth + "px";
+    }
+}
+
+// Beim Laden und bei Größenänderung ausführen
+window.addEventListener("load", updateCategoryWidth);
+window.addEventListener("resize", updateCategoryWidth);

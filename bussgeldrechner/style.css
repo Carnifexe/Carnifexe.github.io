@@ -8,40 +8,37 @@
     --inputs: #121212;
 }
 /* Gemeinsame Styles für alle fixierten Kategorien */
-.fixedCategory {
+.categoryWrapper {
     position: fixed;
-    top: 7.5%;
-    background-color: rgba(30, 30, 30, 0.5);  /* Schwarz mit 50% Transparenz */
-    color: #0000FF;
-	    text-shadow: 0 0 5px rgba(255, 255, 0, 1), /* Roter Glüheffekt */
-                 0 0 10px rgba(255, 255, 0, 1), 
-                 0 0 15px rgba(255, 255, 0, 1),
-                 0 0 20px rgba(255, 255, 0, 1);  /* Roter Glüheffekt */
-    padding: 1px 5px;
-    font-size: 20px;
-    font-weight: bold;
-    border-radius: 10px;
+    top: 6.5%;
+    left: 13px;
+    width: 74%;
+    display: flex;
+    background-color: var(--background);
     z-index: 1000;
-    width: auto;  /* Jede Kategorie nimmt 20% der Breite ein */
+	border-top-left-radius: 10px; /* Linke obere Ecke abrunden */
+    border-top-right-radius: 10px; /* Rechte obere Ecke abrunden */
+    overflow: hidden; /* Verhindert, dass Kindelemente aus den abgerundeten Ecken herausragen */
+}
+
+.fixedCategory {
+	color: var(--buttonhover);
+	font-size: 20px;
+    flex: 1;
     text-align: center;
-}
-/* Individuelle Anpassung der Kategorien */
-#fixedCategory1 {
-    left: 2%;
-}
-
-#fixedCategory2 {
-    left: 28%;  /* Verschiebt die zweite Kategorie */
+    font-weight: bold;
+    padding: 22.4px 1px;
+    background-color: inherit;
 }
 
-#fixedCategory3 {
-    left: 54.5%;  /* Verschiebt die dritte Kategorie */
-}
+#fixedCategory1 { flex-basis: 8%; }  /* Mehr Platz für Paragraph */
+#fixedCategory2 { flex-basis: 62%; }  /* Weniger Platz für Strafbestand */
+#fixedCategory3 { flex-basis: 8%; }  /* Mittel für Haftstrafe */
+#fixedCategory4 { flex-basis: 20%; }  /* Mehr Platz für Bußgeld */
 
-#fixedCategory4 {
-    left: 65.4%;  /* Verschiebt die vierte Kategorie */
+th.strafbestand1 {
+    visibility: hidden; /* Macht das ganze th unsichtbar, aber der Platz bleibt belegt */
 }
-
 
 * {
     font-family: ProximaNova, sans-serif;
@@ -430,7 +427,7 @@ body {
 }
 
 #plateInput_input {
-    width: 70%;
+    width: 77.5%;
     height: 3vh;
     background-color: var(--inputs);
     border: none;
@@ -449,7 +446,7 @@ body {
 }
 
 #blitzerInput_input {
-    width: 70%;
+    width: 77.5%;
     height: 3vh;
     background-color: var(--inputs);
     border: none;
@@ -468,7 +465,7 @@ body {
 }
 
 #systemwantedsInput_input {
-    width: 70%;
+    width: 77.5%;
     height: 3vh;
     background-color: var(--inputs);
     border: none;
@@ -701,7 +698,7 @@ body {
 }
 
 #übergabeInput_input {
-    width: 70%;
+    width: 77.5%;
     height: 3vh;
     background-color: var(--inputs);
     border: none;
@@ -750,7 +747,7 @@ body {
 }
 
 #notepadArea textarea {
-    width: 70%;
+    width: 77.5%;
     background-color: var(--inputs);
     border: none;
     border-radius: 5px;
@@ -797,7 +794,7 @@ select {
     border-radius: 5px;
     font-size: 1.5vh;
 
-    width: 70%;
+    width: 77.5%;
     height: 3vh;
 
     margin-top: 1vh;
