@@ -713,15 +713,66 @@ document.addEventListener('DOMContentLoaded', function () {
     // Starte die Überwachung mit requestAnimationFrame
     requestAnimationFrame(checkIfElementHitsTrigger);
 });
-function updateCategoryWidth() {
-    let fineslist = document.querySelector(".fineslist");
-    let categoryWrapper = document.querySelector(".categoryWrapper");
+function updateCategorySize() {
+    let titleContainer = document.querySelector("#finesListContainer_title");
+    let fixedCategories = document.querySelectorAll(".fixedcategory");
 
-    if (fineslist && categoryWrapper) {
-        categoryWrapper.style.width = fineslist.offsetWidth + "px";
+    // Get the corresponding <td> elements by class
+    let paragraphCell = document.querySelector(".paragraph");
+    let fineTextCell = document.querySelector(".fineText");
+    let wantedAmountCell = document.querySelector(".wantedAmount");
+    let fineAmountCell = document.querySelector(".fineAmount");
+
+    // Get the categoryWrapper element to extract the font size
+    let categoryWrapper = document.querySelector(".categoryWrapper");
+    let categoryFontSize = categoryWrapper ? window.getComputedStyle(categoryWrapper).fontSize : 'initial';
+
+    if (titleContainer && fixedCategories.length) {
+        // Get the height and margin for title container
+        let titleStyles = window.getComputedStyle(titleContainer);
+        let titleHeight = titleContainer.offsetHeight;
+        let marginLeft = parseFloat(titleStyles.marginLeft);
+
+        // Map each fixed category to its corresponding td width
+        fixedCategories.forEach((category, index) => {
+            let tdWidth = 0;
+
+            // Match each fixed category with its corresponding td
+            switch (index) {
+                case 0:
+                    if (paragraphCell) {
+                        tdWidth = paragraphCell.offsetWidth;
+                    }
+                    break;
+                case 1:
+                    if (fineTextCell) {
+                        tdWidth = fineTextCell.offsetWidth;
+                    }
+                    break;
+                case 2:
+                    if (wantedAmountCell) {
+                        tdWidth = wantedAmountCell.offsetWidth;
+                    }
+                    break;
+                case 3:
+                    if (fineAmountCell) {
+                        tdWidth = fineAmountCell.offsetWidth;
+                    }
+                    break;
+            }
+
+            // Set width, height, and font size for each category
+            category.style.width = `${tdWidth}px`;
+            category.style.height = `${titleHeight}px`;
+            category.style.fontSize = categoryFontSize;  // Set font size from categoryWrapper
+
+            // Set the position of the category
+            let titleLeft = titleContainer.getBoundingClientRect().left + marginLeft;
+            category.style.left = `${titleLeft}px`;
+        });
     }
 }
 
-// Beim Laden und bei Größenänderung ausführen
-window.addEventListener("load", updateCategoryWidth);
-window.addEventListener("resize", updateCategoryWidth);
+// Event listeners for resize and load
+window.addEventListener("resize", updateCategorySize);
+window.addEventListener("load", updateCategorySize);

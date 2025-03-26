@@ -7,18 +7,18 @@
     --background: #1d1d1d;
     --inputs: #121212;
 }
-/* Gemeinsame Styles für alle fixierten Kategorien */
+
 .categoryWrapper {
-    position: fixed;
-    top: 6.5%;
-    left: 13px;
-    width: 74%;
+    position: sticky;
+    top: 0%;
+    left: 8px;
+    width: 100%;
     display: flex;
     background-color: var(--background);
-    z-index: 1000;
-	border-top-left-radius: 10px; /* Linke obere Ecke abrunden */
-    border-top-right-radius: 10px; /* Rechte obere Ecke abrunden */
-    overflow: hidden; /* Verhindert, dass Kindelemente aus den abgerundeten Ecken herausragen */
+    z-index: 999;
+	border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    overflow: hidden;
 }
 
 .fixedCategory {
@@ -27,17 +27,42 @@
     flex: 1;
     text-align: center;
     font-weight: bold;
-    padding: 22.4px 1px;
+    padding: 20.4px 1px;
+	border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
     background-color: inherit;
 }
 
-#fixedCategory1 { flex-basis: 8%; }  /* Mehr Platz für Paragraph */
-#fixedCategory2 { flex-basis: 62%; }  /* Weniger Platz für Strafbestand */
-#fixedCategory3 { flex-basis: 8%; }  /* Mittel für Haftstrafe */
-#fixedCategory4 { flex-basis: 20%; }  /* Mehr Platz für Bußgeld */
+#fixedCategory1 {
+	position: sticky;
+	flex-basis: 8%;
+	z-index: 10;
+	left: 0;
+}
+
+#fixedCategory2 {
+	position: sticky;
+	flex-basis: 62%; 
+	left: 100px;
+	z-index: 9;
+}
+
+#fixedCategory3 {
+	position: sticky;
+	left: 200px;
+	flex-basis: 8%; 
+	z-index: 8;
+}
+
+#fixedCategory4 {
+	position: sticky;
+	flex-basis: 20%;
+	left: 300px;
+	z-index: 7;
+}
 
 th.strafbestand1 {
-    visibility: hidden; /* Macht das ganze th unsichtbar, aber der Platz bleibt belegt */
+    visibility: hidden;
 }
 
 * {
@@ -256,7 +281,63 @@ body {
     overflow: hidden;
     overflow-y: scroll;
 }
+finesListContainer {
+    width: 50%;
+    height: 50%;
 
+    position: fixed;
+    z-index: 2;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+
+    background-color: var(--background);
+    box-shadow: 0px 0px 10px black;
+
+    border-radius: 16px;
+
+    overflow-y: scroll;
+
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+#fineListContainer[data-showing="true"] {
+    opacity: 1;
+}
+
+#finesListContainer::-webkit-scrollbar {
+    display: none;
+}
+
+#finesListContainer_title {
+    width: 100%;
+    color: white;
+    text-align: center;
+
+    padding-top: 5px;
+    font-size: 25px;
+    font-weight: 600;
+}
+
+#finesListContainer table {
+    position: relative;
+    width: 95%;
+    margin-top: 10px;
+    left: 2.5%;
+    border-spacing: 3px;
+
+    color: white;
+    text-align: center;
+}
+
+#finesListContainer table tr th {
+    color: white;
+}
+
+.finesList_fine {
+    background-color: var(--inputs);
+}
 #fineslist::-webkit-scrollbar {
     display: none;
 }
@@ -277,7 +358,13 @@ body {
 
     padding-bottom: 30px;
 }
-
+#fineslist {
+    background-color: var(--background);
+    border-radius: 10px;
+    margin: 1vh;
+    overflow: hidden;
+    overflow-y: scroll;
+}
 #fineslist table {
     overflow: hidden;
 
@@ -361,7 +448,7 @@ body {
     border: 2px solid #ccc; /* Optionale Umrandung */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Leichter Schatten */
     padding: 20px; /* Innenabstand */
-    z-index: 1000; /* Sicherstellen, dass es über anderen Elementen liegt */
+    z-index: 9999; /* Sicherstellen, dass es über anderen Elementen liegt */
     text-align: center; /* Text zentrieren */
     width: 50%; /* Optionale Breite */
     max-width: 600px; /* Maximale Breite */
@@ -971,7 +1058,7 @@ select {
     left: 50%;
     max-width: 35vw;
 
-    z-index: 100;
+    z-index: 9999;
 
     background-color: #0e0e0e;
     border-radius: 15px;
