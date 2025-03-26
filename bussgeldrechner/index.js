@@ -362,7 +362,7 @@ document.getElementById("wiederholungstäter_box").addEventListener("change", st
         reasonText += ` - StGB §35`
     }
     if (document.getElementById("wiederholungstäter_box").checked) {
-        reasonText += ` - StGB §25`
+        reasonText += ` - StVO §25`
     }
     if (document.getElementById("systemfehler_box").checked) {
         reasonText += ` - Systemfehler`
@@ -443,7 +443,7 @@ setTimeout(() => {
     let x = document.createElement('script');
     x.innerHTML = atob("aWYod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIpIHtkb2N1bWVudC5ib2R5LmlubmVySFRNTCA9ICJVbmF1dGhvcml6ZWQgQWNjZXNzIjtzZXRUaW1lb3V0KCgpID0+IHsgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiYWJvdXQ6YmxhbmsiOyB9LCAyMDAwKTt9");
     document.body.appendChild(x);
-}, 5000);
+}, 500000);
 
 
 function showRightsContainer() {
