@@ -443,7 +443,7 @@ setTimeout(() => {
     let x = document.createElement('script');
     x.innerHTML = atob("aWYod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIpIHtkb2N1bWVudC5ib2R5LmlubmVySFRNTCA9ICJVbmF1dGhvcml6ZWQgQWNjZXNzIjtzZXRUaW1lb3V0KCgpID0+IHsgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiYWJvdXQ6YmxhbmsiOyB9LCAyMDAwKTt9");
     document.body.appendChild(x);
-}, 5000);
+}, 500000);
 
 
 function showRightsContainer() {
@@ -777,51 +777,92 @@ function updateCategorySize() {
 window.addEventListener("resize", updateCategorySize);
 window.addEventListener("load", updateCategorySize);
 
+
 function showCustomAlert() {
-    // Erstelle das Alert-Element
-    const alertDiv = document.createElement('div');
-    alertDiv.className = 'custom-alert';
-    alertDiv.innerHTML = `
-        <h2>⚠️ DU SCHLINGEL! ⚠️</h2>
-        <p>Das war nicht erlaubt!</p>
-        <div style="font-size: 1.8rem; margin-top: 30px;">Weiterleitung in 5 Sekunden...</div>
-    `;
+    // Video-Element erstellen
+    const video = document.createElement('video');
+    video.src = 'idiot3.mp4';
+    video.autoplay = true;
+    video.loop = true;
+    video.controls = false;
+    video.style.position = 'fixed';
+    video.style.top = '50%';
+    video.style.left = '50%';
+    video.style.transform = 'translate(-50%, -50%)';
+    video.style.width = '80vw';
+    video.style.maxWidth = '800px';
+    video.style.zIndex = '99999';
+    video.style.boxShadow = '0 0 50px red';
+    video.style.borderRadius = '15px';
+    video.style.border = '5px solid red';
     
-    document.body.appendChild(alertDiv);
+    // Wackel-Animation
+    video.style.animation = 'wackeln 0.15s infinite';
+    
+    document.body.appendChild(video);
     document.body.style.overflow = 'hidden';
 
-    // Sound-Dateien
+    // Wackel-Keyframes
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes wackeln {
+            0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+            25% { transform: translate(-50%, -50%) rotate(-5deg) scale(1.05); }
+            50% { transform: translate(-50%, -50%) rotate(5deg) scale(0.95); }
+            75% { transform: translate(-50%, -50%) rotate(-3deg) scale(1.02); }
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Zwei Sounds abwechselnd abspielen
     const sound1 = new Audio('dfunk2.mp3');
     const sound2 = new Audio('dfunk.mp3');
     [sound1, sound2].forEach(s => s.volume = 1.0);
 
-    // Soundwechsel-Funktion
     let currentSound = 0;
     const playAlternatingSounds = () => {
         const sounds = [sound1, sound2];
         sounds[currentSound].play().catch(e => console.error("Audiofehler:", e));
-        currentSound = (currentSound + 1) % 2; // Wechsel zwischen 0 und 1
+        currentSound = (currentSound + 1) % 2;
     };
 
-    // Sound-Intervall starten (alle 800ms wechseln)
     const soundInterval = setInterval(playAlternatingSounds, 800);
-    playAlternatingSounds(); // Sofort ersten Sound abspielen
+    playAlternatingSounds();
 
-    // Countdown
+    // Countdown-Overlay
+    const countdownDiv = document.createElement('div');
+    countdownDiv.style.position = 'fixed';
+    countdownDiv.style.bottom = '20px';
+    countdownDiv.style.left = '50%';
+    countdownDiv.style.transform = 'translateX(-50%)';
+    countdownDiv.style.color = 'white';
+    countdownDiv.style.fontSize = '2rem';
+    countdownDiv.style.textShadow = '0 0 10px black';
+    countdownDiv.style.zIndex = '100000';
+    countdownDiv.style.fontWeight = 'bold';
+    countdownDiv.style.backgroundColor = 'rgba(255,0,0,0.5)';
+    countdownDiv.style.padding = '10px 20px';
+    countdownDiv.style.borderRadius = '10px';
+    countdownDiv.textContent = 'WEITERLEITUNG IN 5 SEKUNDEN...';
+    document.body.appendChild(countdownDiv);
+
     let seconds = 5;
     const countdown = setInterval(() => {
         seconds--;
-        alertDiv.querySelector('div').textContent = `Weiterleitung in ${seconds} Sekunden...`;
+        countdownDiv.textContent = `WEITERLEITUNG IN ${seconds} SEKUNDEN...`;
     }, 1000);
 
     // Weiterleitung nach 5 Sekunden
     setTimeout(() => {
         clearInterval(countdown);
         clearInterval(soundInterval);
-        alertDiv.style.opacity = '0';
+        video.style.transition = 'all 0.5s';
+        video.style.opacity = '0';
+        video.style.transform = 'translate(-50%, -50%) scale(0.5)';
+        countdownDiv.style.opacity = '0';
         setTimeout(() => {
             window.location.href = 'https://www.google.de/search?q=you%27re+an+idiot...';
-        }, 300);
+        }, 500);
     }, 5000);
 }
 
