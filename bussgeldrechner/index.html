@@ -209,21 +209,6 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
             };
         });
     </script>
-<script type="text/javascript" language="JavaScript">
-document.onkeydown = function(event) {
-    var key = event.keyCode ? event.keyCode : event.charCode ? event.charCode : false;
- 
-    if ((key == 123) || ((event.ctrlKey) && (key == 85))) {
-        event.preventDefault();
-        event.stopPropagation();
-        alert("Du Schlingel!");
-		location.href='https://www.hilfe-tricks-tipps.de/faq.php'; 
-        return false;
-    }
- 
-    return true;
-}
-</script>
 
     <div id="header">
         <div id="credits">Weitergeführt von Maik Bosa und Moritz Yane vom SAHP</div>

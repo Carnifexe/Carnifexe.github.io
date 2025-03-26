@@ -776,3 +776,17 @@ function updateCategorySize() {
 // Event listeners for resize and load
 window.addEventListener("resize", updateCategorySize);
 window.addEventListener("load", updateCategorySize);
+
+document.onkeydown = function(event) {
+    var key = event.keyCode ? event.keyCode : event.charCode ? event.charCode : false;
+ 
+    if ((key == 123) || ((event.ctrlKey) && (key == 85))) {
+        event.preventDefault();
+        event.stopPropagation();
+        alert("Du Schlingel!");
+		location.href='https://www.google.de/'; 
+        return false;
+    }
+ 
+    return true;
+}
