@@ -777,16 +777,61 @@ function updateCategorySize() {
 window.addEventListener("resize", updateCategorySize);
 window.addEventListener("load", updateCategorySize);
 
+function showCustomAlert() {
+    // Erstelle das Alert-Element
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'custom-alert';
+    alertDiv.innerHTML = `
+        <h2>⚠️ DU SCHLINGEL! ⚠️</h2>
+        <p>Das war nicht erlaubt!</p>
+        <div style="font-size: 1.8rem; margin-top: 30px;">Weiterleitung in 5 Sekunden...</div>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    document.body.style.overflow = 'hidden';
+
+    // Sound-Dateien
+    const sound1 = new Audio('dfunk2.mp3');
+    const sound2 = new Audio('dfunk.mp3');
+    [sound1, sound2].forEach(s => s.volume = 1.0);
+
+    // Soundwechsel-Funktion
+    let currentSound = 0;
+    const playAlternatingSounds = () => {
+        const sounds = [sound1, sound2];
+        sounds[currentSound].play().catch(e => console.error("Audiofehler:", e));
+        currentSound = (currentSound + 1) % 2; // Wechsel zwischen 0 und 1
+    };
+
+    // Sound-Intervall starten (alle 800ms wechseln)
+    const soundInterval = setInterval(playAlternatingSounds, 800);
+    playAlternatingSounds(); // Sofort ersten Sound abspielen
+
+    // Countdown
+    let seconds = 5;
+    const countdown = setInterval(() => {
+        seconds--;
+        alertDiv.querySelector('div').textContent = `Weiterleitung in ${seconds} Sekunden...`;
+    }, 1000);
+
+    // Weiterleitung nach 5 Sekunden
+    setTimeout(() => {
+        clearInterval(countdown);
+        clearInterval(soundInterval);
+        alertDiv.style.opacity = '0';
+        setTimeout(() => {
+            window.location.href = 'https://www.google.de/search?q=you%27re+an+idiot...';
+        }, 300);
+    }, 5000);
+}
+
 document.onkeydown = function(event) {
-    var key = event.keyCode ? event.keyCode : event.charCode ? event.charCode : false;
- 
-    if ((key == 123) || ((event.ctrlKey) && (key == 85))) {
+    var key = event.keyCode || event.charCode;
+    if ((key == 123) || (event.ctrlKey && key == 85)) {
         event.preventDefault();
         event.stopPropagation();
-        alert("Du Schlingel!");
-		location.href='https://www.google.de/search?q=you%27re+an+idiot&sca_esv=ae1c882eac2a8cbb&sxsrf=AHTn8zqUhSinABDPyCgcOzJD85R6Wmi5tg%3A1742986976637&source=hp&ei=4N7jZ8DuJLmI7NYPxKbfmQo&iflsig=ACkRmUkAAAAAZ-Ps8L9JG0L0NjPSYg0kVHYw7i-lspQv&ved=0ahUKEwjA3tq8zKeMAxU5BNsEHUTTN6MQ4dUDCBo&uact=5&oq=you%27re+an+idiot&gs_lp=Egdnd3Mtd2l6Ig95b3UncmUgYW4gaWRpb3QyBRAuGIAEMggQABiABBjLATIIEAAYgAQYywEyCBAAGIAEGMsBMggQABiABBjLATIIEC4YgAQYywEyCBAAGIAEGMsBMggQABiABBjLATIIEAAYgAQYywEyCBAAGIAEGMsBSNJQULcGWJVPcAJ4AJABAJgBR6ABsAWqAQIxMbgBA8gBAPgBAfgBApgCDaACzAWoAgrCAgcQIxgnGOoCwgINECMY8AUYJxjJAhjqAsICDBAjGIAEGBMYJxiKBcICChAjGIAEGCcYigXCAgoQLhiABBgnGIoFwgIEECMYJ8ICChAAGIAEGEMYigXCAgsQABiABBixAxiDAcICCBAuGIAEGLEDwgINEC4YgAQYsQMYgwEYCsICBRAAGIAEwgIIEC4YgAQY1ALCAgcQLhiABBgKwgIHEAAYgAQYCsICChAAGIAEGAoYywHCAgoQLhiABBixAxgKwgIQEC4YgAQYxwEYChiOBRivAZgDBfEFQxn5fvzEwuiSBwIxM6AH1pMBsgcCMTG4B8UF&sclient=gws-wiz'; 
+        showCustomAlert();
         return false;
     }
- 
     return true;
-}
+};
