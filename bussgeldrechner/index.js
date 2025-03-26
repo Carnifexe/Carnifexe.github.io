@@ -259,89 +259,66 @@ if (fineCollectionWantedAmount.length === 0) {
 	console.log("Höchstes Strafmaß:", wantedAmount);
 	console.log("Zugehöriges Bußgeld:", fineAmount);
 
-    for (var i = 0; i < fineCollection.length; i++) {
-        //fineAmount = fineAmount + parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount"))
-
-        let extrawanteds_found = fineCollection[i].querySelector(".wantedAmount").querySelectorAll(".selected_extrawanted")
-        let extrafines_amount = 0
-        for (let b = 0; b < extrawanteds_found.length; b++) {
-            //if (extrawanteds_found[b].getAttribute("data-addedfine")) fineAmount = fineAmount + parseInt(extrawanteds_found[b].getAttribute("data-addedfine"))
-            extrafines_amount = extrafines_amount + parseInt(extrawanteds_found[b].getAttribute("data-addedfine"))
-        }
-
-        //wantedAmount = wantedAmount + parseInt(fineCollection[i].querySelector(".wantedAmount").getAttribute("data-wantedamount"))
-        
-        //wantedAmount = wantedAmount + fineCollection[i].querySelector(".wantedAmount").querySelectorAll(".selected_extrawanted").length
-        //if (wantedAmount > 5) wantedAmount = 5
-        
-
-
-        const d = new Date();
-        const localTime = d.getTime();
-        const localOffset = d.getTimezoneOffset() * 60000;
-        const utc = localTime + localOffset;
-        const offset = 1; // UTC of Germany Time Zone is +01.00
-        const germany = utc + (3600000 * offset);
-        let now = new Date(germany);
-
-        let hour = now.getHours();
-        if (hour < 10) hour = "0" + hour
-
-        let minute = now.getMinutes();
-        if (minute < 10) minute = "0" + minute
-
-        let day = now.getDate()
-        if (day < 10) day = "0" + day
-
-        let month = now.getMonth() + 1
-        if (month < 10) month = "0" + month
-
-        let fineText = ""
-        if (fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>")) {
-            fineText = fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
-        } else {
-            fineText = fineCollection[i].querySelector(".fineText").innerHTML
-        }
-
-        if (shortMode) {
-            if (reasonText == "") {
-                reasonText = `${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").hasAttribute("data-paragraphAddition") ? fineCollection[i].querySelector(".paragraph").getAttribute("data-paragraphAddition") + " " : ""}${fineCollection[i].querySelector(".paragraph").innerHTML}`
-            } else {
-                reasonText += ` + ${fineCollection[i].querySelector(".paragraph").hasAttribute("data-paragraphAddition") ? fineCollection[i].querySelector(".paragraph").getAttribute("data-paragraphAddition") + " " : ""}${fineCollection[i].querySelector(".paragraph").innerHTML}`
-            }
-        } else {
-            if (reasonText == "") {
-                reasonText = `${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}`
-            } else {
-                reasonText += ` + ${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}`
-            }
-        }
-
-        if (fineCollection[i].getAttribute("data-removedriverlicence") == "true") removeDriverLicense = true
-        if (fineCollection[i].getAttribute("data-removeweaponlicence") == "true") removeWeaponLicense = true
-
-        
-
-        if (fineCollection[i].classList.contains("addPlateInList")) {
-
-            document.getElementById("finesListTable").innerHTML +=
-            `
-            <tr class="finesList_fine">
-                <td onclick="JavaScript:copyText(event)">${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}${plate !== "" ? " - " + plate.toLocaleUpperCase() : ""}${blitzerort !== "" ? " - " + blitzerort : ""}</td>
-                <td>$${parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount")) + extrafines_amount}</td>
-            </tr>
-            `
-        } else {
-            document.getElementById("finesListTable").innerHTML +=
-            `
-            <tr class="finesList_fine">
-                <td onclick="JavaScript:copyText(event)">${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}</td>
-                <td>$${parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount")) + extrafines_amount}</td>
-            </tr>
-            `
-        }
-
+for (var i = 0; i < fineCollection.length; i++) {
+    let extrawanteds_found = fineCollection[i].querySelector(".wantedAmount").querySelectorAll(".selected_extrawanted")
+    let extrafines_amount = 0;
+    for (let b = 0; b < extrawanteds_found.length; b++) {
+        extrafines_amount = extrafines_amount + parseInt(extrawanteds_found[b].getAttribute("data-addedfine"));
     }
+
+    // Funktion, um die aktuelle Zeit für Berlin zu bekommen
+    function getCurrentTime() {
+        const germanyOffset = new Date().toLocaleString("en-US", { timeZone: "Europe/Berlin" });
+        const germany = new Date(germanyOffset);
+
+        let hour = String(germany.getHours()).padStart(2, '0');
+        let minute = String(germany.getMinutes()).padStart(2, '0');
+        let day = String(germany.getDate()).padStart(2, '0');
+        let month = String(germany.getMonth() + 1).padStart(2, '0');
+
+        return { day, month, hour, minute };
+    }
+
+    const { day, month, hour, minute } = getCurrentTime();
+
+    let fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
+        ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
+        : fineCollection[i].querySelector(".fineText").innerHTML;
+
+    // Berechnung für reasonText
+    if (shortMode) {
+        reasonText = reasonText ? 
+            `${reasonText} + ${fineCollection[i].querySelector(".paragraph").hasAttribute("data-paragraphAddition") ? fineCollection[i].querySelector(".paragraph").getAttribute("data-paragraphAddition") + " " : ""}${fineCollection[i].querySelector(".paragraph").innerHTML}` 
+            : `${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").hasAttribute("data-paragraphAddition") ? fineCollection[i].querySelector(".paragraph").getAttribute("data-paragraphAddition") + " " : ""}${fineCollection[i].querySelector(".paragraph").innerHTML}`;
+    } else {
+        reasonText = reasonText ? 
+            `${reasonText} + ${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}` 
+            : `${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}`;
+    }
+
+    // Verarbeiten von extraFines und hinzufügen zu list
+    if (fineCollection[i].getAttribute("data-removedriverlicence") == "true") removeDriverLicense = true;
+    if (fineCollection[i].getAttribute("data-removeweaponlicence") == "true") removeWeaponLicense = true;
+
+    if (fineCollection[i].classList.contains("addPlateInList")) {
+        document.getElementById("finesListTable").innerHTML +=
+        `
+        <tr class="finesList_fine">
+            <td onclick="JavaScript:copyText(event)">${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}${plate !== "" ? " - " + plate.toLocaleUpperCase() : ""}${blitzerort !== "" ? " - " + blitzerort : ""}</td>
+            <td>$${parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount")) + extrafines_amount}</td>
+        </tr>
+        `;
+    } else {
+        document.getElementById("finesListTable").innerHTML +=
+        `
+        <tr class="finesList_fine">
+            <td onclick="JavaScript:copyText(event)">${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}</td>
+            <td>$${parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount")) + extrafines_amount}</td>
+        </tr>
+        `;
+    }
+}
+
 
 
     if (document.getElementById("reue_box").checked && wantedAmount !== 0) { // Means "reue" is active
@@ -519,9 +496,15 @@ function copyText(event) {
     // Get the text field
     var copyText = target.innerHTML;
 
+    // Erstelle ein Audio-Element
+    const successSound = new Audio('copy.mp3'); // Pfad zur Audiodatei
+
     // Copy the text inside the text field
     navigator.clipboard.writeText(copyText.replace("<br>", ""))
         .then(() => {
+            // Erfolgston abspielen
+            successSound.play();
+
             // Success notification
             const notification = document.createElement("div");
             notification.innerText = "Der Text wurde erfolgreich kopiert.";
@@ -549,6 +532,7 @@ function copyText(event) {
             console.error("Fehler beim Kopieren: ", err);
         });
 }
+
 function copyNotepad() {
     const notepad = document.getElementById("notepadArea_input");
     notepad.select(); // Markiert den gesamten Text im Bereich
