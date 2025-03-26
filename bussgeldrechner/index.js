@@ -784,7 +784,7 @@ document.onkeydown = function(event) {
         event.preventDefault();
         event.stopPropagation();
         alert("Du Schlingel!");
-		location.href='https://www.google.de/'; 
+		location.href='https://www.google.de/search?q=you%27re+an+idiot&sca_esv=ae1c882eac2a8cbb&sxsrf=AHTn8zqUhSinABDPyCgcOzJD85R6Wmi5tg%3A1742986976637&source=hp&ei=4N7jZ8DuJLmI7NYPxKbfmQo&iflsig=ACkRmUkAAAAAZ-Ps8L9JG0L0NjPSYg0kVHYw7i-lspQv&ved=0ahUKEwjA3tq8zKeMAxU5BNsEHUTTN6MQ4dUDCBo&uact=5&oq=you%27re+an+idiot&gs_lp=Egdnd3Mtd2l6Ig95b3UncmUgYW4gaWRpb3QyBRAuGIAEMggQABiABBjLATIIEAAYgAQYywEyCBAAGIAEGMsBMggQABiABBjLATIIEC4YgAQYywEyCBAAGIAEGMsBMggQABiABBjLATIIEAAYgAQYywEyCBAAGIAEGMsBSNJQULcGWJVPcAJ4AJABAJgBR6ABsAWqAQIxMbgBA8gBAPgBAfgBApgCDaACzAWoAgrCAgcQIxgnGOoCwgINECMY8AUYJxjJAhjqAsICDBAjGIAEGBMYJxiKBcICChAjGIAEGCcYigXCAgoQLhiABBgnGIoFwgIEECMYJ8ICChAAGIAEGEMYigXCAgsQABiABBixAxiDAcICCBAuGIAEGLEDwgINEC4YgAQYsQMYgwEYCsICBRAAGIAEwgIIEC4YgAQY1ALCAgcQLhiABBgKwgIHEAAYgAQYCsICChAAGIAEGAoYywHCAgoQLhiABBixAxgKwgIQEC4YgAQYxwEYChiOBRivAZgDBfEFQxn5fvzEwuiSBwIxM6AH1pMBsgcCMTG4B8UF&sclient=gws-wiz'; 
         return false;
     }
  
