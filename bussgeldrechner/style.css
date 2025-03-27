@@ -22,7 +22,6 @@
 
 .fixedCategory {
 	color: var(--buttonhover);
-	font-size: 20px;
     flex: 1;
     text-align: center;
     font-weight: bold;
@@ -31,35 +30,40 @@
     border-top-right-radius: 5px;
     background-color: inherit;
 }
+.paragraph {
+    position: relative;
+    transition: transform 0.3s ease-in-out;
+	color: var(--buttonhover);
+    text-shadow: 0 0 8px rgba(0, 0, 109, 0.8), 0 0 16px rgba(230, 194, 109, 0.8); /* Leuchtender Text-Effekt */
+}
+.paragraph::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 80%; /* Reduziert die Breite der Box */
+    height: 80%; /* Reduziert die Höhe der Box */
+    background: rgba(230, 194, 109, 0.4); /* Mattgoldener Hintergrund */
+    filter: blur(5px);
+    transform: translate(-50%, -50%) scale(1.2);
+    z-index: -1;
+    border-radius: 5px;
+}
 
-    .custom-alert {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 80vw;
-        max-width: 700px;
-        padding: 40px;
-        background: #ff0000;
-        color: white;
-        border-radius: 15px;
-        box-shadow: 0 0 30px rgba(255,0,0,0.8);
-        z-index: 9999;
-        text-align: center;
-        font-family: 'Arial Black', sans-serif;
-        font-size: 2.5rem;
-        animation: 
-            shake 0.2s infinite,
-            blink 0.3s infinite,
-            vibrate 0.1s infinite;
-        border: 5px solid white;
-    }
+.paragraph:hover {
+    transform: scale(1.1);
+}
 
-    .custom-alert h2 {
-        margin: 0;
-        font-size: 3.5rem;
-        text-shadow: 3px 3px 0 #000;
-    }
+.paragraph:hover::before {
+    filter: blur(8px);
+}
+
+.paragraph:hover {
+    color: #f5c42d; /* Leuchtend hellgold beim Hover */
+    text-shadow: 0 0 15px rgba(245, 196, 45, 1), 0 0 30px rgba(245, 196, 45, 1); /* Stärkerer Leuchteffekt beim Hover */
+}
+
+
 
     @keyframes shake {
         0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }

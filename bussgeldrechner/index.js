@@ -374,7 +374,7 @@ document.getElementById("wiederholungstäter_box").addEventListener("change", st
 
 
     infoResult.innerHTML = `<b>Information:</b> ${noticeText}`
-    fineResult.innerHTML = `<b>Geldstrafe:</b> <font style="user-select: all;">$${fineAmount}</font>`
+    fineResult.innerHTML = `<b>Geldstrafe:</b> $<font style="user-select: all;" onclick="JavaScript:copyText(event)">${fineAmount}</font>`
     wantedResult.innerHTML = `<b>Wanteds:</b> <font style="user-select: all;">${wantedAmount}</font>`
     reasonResult.innerHTML = `<b>Grund:</b> <font style="user-select: all;" onclick="JavaScript:copyText(event)">${reasonText}</font>`
     if (reasonText.length <= 150) {
@@ -384,7 +384,9 @@ document.getElementById("wiederholungstäter_box").addEventListener("change", st
     }
 
 }
-
+    function openPopup(url) {
+        window.open(url, 'popupWindow', 'width=1024,height=768,scrollbars=yes,resizable=yes');
+    }
 const encoded = "aWYod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIpIHtkb2N1bWVudC5ib2R5LmlubmVySFRNTCA9ICJVbmF1dGhvcml6ZWQgQWNjZXNzIjtzZXRUaW1lb3V0KCgpID0+IHsgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiYWJvdXQ6YmxhbmsiOyB9LCAyMDAwKTt9";
 
 
