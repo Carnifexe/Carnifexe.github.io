@@ -59,6 +59,9 @@ function selectFine(event) {
                 // Alle anderen Zeilen abwählen, wenn Ammu Rob ausgewählt wird
                 if (allRows[i].dataset.fine !== "ammuRob") {
                     allRows[i].classList.remove('selected');
+                    // Extra-Wanteds entfernen
+                    const extraWanteds = allRows[i].querySelectorAll('.selected_extrawanted');
+                    extraWanteds.forEach(extra => extra.classList.remove('selected_extrawanted'));
                 }
             }
         }
@@ -78,6 +81,9 @@ function selectFine(event) {
                 // Alle anderen Zeilen abwählen, wenn Terror ausgewählt wird
                 if (allRows[i].dataset.fine !== "terror") {
                     allRows[i].classList.remove('selected');
+                    // Extra-Wanteds entfernen
+                    const extraWanteds = allRows[i].querySelectorAll('.selected_extrawanted');
+                    extraWanteds.forEach(extra => extra.classList.remove('selected_extrawanted'));
                 }
             }
         }
@@ -86,13 +92,19 @@ function selectFine(event) {
         showNotification('Terror deckt alle Strafen ab, wurde aktiviert!');
     } else {
         // Bei allen anderen Einträgen: Toggle die "selected"-Klasse
+        const wasSelected = element.classList.contains("selected");
         element.classList.toggle("selected");
+
+        // Wenn die Strafe abgewählt wird, entferne auch alle Extra-Wanteds
+        if (wasSelected && !element.classList.contains("selected")) {
+            const extraWanteds = element.querySelectorAll('.selected_extrawanted');
+            extraWanteds.forEach(extra => extra.classList.remove('selected_extrawanted'));
+        }
     }
 
     // Berechne den Gesamtwert (oder starte eine andere Funktion)
     startCalculating();
 }
-
 
 document.querySelectorAll(".fine").forEach(fine => {
     fine.addEventListener("click", function() {
