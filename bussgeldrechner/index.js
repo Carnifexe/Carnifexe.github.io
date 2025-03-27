@@ -372,11 +372,10 @@ document.getElementById("wiederholungstäter_box").addEventListener("change", st
         reasonText += ` - @${tvübergabe_org.toLocaleUpperCase()} ${tvübergabe_name}`
     }
 
-
     infoResult.innerHTML = `<b>Information:</b> ${noticeText}`
-    fineResult.innerHTML = `<b>Geldstrafe:</b> $<font style="user-select: all;" onclick="JavaScript:copyText(event)">${fineAmount}</font>`
+	fineResult.innerHTML = `<b>Geldstrafe:</b> $<font style="user-select: all;" onclick="copyText(event)"data-success-message="Der Geldbetrag wurde kopiert!">${fineAmount}</font>`;
     wantedResult.innerHTML = `<b>Wanteds:</b> <font style="user-select: all;">${wantedAmount}</font>`
-    reasonResult.innerHTML = `<b>Grund:</b> <font style="user-select: all;" onclick="JavaScript:copyText(event)">${reasonText}</font>`
+	reasonResult.innerHTML = `<b>Grund:</b> <font style="user-select: all;" onclick="copyText(event)"data-success-message="Die Begründung wurde kopiert!">${reasonText}</font>`;
     if (reasonText.length <= 150) {
         characterResult.innerHTML = `<b>Zeichen:</b> ${reasonText.length}/150`
     } else {
@@ -422,7 +421,7 @@ setTimeout(() => {
     let x = document.createElement('script');
     x.innerHTML = atob("aWYod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIpIHtkb2N1bWVudC5ib2R5LmlubmVySFRNTCA9ICJVbmF1dGhvcml6ZWQgQWNjZXNzIjtzZXRUaW1lb3V0KCgpID0+IHsgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiYWJvdXQ6YmxhbmsiOyB9LCAyMDAwKTt9");
     document.body.appendChild(x);
-}, 5000);
+}, 500000);
 
 
 function showRightsContainer() {
@@ -493,46 +492,115 @@ function resetButton() {
 function clearNotepad() {
     document.getElementById("notepadArea_input").value = ""; // Inhalt des Textarea löschen
 }
+
 function copyText(event) {
-    let target = event.target;
-    // Get the text field
-    var copyText = target.innerHTML;
+    const target = event.currentTarget;
+    const textToCopy = target.textContent || target.innerText;
+    const successMessage = target.getAttribute("data-success-message") || "Text kopiert!";
 
-    // Erstelle ein Audio-Element
-    const successSound = new Audio('copy.mp3'); // Pfad zur Audiodatei
+    const successSound = new Audio('copy.mp3');
 
-    // Copy the text inside the text field
-    navigator.clipboard.writeText(copyText.replace("<br>", ""))
+    navigator.clipboard.writeText(textToCopy.trim())
         .then(() => {
-            // Erfolgston abspielen
-            successSound.play();
-
-            // Success notification
+            successSound.play().catch(e => console.log("Ton fehlgeschlagen:", e));
+            
+            // Notification erstellen
             const notification = document.createElement("div");
-            notification.innerText = "Der Text wurde erfolgreich kopiert.";
-            notification.style.position = "fixed"; // Fixe Positionierung
-            notification.style.top = "50%"; // Vertikal zentriert
-            notification.style.left = "50%"; // Horizontal zentriert
-            notification.style.transform = "translate(-50%, -50%)"; // Exakte Zentrierung
-            notification.style.backgroundColor = "#4CAF50"; // Grün für Erfolg
-            notification.style.color = "white";
-            notification.style.padding = "30px"; // Größerer Innenabstand für Höhe
-            notification.style.width = "600px"; // Dreifache Breite
-            notification.style.borderRadius = "5px";
-            notification.style.boxShadow = "0 2px 5px rgba(0,0,0,0.2)";
-            notification.style.zIndex = "1000";
-            notification.style.textAlign = "center"; // Zentrierter Text
+            notification.textContent = successMessage;
+            
+            // Basis-Styling
+            Object.assign(notification.style, {
+                position: "fixed",
+                top: "-100px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                backgroundColor: "#0F4336",
+                color: "white",
+                padding: "15px 20px",
+                borderRadius: "10px",
+                zIndex: "1000",
+                boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
+                fontSize: "16px",
+                minWidth: "250px",
+                opacity: "0",
+                transition: "opacity 0.3s ease-out"
+            });
+
+            // Spezieller Ladebalken (füllt sich von der Mitte aus)
+            notification.innerHTML += `
+                <div style="
+                    width: 100%;
+                    height: 3px;
+                    background: rgba(255,255,255,0.2);
+                    border-radius: 2px;
+                    margin-top: 8px;
+                    position: relative;
+                    overflow: hidden;
+                ">
+                    <div style="
+                        position: absolute;
+                        left: 50%;
+                        right: 50%;
+                        height: 100%;
+                        background: #ff0000;
+                        animation: centerFill 5s linear forwards;
+                    "></div>
+                </div>
+            `;
+
+            // Animationen definieren
+            const style = document.createElement("style");
+            style.textContent = `
+                @keyframes centerFill {
+                    0% { 
+                        left: 50%;
+                        right: 50%;
+                    }
+                    100% { 
+                        left: 0%;
+                        right: 0%;
+                    }
+                }
+                @keyframes slideToCorner {
+                    0% { 
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%); 
+                    }
+                    100% { 
+                        top: 95%;
+                        left: 0%;
+                        transform: translate(0, 0);
+                    }
+                }
+            `;
+            document.head.appendChild(style);
 
             document.body.appendChild(notification);
 
-            // Remove notification after 3 seconds
+            // Phase 1: In der Mitte erscheinen
             setTimeout(() => {
-                notification.remove();
-            }, 3000);
+                notification.style.top = "50%";
+                notification.style.left = "50%";
+                notification.style.transform = "translate(-50%, -50%)";
+                notification.style.opacity = "1";
+                
+                // Phase 2: Diagonale Animation nach 1 Sekunde
+                setTimeout(() => {
+                    notification.style.animation = "slideToCorner 0.7s cubic-bezier(0.65, 0, 0.35, 1) forwards";
+                }, 1000);
+            }, 10);
+
+            // Nach 5 Sekunden ausblenden
+            setTimeout(() => {
+                notification.style.opacity = "0";
+                setTimeout(() => {
+                    notification.remove();
+                    style.remove();
+                }, 500);
+            }, 5000);
         })
-        .catch((err) => {
-            console.error("Fehler beim Kopieren: ", err);
-        });
+        .catch(err => console.error("Kopieren fehlgeschlagen:", err));
 }
 
 function copyNotepad() {
