@@ -186,30 +186,29 @@ for (var i = 0; i < fineCollection.length; i++) {
 
     let cache_wanted_amount = parseInt(fineCollection[i].querySelector(".wantedAmount").getAttribute("data-wantedamount")) || 0;
     let cache_fine_amount = parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount")) || 0;
-
-    let extraWantedCount = 0;
+    
+    // Extra-Wanted Strafen berechnen
+    let extrafines_amount = 0;
     let extrawanteds_found = fineCollection[i].querySelector(".wantedAmount").querySelectorAll(".selected_extrawanted");
-
+    
     for (let b = 0; b < extrawanteds_found.length; b++) {
-        extraWantedCount++;
+        let addedFine = parseInt(extrawanteds_found[b].getAttribute("data-addedfine")) || 0;
+        extrafines_amount += addedFine;
     }
 
     if (isWiederholungstäter && isStVO) {
-        cache_fine_amount *= 2;
-        cache_wanted_amount *= 2;
-        extraWantedCount *= 2;
-    } else if (!isWiederholungstäter && isStVO) {
-        cache_fine_amount = parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount")) || 0;
-        cache_wanted_amount = parseInt(fineCollection[i].querySelector(".wantedAmount").getAttribute("data-wantedamount")) || 0;
+        cache_fine_amount = (cache_fine_amount + extrafines_amount) * 2; // Beides verdoppeln
+        cache_wanted_amount = (cache_wanted_amount + extrawanteds_found.length) * 2;
+    } else {
+        cache_fine_amount += extrafines_amount; // Extra-Strafen hinzufügen
+        cache_wanted_amount += extrawanteds_found.length;
     }
-        cache_wanted_amount += extraWantedCount;
 
     if (cache_fine_amount > 50000) cache_fine_amount = 50000;
-	if (cache_wanted_amount > 5) cache_wanted_amount = 5;
+    if (cache_wanted_amount > 5) cache_wanted_amount = 5;
 
-fineCollectionWantedAmount.push(cache_wanted_amount);
-fineCollectionFineAmount.push(cache_fine_amount);
-
+    fineCollectionWantedAmount.push(cache_wanted_amount);
+    fineCollectionFineAmount.push(cache_fine_amount);
 }
 
 
