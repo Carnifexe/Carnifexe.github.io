@@ -504,7 +504,22 @@ function clearNotepad() {
     document.getElementById("notepadArea_input").value = ""; // Inhalt des Textarea löschen
 }
 
+// GLOBALE VARIABLEN (ganz am Anfang der JavaScript-Datei)
+let lastCopyTime = 0;
+const COPY_COOLDOWN = 2000; // 2 Sekunden in Millisekunden
+
 function copyText(event) {
+    const now = Date.now();
+    
+    // Cooldown prüfen
+    if (now - lastCopyTime < COPY_COOLDOWN) {
+        showCooldownMessage(COPY_COOLDOWN - (now - lastCopyTime));
+        return;
+    }
+
+    // Cooldown setzen
+    lastCopyTime = now;
+
     const target = event.currentTarget;
     const textToCopy = target.textContent || target.innerText;
     const successMessage = target.getAttribute("data-success-message") || "Text kopiert!";
@@ -515,103 +530,147 @@ function copyText(event) {
         .then(() => {
             successSound.play().catch(e => console.log("Ton fehlgeschlagen:", e));
             
-            // Notification erstellen
-            const notification = document.createElement("div");
-            notification.textContent = successMessage;
-            
-            // Basis-Styling
-            Object.assign(notification.style, {
-                position: "fixed",
-                top: "-100px",
-                left: "50%",
-                transform: "translateX(-50%)",
-                backgroundColor: "#0F4336",
-                color: "white",
-                padding: "15px 20px",
-                borderRadius: "10px",
-                zIndex: "1000",
-                boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
-                fontSize: "16px",
-                minWidth: "250px",
-                opacity: "0",
-                transition: "opacity 0.3s ease-out"
-            });
-
-            // Spezieller Ladebalken (füllt sich von der Mitte aus)
-            notification.innerHTML += `
-                <div style="
-                    width: 100%;
-                    height: 3px;
-                    background: rgba(255,255,255,0.2);
-                    border-radius: 2px;
-                    margin-top: 8px;
-                    position: relative;
-                    overflow: hidden;
-                ">
-                    <div style="
-                        position: absolute;
-                        left: 50%;
-                        right: 50%;
-                        height: 100%;
-                        background: #ff0000;
-                        animation: centerFill 5s linear forwards;
-                    "></div>
-                </div>
-            `;
-
-            // Animationen definieren
-            const style = document.createElement("style");
-            style.textContent = `
-                @keyframes centerFill {
-                    0% { 
-                        left: 50%;
-                        right: 50%;
-                    }
-                    100% { 
-                        left: 0%;
-                        right: 0%;
-                    }
-                }
-                @keyframes slideToCorner {
-                    0% { 
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%); 
-                    }
-                    100% { 
-                        top: 95%;
-                        left: 0%;
-                        transform: translate(0, 0);
-                    }
-                }
-            `;
-            document.head.appendChild(style);
-
-            document.body.appendChild(notification);
-
-            // Phase 1: In der Mitte erscheinen
-            setTimeout(() => {
-                notification.style.top = "50%";
-                notification.style.left = "50%";
-                notification.style.transform = "translate(-50%, -50%)";
-                notification.style.opacity = "1";
-                
-                // Phase 2: Diagonale Animation nach 1 Sekunde
-                setTimeout(() => {
-                    notification.style.animation = "slideToCorner 0.7s cubic-bezier(0.65, 0, 0.35, 1) forwards";
-                }, 1000);
-            }, 10);
-
-            // Nach 5 Sekunden ausblenden
-            setTimeout(() => {
-                notification.style.opacity = "0";
-                setTimeout(() => {
-                    notification.remove();
-                    style.remove();
-                }, 500);
-            }, 5000);
+            // Erfolgsmeldung anzeigen
+            showSuccessNotification(successMessage);
         })
-        .catch(err => console.error("Kopieren fehlgeschlagen:", err));
+        .catch(err => {
+            console.error("Kopieren fehlgeschlagen:", err);
+            // Bei Fehler Cooldown zurücksetzen
+            lastCopyTime = 0;
+        });
+}
+
+// Erfolgsmeldung anzeigen
+function showSuccessNotification(message) {
+    // Existierende Benachrichtigung entfernen
+    const existingNotification = document.querySelector('.copy-notification');
+    if (existingNotification) existingNotification.remove();
+
+    const notification = document.createElement("div");
+    notification.className = 'copy-notification';
+    notification.textContent = message;
+    
+    // Basis-Styling
+    Object.assign(notification.style, {
+        position: "fixed",
+        top: "-100px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        backgroundColor: "#0F4336",
+        color: "white",
+        padding: "15px 20px",
+        borderRadius: "10px",
+        zIndex: "1000",
+        boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
+        fontSize: "16px",
+        minWidth: "250px",
+        opacity: "0",
+        transition: "opacity 0.3s ease-out"
+    });
+
+    // Ladebalken
+    notification.innerHTML += `
+        <div style="
+            width: 100%;
+            height: 3px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+            margin-top: 8px;
+            position: relative;
+            overflow: hidden;
+        ">
+            <div style="
+                position: absolute;
+                left: 50%;
+                right: 50%;
+                height: 100%;
+                background: #ff0000;
+                animation: centerFill 5s linear forwards;
+            "></div>
+        </div>
+    `;
+
+    // Animationen
+    const style = document.createElement("style");
+    style.textContent = `
+        @keyframes centerFill {
+            0% { left: 50%; right: 50%; }
+            100% { left: 0%; right: 0%; }
+        }
+        @keyframes slideToCorner {
+            0% { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+            100% { top: 95%; left: 0%; transform: translate(0, 0); }
+        }
+    `;
+    document.head.appendChild(style);
+
+    document.body.appendChild(notification);
+
+    // Animationen steuern
+    setTimeout(() => {
+        notification.style.top = "50%";
+        notification.style.left = "50%";
+        notification.style.transform = "translate(-50%, -50%)";
+        notification.style.opacity = "1";
+        
+        setTimeout(() => {
+            notification.style.animation = "slideToCorner 0.7s cubic-bezier(0.65, 0, 0.35, 1) forwards";
+        }, 1000);
+    }, 10);
+
+    // Ausblenden nach 5 Sekunden
+    setTimeout(() => {
+        notification.style.opacity = "0";
+        setTimeout(() => {
+            notification.remove();
+            style.remove();
+        }, 500);
+    }, 5000);
+}
+
+// Cooldown-Meldung anzeigen
+function showCooldownMessage(remainingTime) {
+    // Existierende Meldung entfernen
+    const existingMsg = document.querySelector('.cooldown-message');
+    if (existingMsg) existingMsg.remove();
+
+    const secondsLeft = Math.ceil(remainingTime / 1000);
+    const cooldownMsg = document.createElement("div");
+    cooldownMsg.className = 'cooldown-message';
+    cooldownMsg.textContent = `Bitte warten Sie ${secondsLeft} Sekunde(n) bevor Sie erneut kopieren`;
+    
+    Object.assign(cooldownMsg.style, {
+        position: "fixed",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        backgroundColor: "#ff3333",
+        color: "white",
+        padding: "15px 20px",
+        borderRadius: "10px",
+        zIndex: "1001",
+        boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
+        fontSize: "16px",
+        minWidth: "300px",
+        textAlign: "center",
+        opacity: "0",
+        transition: "opacity 0.3s ease-out"
+    });
+
+    document.body.appendChild(cooldownMsg);
+
+    // Einblenden
+    setTimeout(() => {
+        cooldownMsg.style.opacity = "1";
+    }, 10);
+
+    // Ausblenden nach 1.5 Sekunden
+    setTimeout(() => {
+        cooldownMsg.style.opacity = "0";
+        setTimeout(() => {
+            cooldownMsg.remove();
+        }, 300);
+    }, 1500);
 }
 
 function copyNotepad() {
