@@ -985,7 +985,7 @@ function showCustomAlert() {
         video.style.transform = 'translate(-50%, -50%) scale(0.5)';
         countdownDiv.style.opacity = '0';
         setTimeout(() => {
-            window.location.href = 'https://www.google.de/search?q=you%27re+an+idiot...';
+            window.location.href = 'https://papertoilet.com/';
         }, 500);
     }, 5000);
 }
