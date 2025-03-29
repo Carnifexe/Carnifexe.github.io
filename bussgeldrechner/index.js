@@ -1002,32 +1002,23 @@ function showCustomAlert() {
     }, 5000);
 }
 
-document.onkeydown = function(event) {
+document.addEventListener("keydown", function(event) {
     const key = event.keyCode || event.which;
 
-    // Strg + A (KeyCode 65) erlauben
-    if (event.ctrlKey && key === 65) {
-        return true; 
-    }
-
-    // Entwicklertools blockieren: Strg + Shift + I, Strg + Shift + J, Strg + Shift + C
-    if (event.ctrlKey && event.shiftKey && (key === 73 || key === 74 || key === 67)) {
+    // Entwicklertools und Quelltext blockieren
+    if (
+        key === 123 || // F12
+        (event.ctrlKey && key === 85) || // Strg + U (Quelltext)
+        (event.ctrlKey && event.shiftKey && [73, 74, 67, 75, 69, 83].includes(key)) || // Strg + Shift + I, J, C, K, E, S
+        (event.ctrlKey && key === 70 && event.shiftKey) || // Strg + Shift + F (in Firefox Suchleiste in DevTools)
+        (event.ctrlKey && key === 8) // Strg + Backspace (manchmal zum Zurückspringen in Edge)
+    ) {
         event.preventDefault();
         event.stopPropagation();
         showCustomAlert();
         return false;
     }
-
-    // F12 & Strg + U blockieren
-    if (key === 123 || (event.ctrlKey && key === 85)) {
-        event.preventDefault();
-        event.stopPropagation();
-        showCustomAlert();
-        return false;
-    }
-
-    return true;
-};
+});
 
 
 document.addEventListener("click", function(event) {
