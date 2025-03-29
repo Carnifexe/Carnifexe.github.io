@@ -1008,17 +1008,35 @@ document.addEventListener("keydown", function(event) {
     // Entwicklertools und Quelltext blockieren
     if (
         key === 123 || // F12
-        (event.ctrlKey && key === 85) || // Strg + U (Quelltext)
+        (event.ctrlKey && key === 85) || // Strg + U (Quelltext anzeigen)
         (event.ctrlKey && event.shiftKey && [73, 74, 67, 75, 69, 83].includes(key)) || // Strg + Shift + I, J, C, K, E, S
-        (event.ctrlKey && key === 70 && event.shiftKey) || // Strg + Shift + F (in Firefox Suchleiste in DevTools)
-        (event.ctrlKey && key === 8) // Strg + Backspace (manchmal zum Zurückspringen in Edge)
+        (event.ctrlKey && key === 80) || // Strg + P (Drucken)
+        (event.ctrlKey && key === 83) || // Strg + S (Speichern unter)
+        (event.ctrlKey && [65, 67, 86, 88].includes(key)) // Strg + A, C, V, X (Markieren, Kopieren, Einfügen, Ausschneiden)
     ) {
         event.preventDefault();
         event.stopPropagation();
-        showCustomAlert();
+        showCustomAlert(); // Alternativ: console.log("Blockiert!");
         return false;
     }
 });
+
+// Konsole-Schutz (erschwert Entwicklertools öffnen)
+(function() {
+    let DevToolsCheck = function() {};
+    DevToolsCheck.prototype.opened = false;
+    DevToolsCheck.prototype.check = function() {
+        let widthThreshold = window.outerWidth - window.innerWidth > 160;
+        let heightThreshold = window.outerHeight - window.innerHeight > 160;
+        if (widthThreshold || heightThreshold) {
+            this.opened = true;
+            document.body.innerHTML = ""; // Seite löschen
+            alert("Zugriff verweigert!");
+        }
+    };
+    let devTools = new DevToolsCheck();
+    setInterval(() => devTools.check(), 1000);
+})();
 
 
 document.addEventListener("click", function(event) {
