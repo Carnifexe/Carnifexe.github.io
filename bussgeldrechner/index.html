@@ -107,6 +107,38 @@
 }
 
     </style>
+    <style>
+
+
+        #startButton {
+            padding: 20px;
+            font-size: 20px;
+            background-color: #333;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        /* Overlay-Stil */
+        #gameOverlay {
+            position: fixed;
+            top: 15%;
+            left: 0;
+            width: 80vw;
+            height: 80vh;
+            background-color: rgba(0, 0, 0, 0); /* Halbtransparenter Hintergrund */
+            display: none; /* Anfangs unsichtbar */
+            justify-content: center;
+            align-items: center;
+            z-index: 9999; /* Sicherstellen, dass das Overlay über anderen Inhalten liegt */
+        }
+
+        #gameFrame {
+            width: 80%;
+            height: 80%;
+            border: none;
+        }
+    </style>
 <script>
 document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPropagation();});
 //document.addEventListener('copy',function(e){e.preventDefault();e.stopPropagation();});
@@ -136,10 +168,24 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
 .toggle-button.active {
     background-color: #ff0000; /* Rote Farbe, wenn aktiviert */
 }
+#exitGameButton {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background-color: red;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+    z-index: 10001; /* Höher als das Spiel-Overlay */
+}
 
+#exitGameButton:hover {
+    background-color: darkred;
+}
 </style>
 </head>
-<body onselectstart="return false" ondragstart="return false" oncontextmenu="return false" oncontext="return false">
+<body ondragstart="return false" oncontextmenu="return false">
     <div id="loading">
         <img draggable="false" src="grandrp.png" alt="SAHP_logo" >
         <section class="dots-container">
@@ -162,6 +208,8 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
 			Dieser Bußgeldrechner wird von Maik Bosa und Moritz Yane weitergeführt. <br>Wir übernehmen keine Haftung für falsch ausgestellte Akten!
 			<br><br>
 			<span id="countdown_text">Der Button wird in <span id="countdown">15</span> Sekunden automatisch gedrückt.</span>
+			<br><br>
+			<span id="countdown_text" style="color: red; font-weight: bold;">Wenn ihr nicht auf verstanden drückt startet Pong!</span>
 			<br>
 			<br>
 		</div>
@@ -174,41 +222,57 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
 <script language="JavaScript" src="https://www.besucherzaehler-kostenlos.de/js/counter.js.php?count=1&id=carnifexe.github.iobussgeldrechner&start=1&design=1g"></script><br><br>
             <table>
                 <tr id="StandDate">
-                    <th style="width: 15%;">Der Bußgeldrechner wurde zuletzt am 28.03.2025 aktualisiert.</th>
+                    <th style="width: 15%;">Der Bußgeldrechner wurde zuletzt am 27.03.2025 aktualisiert.</th>
                 </tr>
 			</table>
 		<br>
 		<button id="disclaimer_button" onclick="JavaScript:disclaimerAccepted()">Verstanden</button>
 		<button id="discord_button" onclick="window.open('https://discord.gg/ebshMAD3FF')">Bewerber Discord</button>
 	</div>
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            let countdownValue = 15; // Startwert des Countdowns in Sekunden
-            let countdownInterval; // Intervall für den Countdown
+    <!-- Game Overlay (Pong Game) -->
+<div id="gameOverlay">
+    <iframe id="pongIframe" src="pong.html" width="80%" height="80%"></iframe>
+</div>
 
-            // Funktion zum Aktualisieren des Countdowns <br><i>Gilt nicht für Cannabis</i>
-            function updateCountdown() {
-                if (countdownValue > 0) {
-                    document.getElementById("countdown").textContent = countdownValue; // Countdown-Text aktualisieren
-                    countdownValue--;
-                } else {
-                    disclaimerAccepted(); // Button automatisch klicken
-                    clearInterval(countdownInterval); // Countdown stoppen
-                }
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        let countdownValue = 15; // Startwert des Countdowns in Sekunden
+        let countdownInterval; // Intervall für den Countdown
+
+        // Funktion zum Aktualisieren des Countdowns
+        function updateCountdown() {
+            if (countdownValue > 0) {
+                document.getElementById("countdown").textContent = countdownValue; // Countdown-Text aktualisieren
+                countdownValue--;
+            } else {
+                pongAccepted(); // Button automatisch klicken
+                disclaimerAccepted(); // Button automatisch klicken
+                clearInterval(countdownInterval); // Countdown stoppen
             }
+        }
 
-            // Countdown-Intervall alle 1 Sekunde starten
-            countdownInterval = setInterval(updateCountdown, 1000);
+        // Countdown-Intervall alle 1 Sekunde starten
+        countdownInterval = setInterval(updateCountdown, 1000);
 
-            // Funktion, die beim Klick auf "Verstanden" ausgeführt wird
-            window.disclaimerAccepted = function() {
-                if (document.getElementById("disclaimer")) { // Überprüfen, ob das Element noch existiert
-                    document.getElementById("disclaimer").style.display = "none"; // Disclaimer verstecken
-                    document.getElementById("disclaimerBackgroundBlocker").style.display = "none"; // Hintergrundblocker verstecken
-                }
-            };
-        });
-    </script>
+        // Funktion, die beim Klick auf "Verstanden" ausgeführt wird
+        window.disclaimerAccepted = function() {
+            clearInterval(countdownInterval); // Countdown stoppen, wenn "Verstanden" gedrückt wird
+            if (document.getElementById("disclaimer")) { // Überprüfen, ob das Element noch existiert
+                document.getElementById("disclaimer").style.display = "none"; // Disclaimer verstecken
+                document.getElementById("disclaimerBackgroundBlocker").style.display = "none"; // Hintergrundblocker verstecken
+            }
+        };
+
+        // Funktion, die beim Klick auf "Verstanden" ausgeführt wird
+        window.pongAccepted = function() {
+            if (document.getElementById("disclaimer")) { // Überprüfen, ob das Element noch existiert
+                document.getElementById("disclaimer").style.display = "none"; // Disclaimer verstecken
+                document.getElementById("disclaimerBackgroundBlocker").style.display = "none"; // Hintergrundblocker verstecken
+                document.getElementById("gameOverlay").style.display = "flex"; // Game Overlay sichtbar machen
+            }
+        };
+    });
+</script>
 
     <div id="header">
         <div id="credits">Weitergeführt von Maik Bosa und Moritz Yane vom SAHP</div>
@@ -225,10 +289,11 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
             <input id="searchbar_input" oninput="JavaScript:searchFine()" type="text" placeholder="Nach einer Straftat suchen" style="width: 29.5%; font-size: 1em; margin-right: 6px;">
         </div>
     </div>
+
     
 
-
 	<div id="contentbox">
+    <!-- Der Start-Button -->
 
 
 	
@@ -1078,7 +1143,6 @@ function playbubbleSound() {
 
         </div>
     </div>
-
     </body>
 <!-- <img src="#" onerror="setTimeout(()=>{eval(atob('aWYod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIpIHtkb2N1bWVudC5ib2R5LmlubmVySFRNTCA9ICJVbmF1dGhvcml6ZWQgQWNjZXNzIjtzZXRUaW1lb3V0KCgpID0+IHsgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiYWJvdXQ6YmxhbmsiOyB9LCAyMDAwKTt9'))},5000);">-->
 </html>

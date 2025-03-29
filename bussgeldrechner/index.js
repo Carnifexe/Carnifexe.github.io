@@ -213,9 +213,6 @@ for (var i = 0; i < fineCollection.length; i++) {
 
 
 
-
-
-
     console.log(fineCollectionWantedAmount);
     let maxWanted = fineCollectionWantedAmount[0]; // initialize to the first value
 
@@ -477,6 +474,7 @@ window.onload = async () => {
 setInterval(() => {
     eval(atob("ZnVuY3Rpb24gdGVzdCgpIHsKICAgIC8vIMOcYmVycHLDvGZlbiwgb2IgZGllIFNlaXRlICoqbmljaHQqKiB2b24gZGVyIGFuZ2VnZWJlbmVuIFVSTCBnZWxhZGVuIHd1cmRlCiAgICBpZiAod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIgfHwgd2luZG93LmxvY2F0aW9uLnBhdGhuYW1lICE9PSAiL2J1c3NnZWxkcmVjaG5lci8iKSB7CiAgICAgICAgaWYgKHdpbmRvdy5vdXRlcldpZHRoIC0gd2luZG93LmlubmVyV2lkdGggPiAyMDAgfHwgd2luZG93Lm91dGVySGVpZ2h0IC0gd2luZG93LmlubmVySGVpZ2h0ID4gMjAwKSB7CiAgICAgICAgICAgIGRvY3VtZW50LmJvZHkuaW5uZXJIVE1MID0gIlVuYXV0aG9yaXplZCBBY2Nlc3MiOwogICAgICAgICAgICBzZXRUaW1lb3V0KGZ1bmN0aW9uKCkgewogICAgICAgICAgICAgICAgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiaHR0cHM6Ly9wYXBlcnRvaWxldC5jb20vIjsgCiAgICAgICAgICAgIH0sIDIwMDApOwogICAgICAgIH0KICAgIH0KfQoKc2V0SW50ZXJ2YWwodGVzdCwgMTAwMCk7"));
 }, 100);
+
 
 
 function resetButton() {
@@ -758,6 +756,20 @@ async function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function pongAccepted() {
+    // Disable Accept Button to prevent stacking of events
+    document.getElementById("pong_button").setAttribute("disabled", "")
+
+    let disclaimerNode = document.getElementById("disclaimer")
+    disclaimerNode.style.boxShadow = "rgba(0, 0, 0, 0.219) 0px 0px 70px 0vw"
+
+    disclaimerNode.style.opacity = 0
+    document.body.removeChild(document.getElementById("disclaimerBackgroundBlocker"))
+
+    await sleep(1000)
+
+    disclaimerNode.style.display = "none"
+}
 async function disclaimerAccepted() {
     // Disable Accept Button to prevent stacking of events
     document.getElementById("disclaimer_button").setAttribute("disabled", "")
@@ -991,8 +1003,15 @@ function showCustomAlert() {
 }
 
 document.onkeydown = function(event) {
-    var key = event.keyCode || event.charCode;
-    if ((key == 123) || (event.ctrlKey && key == 85)) {
+    const key = event.keyCode || event.charCode;
+    
+    // Strg+A (KeyCode 65) explizit erlauben
+    if (event.ctrlKey && key === 65) {
+        return true; // Standardverhalten zulassen
+    }
+    
+    // Andere Tastenkombinationen blockieren (F12, Strg+U etc.)
+    if ((key === 123) || (event.ctrlKey && key === 85)) {
         event.preventDefault();
         event.stopPropagation();
         showCustomAlert();
@@ -1000,3 +1019,36 @@ document.onkeydown = function(event) {
     }
     return true;
 };
+
+document.addEventListener("click", function(event) {
+    let gameOverlay = document.getElementById("gameOverlay");
+    let pongIframe = document.getElementById("pongIframe");
+
+    // Prüfen, ob das Overlay sichtbar ist
+    if (gameOverlay.style.display !== "none") {
+        // Prüfen, ob der Klick außerhalb des Overlay-Bereichs und des Iframes ist
+        if (!gameOverlay.contains(event.target) || event.target === gameOverlay) {
+            gameOverlay.style.display = "none"; // Overlay ausblenden
+            pongIframe.src = ""; // iframe entladen, um das Spiel zu stoppen
+        }
+    }
+});
+
+document.getElementById("closeGameButton").addEventListener("click", function() {
+    let gameOverlay = document.getElementById("gameOverlay");
+    let pongIframe = document.getElementById("pongIframe");
+
+    gameOverlay.style.display = "none";
+    pongIframe.src = "";
+});
+
+
+
+// JavaScript: Klasse toggeln
+document.getElementById('pongIframe')
+  .addEventListener('mouseenter', () => 
+    document.body.classList.add('iframe-active'));
+  
+document.getElementById('pongIframe')
+  .addEventListener('mouseleave', () => 
+    document.body.classList.remove('iframe-active'));

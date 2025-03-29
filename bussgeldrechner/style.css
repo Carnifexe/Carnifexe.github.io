@@ -19,7 +19,13 @@
     border-top-right-radius: 5px;
     overflow: hidden;
 }
+#scriptingDiv {
+    display: none; /* Stellt sicher, dass es nicht angezeigt wird */
+}
 
+#disclaimerBackgroundBlocker {
+    display: none; /* Stellt sicher, dass der Blocker nicht angezeigt wird */
+}
 .fixedCategory {
 	color: var(--buttonhover);
     flex: 1;
@@ -151,7 +157,7 @@ body {
     display: flex;
     border-radius: 8px;
   }
-  
+
   .words {
     overflow: hidden;
     position: relative;
@@ -308,6 +314,10 @@ body {
 
     text-indent: 5px;
 }
+
+
+
+
 #wiederholungstäter {
     position: relative;
     left: 5%;
