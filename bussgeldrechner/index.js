@@ -1011,7 +1011,7 @@ document.onkeydown = function(event) {
     }
     // Strg + Shift + I blockieren (Entwicklertools)
     if (event.ctrlKey && event.shiftKey && key === 73) {
-        return true;
+        return false;
     }
 	
     // Andere Tastenkombinationen blockieren (F12, Strg+U etc.)
