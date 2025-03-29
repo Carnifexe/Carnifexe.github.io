@@ -1003,26 +1003,32 @@ function showCustomAlert() {
 }
 
 document.onkeydown = function(event) {
-    const key = event.keyCode || event.charCode;
-    
-    // Strg+A (KeyCode 65) explizit erlauben
+    const key = event.keyCode || event.which;
+
+    // Strg + A (KeyCode 65) erlauben
     if (event.ctrlKey && key === 65) {
-        return true; // Standardverhalten zulassen
+        return true; 
     }
-    // Strg + Shift + I blockieren (Entwicklertools)
-    if (event.ctrlKey && event.shiftKey && key === 73) {
-        return false;
-    }
-	
-    // Andere Tastenkombinationen blockieren (F12, Strg+U etc.)
-    if ((key === 123) || (event.ctrlKey && key === 85)) {
+
+    // Entwicklertools blockieren: Strg + Shift + I, Strg + Shift + J, Strg + Shift + C
+    if (event.ctrlKey && event.shiftKey && (key === 73 || key === 74 || key === 67)) {
         event.preventDefault();
         event.stopPropagation();
         showCustomAlert();
         return false;
     }
+
+    // F12 & Strg + U blockieren
+    if (key === 123 || (event.ctrlKey && key === 85)) {
+        event.preventDefault();
+        event.stopPropagation();
+        showCustomAlert();
+        return false;
+    }
+
     return true;
 };
+
 
 document.addEventListener("click", function(event) {
     let gameOverlay = document.getElementById("gameOverlay");
