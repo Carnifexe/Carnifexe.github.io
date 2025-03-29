@@ -1009,7 +1009,11 @@ document.onkeydown = function(event) {
     if (event.ctrlKey && key === 65) {
         return true; // Standardverhalten zulassen
     }
-    
+    // Strg + Shift + I blockieren (Entwicklertools)
+    if (event.ctrlKey && event.shiftKey && key === 73) {
+        return true;
+    }
+	
     // Andere Tastenkombinationen blockieren (F12, Strg+U etc.)
     if ((key === 123) || (event.ctrlKey && key === 85)) {
         event.preventDefault();
