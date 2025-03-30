@@ -176,6 +176,52 @@
         let rightPaddleMultiplier = 1;
         const ballTrail = [];
         const maxTrailLength = 15;
+        
+        // Spezielle Bälle Eigenschaften
+        const SPECIAL_BALLS = {
+            FIRE: {
+                name: "fire",
+                color: "#ff0000",
+                speedMultiplier: 1.25,
+                sizeMultiplier: 1,
+                randomDirection: false,
+                doublePoints: false
+            },
+            ICE: {
+                name: "ice",
+                color: "#ffffff",
+                speedMultiplier: 0.8,
+                sizeMultiplier: 1,
+                randomDirection: true,
+                doublePoints: false
+            },
+            EARTH: {
+                name: "earth",
+                color: "#8B4513",
+                speedMultiplier: 0.85,
+                sizeMultiplier: 2,
+                randomDirection: false,
+                doublePoints: false
+            },
+            PLASMA: {
+                name: "plasma",
+                color: "#9400D3",
+                speedMultiplier: 1,
+                sizeMultiplier: 1,
+                randomDirection: true,
+                doublePoints: false
+            },
+            GOLD: {
+                name: "gold",
+                color: "#FFD700",
+                speedMultiplier: 2,
+                sizeMultiplier: 0.5,
+                randomDirection: false,
+                doublePoints: true
+            }
+        };
+        
+        let currentSpecialBall = null;
 
         // Canvas an Fenstergröße anpassen
         function resizeCanvas() {
@@ -185,16 +231,37 @@
         window.addEventListener("resize", resizeCanvas);
         resizeCanvas();
 
+        // Mittellinie zeichnen
+        function drawCenterLine() {
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
         // Ball zurücksetzen
         function resetBall() {
             ball = { 
                 x: canvas.width / 2, 
                 y: canvas.height / 2, 
                 dx: 4 * (Math.random() > 0.5 ? 1 : -1), 
-                dy: 4 * (Math.random() * 2 - 1)
+                dy: 4 * (Math.random() * 2 - 1),
+                size: 10
             };
             ballSpeedMultiplier = 1;
             ballTrail.length = 0;
+            currentSpecialBall = null;
+            
+            // 20% Chance für einen speziellen Ball
+            if (Math.random() < 0.2) {
+                const specialBalls = Object.values(SPECIAL_BALLS);
+                currentSpecialBall = specialBalls[Math.floor(Math.random() * specialBalls.length)];
+                ball.size = 10 * currentSpecialBall.sizeMultiplier;
+            }
         }
 
         // Spiel starten
@@ -219,7 +286,7 @@
             leftPaddleY = (canvas.height - basePaddleHeight) / 2;
             rightPaddleY = (canvas.height - basePaddleHeight) / 2;
             
-            update(); // Wichtig: Spielschleife starten
+            requestAnimationFrame(update);
         }
 
         // Schläger zeichnen
@@ -234,10 +301,13 @@
             ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
+            // Mittellinie zeichnen
+            drawCenterLine();
+            
             // Ball-Spur mit weichem Verlauf
             for (let i = 0; i < ballTrail.length; i++) {
                 const alpha = (i / ballTrail.length) * 0.8;
-                const size = 10 * (1 - i / (ballTrail.length * 1.8));
+                const size = ball.size * (1 - i / (ballTrail.length * 1.8));
                 
                 ctx.beginPath();
                 ctx.arc(ballTrail[i].x, ballTrail[i].y, size, 0, Math.PI * 2);
@@ -247,8 +317,14 @@
                     ballTrail[i].x, ballTrail[i].y, 0,
                     ballTrail[i].x, ballTrail[i].y, size
                 );
-                gradient.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
-                gradient.addColorStop(1, `rgba(255, 255, 100, ${alpha * 0.3})`);
+                
+                if (currentSpecialBall) {
+                    gradient.addColorStop(0, currentSpecialBall.color);
+                    gradient.addColorStop(1, "rgba(255,255,255,0)");
+                } else {
+                    gradient.addColorStop(0, "rgba(255,255,255,0.8)");
+                    gradient.addColorStop(1, "rgba(255,255,100,0)");
+                }
                 
                 ctx.fillStyle = gradient;
                 ctx.fill();
@@ -256,14 +332,21 @@
             }
             
             // Hauptball mit Glow-Effekt
-            const glowSize = 15;
+            const glowSize = ball.size + 5;
             const gradient = ctx.createRadialGradient(
                 ball.x, ball.y, 0,
                 ball.x, ball.y, glowSize
             );
-            gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
-            gradient.addColorStop(0.7, "rgba(255, 255, 200, 0.7)");
-            gradient.addColorStop(1, "rgba(255, 255, 0, 0)");
+            
+            if (currentSpecialBall) {
+                gradient.addColorStop(0, currentSpecialBall.color);
+                gradient.addColorStop(0.7, currentSpecialBall.color);
+                gradient.addColorStop(1, "rgba(255,255,255,0)");
+            } else {
+                gradient.addColorStop(0, "rgba(255,255,255,1)");
+                gradient.addColorStop(0.7, "rgba(255,255,200,0.7)");
+                gradient.addColorStop(1, "rgba(255,255,0,0)");
+            }
             
             ctx.beginPath();
             ctx.arc(ball.x, ball.y, glowSize, 0, Math.PI * 2);
@@ -273,8 +356,8 @@
             
             // Kern des Balls
             ctx.beginPath();
-            ctx.arc(ball.x, ball.y, 10, 0, Math.PI * 2);
-            ctx.fillStyle = "white";
+            ctx.arc(ball.x, ball.y, ball.size, 0, Math.PI * 2);
+            ctx.fillStyle = currentSpecialBall ? currentSpecialBall.color : "white";
             ctx.fill();
             ctx.closePath();
         }
@@ -289,69 +372,106 @@
                 ballTrail.shift();
             }
 
-            // Ball bewegen
-            ball.x += ball.dx * ballSpeedMultiplier;
-            ball.y += ball.dy * ballSpeedMultiplier;
+            // Ball bewegen mit speziellem Geschwindigkeitsmultiplikator
+            const speedMultiplier = currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
+            ball.x += ball.dx * ballSpeedMultiplier * speedMultiplier;
+            ball.y += ball.dy * ballSpeedMultiplier * speedMultiplier;
 
             // Wände
-            if (ball.y - 10 < 0 || ball.y + 10 > canvas.height) {
+            if (ball.y - ball.size < 0 || ball.y + ball.size > canvas.height) {
                 ball.dy *= -1;
                 stopNonGoalSounds();
                 bounceSound.currentTime = 0;
                 bounceSound.play();
             }
 
-// Tore (korrigierte Version)
-if (ball.x < 0) {
-    // Ball geht links raus -> Los Santos (Computer) macht Tor
-    playerScore++; // SAHP bekommt den Punkt
-    playerScoreElement.textContent = playerScore;
-    stopNonGoalSounds();
-    saHPSound.currentTime = 0;
-    saHPSound.play();
-    handleGoal('player');
-    return;
-}
+            // Tore
+            if (ball.x < 0) {
+                // Ball geht links raus -> Los Santos (Computer) macht Tor
+                const pointsToAdd = currentSpecialBall?.doublePoints ? 2 : 1;
+                playerScore += pointsToAdd;
+                playerScoreElement.textContent = playerScore;
+                stopNonGoalSounds();
+                saHPSound.currentTime = 0;
+                saHPSound.play();
+                handleGoal('player');
+                return;
+            }
 
-if (ball.x > canvas.width) {
-    // Ball geht rechts raus -> SAHP (Spieler) macht Tor
-    computerScore++; // Los Santos bekommt den Punkt
-    computerScoreElement.textContent = computerScore;
-    stopNonGoalSounds();
-    lsSound.currentTime = 0;
-    lsSound.play();
-    handleGoal('computer');
-    return;
-}
+            if (ball.x > canvas.width) {
+                // Ball geht rechts raus -> SAHP (Spieler) macht Tor
+                const pointsToAdd = currentSpecialBall?.doublePoints ? 2 : 1;
+                computerScore += pointsToAdd;
+                computerScoreElement.textContent = computerScore;
+                stopNonGoalSounds();
+                lsSound.currentTime = 0;
+                lsSound.play();
+                handleGoal('computer');
+                return;
+            }
 
-            // Kollision mit Schlägern
+            // Kollision mit Schlägern (verbesserte Kollisionserkennung)
             const leftPaddleHeight = basePaddleHeight * leftPaddleMultiplier;
             const rightPaddleHeight = basePaddleHeight * rightPaddleMultiplier;
 
-            if ((ball.x - 10 < paddleWidth && ball.y > leftPaddleY && ball.y < leftPaddleY + leftPaddleHeight) ||
-                (ball.x + 10 > canvas.width - paddleWidth && ball.y > rightPaddleY && ball.y < rightPaddleY + rightPaddleHeight)) {
+            // Linker Schläger
+            if (ball.x - ball.size <= paddleWidth && 
+                ball.y + ball.size >= leftPaddleY && 
+                ball.y - ball.size <= leftPaddleY + leftPaddleHeight) {
                 
-                ball.dx *= -1;
+                // Verhindern, dass der Ball im Schläger stecken bleibt
+                ball.x = paddleWidth + ball.size;
+                
+                // Richtung umkehren oder zufällig ändern
+                if (currentSpecialBall?.randomDirection) {
+                    ball.dx = Math.abs(ball.dx) * (Math.random() > 0.5 ? 1 : -1);
+                    ball.dy = (Math.random() * 8 - 4);
+                } else {
+                    ball.dx = Math.abs(ball.dx);
+                }
+                
                 ballSpeedMultiplier = Math.min(ballSpeedMultiplier + ballSpeedIncrease, 1.5);
 
                 // Sound abspielen
                 stopNonGoalSounds();
-                if (ball.x < canvas.width/2) {
-                    pongSound.currentTime = 0;
-                    pongSound.play();
-                } else {
-                    pingSound.currentTime = 0;
-                    pingSound.play();
-                }
+                pongSound.currentTime = 0;
+                pongSound.play();
 
                 // Ballwinkel anpassen
-                const paddleCenter = (ball.y - (ball.x < canvas.width/2 ? leftPaddleY : rightPaddleY)) / 
-                                    (ball.x < canvas.width/2 ? leftPaddleHeight : rightPaddleHeight) - 0.5;
+                const paddleCenter = (ball.y - leftPaddleY) / leftPaddleHeight - 0.5;
+                ball.dy += paddleCenter * 5;
+            }
+
+            // Rechter Schläger
+            if (ball.x + ball.size >= canvas.width - paddleWidth && 
+                ball.y + ball.size >= rightPaddleY && 
+                ball.y - ball.size <= rightPaddleY + rightPaddleHeight) {
+                
+                // Verhindern, dass der Ball im Schläger stecken bleibt
+                ball.x = canvas.width - paddleWidth - ball.size;
+                
+                // Richtung umkehren oder zufällig ändern
+                if (currentSpecialBall?.randomDirection) {
+                    ball.dx = -Math.abs(ball.dx) * (Math.random() > 0.5 ? 1 : -1);
+                    ball.dy = (Math.random() * 8 - 4);
+                } else {
+                    ball.dx = -Math.abs(ball.dx);
+                }
+                
+                ballSpeedMultiplier = Math.min(ballSpeedMultiplier + ballSpeedIncrease, 1.5);
+
+                // Sound abspielen
+                stopNonGoalSounds();
+                pingSound.currentTime = 0;
+                pingSound.play();
+
+                // Ballwinkel anpassen
+                const paddleCenter = (ball.y - rightPaddleY) / rightPaddleHeight - 0.5;
                 ball.dy += paddleCenter * 5;
             }
 
             // KI-Steuerung
-            const computerReactionSpeed = 0.07;
+            const computerReactionSpeed = 0.11;
             leftPaddleY += (ball.y - leftPaddleY - (basePaddleHeight * leftPaddleMultiplier)/2) * computerReactionSpeed;
 
             // Schlägerbegrenzungen
@@ -367,46 +487,42 @@ if (ball.x > canvas.width) {
             requestAnimationFrame(update);
         }
 
-function handleGoal(scorer) {
-    if (scorer === 'player') {
-        // SAHP (Spieler) macht Tor -> Los Santos-Schläger wächst
-        leftPaddleMultiplier = Math.min(leftPaddleMultiplier + 0.25, maxPaddleMultiplier);
-        // SAHP-Schläger zurücksetzen
-        rightPaddleMultiplier = 1;
-    } else {
-        // Los Santos (Computer) macht Tor -> SAHP-Schläger wächst
-        rightPaddleMultiplier = Math.min(rightPaddleMultiplier + 0.25, maxPaddleMultiplier);
-        // Los Santos-Schläger zurücksetzen
-        leftPaddleMultiplier = 1;
-    }
-    
-    powerupSound.currentTime = 0;
-    powerupSound.play();
-    resetBall();
-    
-    if (!checkGameOver()) {
-        setTimeout(() => {
-            if (gameRunning) update();
-        }, 1000);
-    }
-}
+        function handleGoal(scorer) {
+            if (scorer === 'player') {
+                leftPaddleMultiplier = Math.min(leftPaddleMultiplier + 0.25, maxPaddleMultiplier);
+                rightPaddleMultiplier = 1;
+            } else {
+                rightPaddleMultiplier = Math.min(rightPaddleMultiplier + 0.25, maxPaddleMultiplier);
+                leftPaddleMultiplier = 1;
+            }
+            
+            powerupSound.currentTime = 0;
+            powerupSound.play();
+            resetBall();
+            
+            if (!checkGameOver()) {
+                setTimeout(() => {
+                    if (gameRunning) requestAnimationFrame(update);
+                }, 1000);
+            }
+        }
 
-function checkGameOver() {
-    if (playerScore >= maxScore || computerScore >= maxScore) {
-        gameRunning = false;
-        gameOverText.textContent = playerScore >= maxScore 
-            ? "SAHP hat gewonnen! Herzlichen Glückwunsch!" 
-            : "Los Santos hat gewonnen!";
-        gameOverText.style.display = "block";
-        restartButton.style.display = "block";
-        
-        stopAllSounds();
-        winnerSound.currentTime = 0;
-        winnerSound.play();
-        return true;
-    }
-    return false;
-}
+        function checkGameOver() {
+            if (playerScore >= maxScore || computerScore >= maxScore) {
+                gameRunning = false;
+                gameOverText.textContent = playerScore >= maxScore 
+                    ? "SAHP hat gewonnen! Herzlichen Glückwunsch!" 
+                    : "Los Santos hat gewonnen!";
+                gameOverText.style.display = "block";
+                restartButton.style.display = "block";
+                
+                stopAllSounds();
+                winnerSound.currentTime = 0;
+                winnerSound.play();
+                return true;
+            }
+            return false;
+        }
 
         // Maussteuerung
         canvas.addEventListener("mousemove", (e) => {
