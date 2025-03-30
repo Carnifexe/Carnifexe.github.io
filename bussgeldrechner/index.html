@@ -184,6 +184,66 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
     background-color: darkred;
 }
 </style>
+<style>
+/* Flexbox für Ausrichtung */
+.container {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Abstand zwischen Logo und Link */
+    font-size: 1.5em;
+    font-weight: bold;
+    position: relative;
+}
+/* Link */
+.link a {
+    text-decoration: none; /* Entfernt die Unterstreichung vom Link */
+    color: white;
+    transition: opacity 0.3s ease-in-out;
+	text-shadow: 0 0 10px rgba(0, 123, 255, 0.7);  /* Leichter Leuchteffekt um den Text */
+    position: relative;
+}
+/* Link */
+.link {
+    text-decoration: none;
+    color: white;
+    transition: color 0.3s ease, text-shadow 0.3s ease;  
+	text-shadow: 0 0 10px rgba(0, 123, 255, 0.7);  /* Leichter Leuchteffekt um den Text */
+    position: relative;
+}
+
+/* Ersatztext (versteckt) */
+.link span {
+	text-decoration: none;
+    position: absolute;
+    left: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease-in-out;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+/* Logo */
+#logo {
+    width: 40px;
+    height: auto;
+    transition: transform 0.3s ease-in-out;
+}
+
+/* Hover-Effekte */
+.container:hover .link a {
+    opacity: 0;
+}
+
+.container:hover .link span {
+    opacity: 1;
+    visibility: visible;
+}
+
+.container:hover #logo {
+    transform: translateX(100px); /* Bewegt das Logo nach rechts */
+}
+</style>
 </head>
 <body ondragstart="return false" oncontextmenu="return false">
     <div id="loading">
@@ -278,11 +338,13 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
         <div id="credits">Weitergeführt von Maik Bosa & Moritz Yane</div>
 
         <div id="sahp_container" style="display: flex; align-items: center;">
-            <div id="sahp" style="font-size: 1.5em; font-weight: bold;">Bußgeldrechner Grand RP DE 1</div>
-            
-            <div id="logoContainer" style="text-align: center;">
-                <img src="logosahp.png" alt="Logo" id="logo" style="width: 40px; height: auto;">
-            </div>
+<div class="container">
+    <div class="link">
+        <a href="https://gta5grand.com/new/?ref=227213" target="_blank">Bußgeldrechner Grand RP DE 1</a>
+        <span>Danke für die Unterstützung!</span>
+    </div>
+	<img src="logosahp.png" alt="Logo" id="logo">
+</div>
         </div>
         
         <div id="searchbar" style="flex-grow: 1;">
