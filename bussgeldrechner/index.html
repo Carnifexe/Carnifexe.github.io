@@ -1006,7 +1006,7 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
 
             <div id="plateInput"><input id="plateInput_input" type="text" maxlength="8" placeholder="Kennzeichen" oninput="JavaScript:startCalculating()"></div>
             <div id="blitzerInput"><input id="blitzerInput_input" type="text" maxlength="64" placeholder="Blitzerort" oninput="JavaScript:startCalculating()"></div>
-			<div id="systemwantedsInput"><input id="systemwantedsInput_input"  type="text" maxlength="1" placeholder="Systemwanteds" onkeydown="return isNumberKey(event)" oninput="validateInput(this); JavaScript:startCalculating();" onwheel="event.preventDefault()" style="appearance:none; -moz-appearance: textfield;"> 
+		<div id="systemwantedsInput"><input id="systemwantedsInput_input"  type="text" maxlength="1" placeholder="Systemwanteds" onkeydown="return isNumberKey(event)" oninput="replaceInput(this); JavaScript:startCalculating();" onwheel="event.preventDefault()" style="appearance:none; -moz-appearance: textfield;"> 
 </div>
             
             <div id="übergabeInput">
@@ -1027,16 +1027,30 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();e.stopPro
 				</div>
 
 <script>
-function validateInput(input) {
-    input.value = input.value.replace(/[^1-5]/g, ''); // Nur Zahlen 1-5 erlaubt
+function replaceInput(input) {
+    // Erlaubt nur Zahlen von 1 bis 5 und ersetzt die vorherige Eingabe
+    let value = input.value.replace(/[^1-5]/g, ''); 
+    
+    if (value.length > 1) {
+        value = value.charAt(1); // Nimmt nur die zuletzt eingegebene Zahl
+    }
+    input.value = value;
 }
 
 function isNumberKey(event) {
-    const key = event.key;
-    if (!/^[1-5]$/.test(key) && key !== "Backspace" && key !== "Delete") {
+    // Erlaubt nur die Zahlen 1-5, Backspace und Delete
+    if (!/^[1-5]$/.test(event.key) && event.key !== "Backspace" && event.key !== "Delete") {
+        // Falls Strg + A oder Strg + C (oder andere Tastenkombinationen) gedrückt wird, wird es nicht blockiert
+        if (event.ctrlKey && (event.key === "a" || event.key === "c" || event.key === "x" || event.key === "v")) {
+            return true;
+        }
         event.preventDefault();
         return false;
     }
+    
+    // Löscht die aktuelle Zahl, wenn eine neue gedrückt wird (ersetzt direkt)
+    document.getElementById("systemwantedsInput_input").value = "";
+    
     return true;
 }
 </script>
