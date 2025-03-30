@@ -1011,8 +1011,7 @@ document.addEventListener("keydown", function(event) {
         (event.ctrlKey && key === 85) || // Strg + U (Quelltext anzeigen)
         (event.ctrlKey && event.shiftKey && [73, 74, 67, 75, 69, 83].includes(key)) || // Strg + Shift + I, J, C, K, E, S
         (event.ctrlKey && key === 80) || // Strg + P (Drucken)
-        (event.ctrlKey && key === 83) || // Strg + S (Speichern unter)
-        (event.ctrlKey && [65, 67, 86, 88].includes(key)) // Strg + A, C, V, X (Markieren, Kopieren, Einfügen, Ausschneiden)
+        (event.ctrlKey && key === 83) // Strg + S (Speichern unter)
     ) {
         event.preventDefault();
         event.stopPropagation();
@@ -1020,6 +1019,8 @@ document.addEventListener("keydown", function(event) {
         return false;
     }
 });
+
+
 
 // Konsole-Schutz (erschwert Entwicklertools öffnen)
 (function() {
