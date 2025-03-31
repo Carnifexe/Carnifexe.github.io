@@ -20,6 +20,55 @@ let rooms = [];
 let queue = [];
 let scores = {};
 
+// Hilfsfunktionen
+function broadcastQueueCount() {
+  const count = queue.length;
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({ 
+        type: "queueUpdate", 
+        count 
+      }));
+    }
+  });
+}
+
+function broadcastPlayerCount() {
+  const count = players.length;
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({ 
+        type: "playerCountUpdate", 
+        count 
+      }));
+    }
+  });
+}
+
+function broadcastTotalPlayers() {
+  const count = players.length;
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({ 
+        type: "totalPlayersUpdate", 
+        count 
+      }));
+    }
+  });
+}
+
+function findPlayerRoom(ws) {
+  return rooms.find(r => r.players.includes(ws));
+}
+
+function broadcastToRoom(room, excludeWs, message) {
+  room.players.forEach(player => {
+    if (player !== excludeWs && player.readyState === WebSocket.OPEN) {
+      player.send(JSON.stringify(message));
+    }
+  });
+}
+
 // Ping/Pong für Verbindungsstabilität
 setInterval(() => {
   wss.clients.forEach((ws) => {
@@ -40,6 +89,7 @@ wss.on('connection', (ws) => {
   players.push(ws);
   broadcastPlayerCount();
   broadcastTotalPlayers();
+  broadcastQueueCount();
 
   ws.on('message', (message) => {
     try {
@@ -109,7 +159,6 @@ wss.on('connection', (ws) => {
     players = players.filter(p => p !== ws);
     queue = queue.filter(p => p !== ws);
     
-    // Räume aufräumen
     const room = findPlayerRoom(ws);
     if (room) {
       cleanupRoom(room);
@@ -134,7 +183,6 @@ function createRoom() {
   };
   rooms.push(newRoom);
   
-  // Spieler benachrichtigen
   roomPlayers[0].send(JSON.stringify({ 
     type: "gameStart", 
     playerNumber: 1,
@@ -146,7 +194,6 @@ function createRoom() {
     isHost: false
   }));
   
-  // Scores initialisieren
   scores[roomId] = { player1Score: 0, player2Score: 0 };
   
   console.log(`Raum ${roomId} erstellt`);
@@ -154,7 +201,6 @@ function createRoom() {
 }
 
 function handleGoal(room, scorer) {
-  // Score nur einmal pro Tor erhöhen (1 Sekunde Cooldown)
   if (Date.now() - room.lastGoalTime > 1000) {
     if (scorer === 1) {
       scores[room.roomId].player1Score++;
@@ -162,7 +208,6 @@ function handleGoal(room, scorer) {
       scores[room.roomId].player2Score++;
     }
     
-    // Spielende bei 10 Punkten
     if (scores[room.roomId].player1Score >= 10 || scores[room.roomId].player2Score >= 10) {
       broadcastToRoom(room, null, {
         type: "gameEnded"
@@ -179,7 +224,6 @@ function handleGoal(room, scorer) {
       player2Score: scores[room.roomId].player2Score
     });
 
-    // Ball zurücksetzen
     broadcastToRoom(room, null, {
       type: "ballReset",
       ballX: room.canvasWidth / 2,
@@ -196,45 +240,8 @@ function cleanupRoom(room) {
       player.send(JSON.stringify({ type: "gameEnded" }));
     }
   });
-  // Raum aufräumen
   rooms = rooms.filter(r => r !== room);
   delete scores[room.roomId];
-}
-
-function findPlayerRoom(ws) {
-  return rooms.find(r => r.players.includes(ws));
-}
-
-function broadcastToRoom(room, excludeWs, message) {
-  room.players.forEach(player => {
-    if (player !== excludeWs && player.readyState === WebSocket.OPEN) {
-      player.send(JSON.stringify(message));
-    }
-  });
-}
-
-function broadcastPlayerCount() {
-  const count = queue.length;
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ 
-        type: "queueUpdate", 
-        count 
-      }));
-    }
-  });
-}
-
-function broadcastTotalPlayers() {
-  const count = players.length;
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ 
-        type: "totalPlayersUpdate", 
-        count 
-      }));
-    }
-  });
 }
 
 const port = process.env.PORT || 8080;
