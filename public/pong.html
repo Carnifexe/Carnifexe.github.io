@@ -167,7 +167,7 @@
 
   <script>
     // Konfiguration
-    const BALL_UPDATE_RATE = 16; // 60fps
+    const BALL_UPDATE_RATE = 16;
     const WINNING_SCORE = 5;
     const PADDLE_WIDTH = 15;
     const PADDLE_HEIGHT = 100;
@@ -220,7 +220,7 @@
       playerId: 'player-' + Math.random().toString(36).substr(2, 9)
     };
 
-    // Canvas initialisieren
+    // Initialisierung
     function initCanvas() {
       game.canvasWidth = window.innerWidth;
       game.canvasHeight = window.innerHeight;
@@ -350,6 +350,8 @@
             ballY: game.ball.y,
             ballSpeedX: game.ball.speedX,
             ballSpeedY: game.ball.speedY,
+            player1Y: game.players[0].y,
+            player2Y: game.players[1].y,
             timestamp: now
           }));
           game.lastPingTime = now;
@@ -492,7 +494,6 @@
     };
 
     socket.onopen = () => {
-      // Sende initiale Spieler-ID beim Verbinden
       socket.send(JSON.stringify({
         type: "playerConnect",
         playerId: game.playerId
