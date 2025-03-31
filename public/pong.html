@@ -132,13 +132,13 @@
   <canvas id="pongCanvas"></canvas>
 
   <!-- Sound-Elemente -->
-    <audio id="pingSound" src="ping.mp3"></audio>
-    <audio id="pongSound" src="pong.mp3"></audio>
-    <audio id="saHPSound" src="sahpsound.mp3"></audio>
-    <audio id="lsSound" src="lssound.mp3"></audio>
-    <audio id="bounceSound" src="bounce.mp3"></audio>
-    <audio id="winnerSound" src="winner.mp3"></audio>
-    <audio id="powerupSound" src="powerup.mp3"></audio>
+  <audio id="pingSound" src="https://assets.mixkit.co/sfx/preview/mixkit-retro-game-notification-212.mp3" preload="auto"></audio>
+  <audio id="pongSound" src="https://assets.mixkit.co/sfx/preview/mixkit-unlock-game-notification-253.mp3" preload="auto"></audio>
+  <audio id="saHPSound" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-explosion-2759.mp3" preload="auto"></audio>
+  <audio id="lsSound" src="https://assets.mixkit.co/sfx/preview/mixkit-basketball-ball-bouncing-2085.mp3" preload="auto"></audio>
+  <audio id="bounceSound" src="https://assets.mixkit.co/sfx/preview/mixkit-quick-jump-arcade-game-239.mp3" preload="auto"></audio>
+  <audio id="winnerSound" src="https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3" preload="auto"></audio>
+  <audio id="powerupSound" src="https://assets.mixkit.co/sfx/preview/mixkit-achievement-bell-600.mp3" preload="auto"></audio>
 
   <script>
     // 1. Initialisierung
@@ -186,11 +186,12 @@
     let inQueue = false;
     
     // Pong-Elemente
-    const paddleWidth = 15;
-    const paddleHeight = 100;
-    const ballSize = 10;
-    let player1Y = canvas.height / 2 - paddleHeight / 2;
-    let player2Y = canvas.height / 2 - paddleHeight / 2;
+    const basePaddleWidth = 15;
+    const basePaddleHeight = 100;
+    let paddleWidth = basePaddleWidth;
+    let paddleHeight = basePaddleHeight;
+    let player1Y = canvas.height / 2 - basePaddleHeight / 2;
+    let player2Y = canvas.height / 2 - basePaddleHeight / 2;
     let ballX = canvas.width / 2;
     let ballY = canvas.height / 2;
     let ballSpeedX = 5;
@@ -199,6 +200,12 @@
     let player2Score = 0;
     let ballTrail = [];
     const maxTrailLength = 10;
+    
+    // Schläger-Modifikatoren
+    let leftPaddleMultiplier = 1.0;  // Multiplikator für linken Schläger (Player 1)
+    let rightPaddleMultiplier = 1.0; // Multiplikator für rechten Schläger (Player 2)
+    const maxPaddleMultiplier = 2.0; // Maximale Größe (100% größer = doppelte Größe)
+    const paddleIncreasePerGoal = 0.2; // 20% Vergrößerung pro Tor
 
     // Spezielle Bälle Eigenschaften
     const SPECIAL_BALLS = {
@@ -298,6 +305,8 @@
       if (data.type === "scoreUpdate") {
         player1Score = data.player1;
         player2Score = data.player2;
+        leftPaddleMultiplier = data.leftPaddleMultiplier;
+        rightPaddleMultiplier = data.rightPaddleMultiplier;
         updateScoreboard();
         
         // Gewinner prüfen
@@ -313,6 +322,11 @@
         }
       }
 
+      if (data.type === "paddleSizeUpdate") {
+        leftPaddleMultiplier = data.leftPaddleMultiplier;
+        rightPaddleMultiplier = data.rightPaddleMultiplier;
+      }
+
       if (data.type === "opponentDisconnected") {
         alert("Dein Gegner hat das Spiel verlassen!");
         location.reload();
@@ -322,6 +336,7 @@
         if (data.sound === "ping") pingSound.play();
         if (data.sound === "pong") pongSound.play();
         if (data.sound === "bounce") bounceSound.play();
+        if (data.sound === "powerup") powerupSound.play();
       }
     };
 
@@ -368,8 +383,8 @@
     // 7. Spielsteuerung per Maus (statt Tastatur)
     document.addEventListener('mousemove', (e) => {
       if (!gameRunning) return;
-      let newY = e.clientY - paddleHeight / 2;
-      newY = Math.max(0, Math.min(canvas.height - paddleHeight, newY));
+      let newY = e.clientY - (paddleHeight * (playerNumber === 1 ? leftPaddleMultiplier : rightPaddleMultiplier)) / 2;
+      newY = Math.max(0, Math.min(canvas.height - (paddleHeight * (playerNumber === 1 ? leftPaddleMultiplier : rightPaddleMultiplier)), newY));
 
       if (playerNumber === 1) {
         player1Y = newY;
@@ -493,8 +508,21 @@
 
     function drawPaddles() {
       ctx.fillStyle = "#fff";
-      ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
-      ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
+      // Linker Schläger (Player 1) mit aktuellem Multiplikator
+      ctx.fillRect(
+        0, 
+        player1Y, 
+        paddleWidth, 
+        paddleHeight * leftPaddleMultiplier
+      );
+      
+      // Rechter Schläger (Player 2) mit aktuellem Multiplikator
+      ctx.fillRect(
+        canvas.width - paddleWidth, 
+        player2Y, 
+        paddleWidth, 
+        paddleHeight * rightPaddleMultiplier
+      );
     }
 
     function gameLoop() {
@@ -519,7 +547,7 @@
         }
         
         // Kollision mit den Paddles
-        if (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
+        if (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + (paddleHeight * leftPaddleMultiplier)) {
           ballSpeedX = -ballSpeedX * 1.05;
           socket.send(JSON.stringify({ type: "playSound", sound: "ping" }));
           
@@ -534,7 +562,7 @@
           }
         }
         
-        if (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight) {
+        if (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + (paddleHeight * rightPaddleMultiplier)) {
           ballSpeedX = -ballSpeedX * 1.05;
           socket.send(JSON.stringify({ type: "playSound", sound: "pong" }));
           
@@ -551,26 +579,46 @@
         
         // Punkte zählen
         if (ballX < 0) {
+          // Spieler 2 (rechts) macht ein Tor
           const pointsToAdd = currentSpecialBall?.doublePoints ? 2 : 1;
           player2Score += pointsToAdd;
+          
+          // Rechter Schläger zurücksetzen, linker Schläger vergrößern
+          rightPaddleMultiplier = 1.0;
+          leftPaddleMultiplier = Math.min(leftPaddleMultiplier + paddleIncreasePerGoal, maxPaddleMultiplier);
+          
           socket.send(JSON.stringify({
             type: "scoreUpdate",
             player1: player1Score,
-            player2: player2Score
+            player2: player2Score,
+            leftPaddleMultiplier: leftPaddleMultiplier,
+            rightPaddleMultiplier: rightPaddleMultiplier
           }));
+          
           socket.send(JSON.stringify({ type: "playSound", sound: "ls" }));
+          powerupSound.play();
           resetGame();
         }
         
         if (ballX > canvas.width) {
+          // Spieler 1 (links) macht ein Tor
           const pointsToAdd = currentSpecialBall?.doublePoints ? 2 : 1;
           player1Score += pointsToAdd;
+          
+          // Linker Schläger zurücksetzen, rechter Schläger vergrößern
+          leftPaddleMultiplier = 1.0;
+          rightPaddleMultiplier = Math.min(rightPaddleMultiplier + paddleIncreasePerGoal, maxPaddleMultiplier);
+          
           socket.send(JSON.stringify({
             type: "scoreUpdate",
             player1: player1Score,
-            player2: player2Score
+            player2: player2Score,
+            leftPaddleMultiplier: leftPaddleMultiplier,
+            rightPaddleMultiplier: rightPaddleMultiplier
           }));
+          
           socket.send(JSON.stringify({ type: "playSound", sound: "saHP" }));
+          powerupSound.play();
           resetGame();
         }
         
@@ -595,6 +643,11 @@
       canvas.style.display = "block";
       resetGame();
       updateScoreboard();
+      
+      // Schlägergrößen zurücksetzen
+      leftPaddleMultiplier = 1.0;
+      rightPaddleMultiplier = 1.0;
+      
       gameLoop();
     }
   </script>
