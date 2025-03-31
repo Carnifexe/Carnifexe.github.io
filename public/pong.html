@@ -109,6 +109,20 @@
             padding: 20px;
             border-radius: 10px;
         }
+        #opponentConnectedText {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: white;
+            z-index: 10004;
+            display: none;
+            text-align: center;
+            background: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body>
@@ -116,6 +130,7 @@
     <button id="restartButton">Neustart</button>
     <div id="gameOverText"></div>
     <div id="waitingText">Warte auf Gegner...</div>
+    <div id="opponentConnectedText">Gegner verbunden!</div>
     <canvas id="pongCanvas"></canvas>
     <div id="scoreboard">
         <div class="teams-container">
@@ -152,14 +167,7 @@
         const player2ScoreElement = document.getElementById("player2Score");
         const gameOverText = document.getElementById("gameOverText");
         const waitingText = document.getElementById("waitingText");
-
-        // Sound-Elemente
-        const pingSound = document.getElementById("pingSound");
-        const pongSound = document.getElementById("pongSound");
-        const scoreSound = document.getElementById("scoreSound");
-        const bounceSound = document.getElementById("bounceSound");
-        const winnerSound = document.getElementById("winnerSound");
-        const powerupSound = document.getElementById("powerupSound");
+        const opponentConnectedText = document.getElementById("opponentConnectedText");
 
         // Spielvariablen
         let gameRunning = false;
@@ -169,17 +177,11 @@
         const maxScore = 10;
         const paddleHeight = 100;
         const paddleWidth = 10;
-        let ballSpeedMultiplier = 1;
-        const ballSpeedIncrease = 0.05;
         
-        // Ball und Schläger
         let ball = { x: 0, y: 0, dx: 0, dy: 0, size: 10 };
         let player1Y = 0;
         let player2Y = 0;
-        const ballTrail = [];
-        const maxTrailLength = 15;
-        
-        // Verbindungsstatus
+
         let connected = false;
         let opponentConnected = false;
 
@@ -217,7 +219,11 @@
             else if (data.type === "gameStart") {
                 opponentConnected = true;
                 waitingText.style.display = "none";
-                startGame();
+                opponentConnectedText.style.display = "block"; // Gegner verbunden Text anzeigen
+                setTimeout(() => {
+                    opponentConnectedText.style.display = "none";
+                    startGame();
+                }, 2000); // 2 Sekunden warten, bevor das Spiel startet
             }
             else if (data.type === "gameState") {
                 // Spielzustand aktualisieren
@@ -253,126 +259,9 @@
                 }
             }
             else if (data.type === "sound") {
-                // Soundeffekte abspielen
                 playSound(data.sound);
             }
         };
-
-        function playSound(soundName) {
-            stopNonGoalSounds();
-            
-            switch(soundName) {
-                case "ping":
-                    pingSound.currentTime = 0;
-                    pingSound.play();
-                    break;
-                case "pong":
-                    pongSound.currentTime = 0;
-                    pongSound.play();
-                    break;
-                case "bounce":
-                    bounceSound.currentTime = 0;
-                    bounceSound.play();
-                    break;
-                case "score":
-                    scoreSound.currentTime = 0;
-                    scoreSound.play();
-                    break;
-                case "powerup":
-                    powerupSound.currentTime = 0;
-                    powerupSound.play();
-                    break;
-            }
-        }
-
-        // Sound stoppen Funktionen
-        function stopNonGoalSounds() {
-            [pingSound, pongSound, bounceSound, powerupSound].forEach(sound => {
-                sound.pause();
-                sound.currentTime = 0;
-            });
-        }
-
-        function stopAllSounds() {
-            [pingSound, pongSound, scoreSound, bounceSound, powerupSound, winnerSound].forEach(sound => {
-                sound.pause();
-                sound.currentTime = 0;
-            });
-        }
-
-        // Mittellinie zeichnen
-        function drawCenterLine() {
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-            ctx.lineWidth = 2;
-            ctx.setLineDash([10, 10]);
-            ctx.beginPath();
-            ctx.moveTo(canvas.width / 2, 0);
-            ctx.lineTo(canvas.width / 2, canvas.height);
-            ctx.stroke();
-            ctx.setLineDash([]);
-        }
-
-        // Schläger zeichnen
-        function drawPaddle(x, y) {
-            ctx.fillStyle = "white";
-            ctx.fillRect(x, y, paddleWidth, paddleHeight);
-        }
-
-        // Ball zeichnen
-        function drawBall() {
-            // Leichter Hintergrund-Overlay für Motion-Blur
-            ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Mittellinie zeichnen
-            drawCenterLine();
-            
-            // Ball-Spur mit weichem Verlauf
-            for (let i = 0; i < ballTrail.length; i++) {
-                const alpha = (i / ballTrail.length) * 0.8;
-                const size = ball.size * (1 - i / (ballTrail.length * 1.8));
-                
-                ctx.beginPath();
-                ctx.arc(ballTrail[i].x, ballTrail[i].y, size, 0, Math.PI * 2);
-                
-                // Farbverlauf für den Schweif
-                const gradient = ctx.createRadialGradient(
-                    ballTrail[i].x, ballTrail[i].y, 0,
-                    ballTrail[i].x, ballTrail[i].y, size
-                );
-                
-                gradient.addColorStop(0, "rgba(255,255,255,0.8)");
-                gradient.addColorStop(1, "rgba(255,255,100,0)");
-                
-                ctx.fillStyle = gradient;
-                ctx.fill();
-                ctx.closePath();
-            }
-            
-            // Hauptball mit Glow-Effekt
-            const glowSize = ball.size + 5;
-            const gradient = ctx.createRadialGradient(
-                ball.x, ball.y, 0,
-                ball.x, ball.y, glowSize
-            );
-            
-            gradient.addColorStop(0, "rgba(255,255,255,1)");
-            gradient.addColorStop(0.7, "rgba(255,255,200,0.7)");
-            gradient.addColorStop(1, "rgba(255,255,0,0)");
-            
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, glowSize, 0, Math.PI * 2);
-            ctx.fillStyle = gradient;
-            ctx.fill();
-            ctx.closePath();
-            
-            // Kern des Balls
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ball.size, 0, Math.PI * 2);
-            ctx.fillStyle = "white";
-            ctx.fill();
-            ctx.closePath();
-        }
 
         // Spiel starten
         function startGame() {
@@ -390,40 +279,10 @@
             scoreboard.style.display = "block";
             gameOverText.style.display = "none";
             
-            // Ball-Spur zurücksetzen
-            ballTrail.length = 0;
-            
             // Initiale Schlägerposition
             player1Y = (canvas.height - paddleHeight) / 2;
             player2Y = (canvas.height - paddleHeight) / 2;
             
-            requestAnimationFrame(update);
-        }
-
-        // Spiel-Update
-        function update() {
-            if (!gameRunning) return;
-
-            // Ball-Spur aktualisieren
-            ballTrail.push({x: ball.x, y: ball.y});
-            if (ballTrail.length > maxTrailLength) {
-                ballTrail.shift();
-            }
-
-            // Zeichnen
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Schläger zeichnen (abhängig von der Spielerposition)
-            if (playerNumber === 1) {
-                drawPaddle(0, player1Y);
-                drawPaddle(canvas.width - paddleWidth, player2Y);
-            } else {
-                drawPaddle(0, player2Y);
-                drawPaddle(canvas.width - paddleWidth, player1Y);
-            }
-            
-            drawBall();
-
             requestAnimationFrame(update);
         }
 
@@ -433,7 +292,6 @@
             
             const mouseY = e.clientY - paddleHeight / 2;
             
-            // Spielerposition an Server senden
             if (playerNumber === 1) {
                 player1Y = Math.max(0, Math.min(canvas.height - paddleHeight, mouseY));
                 socket.send(JSON.stringify({
@@ -484,11 +342,9 @@
 
         // Initialisierung sicherstellen
         window.addEventListener('load', () => {
-            resizeCanvas();
-            startButton.style.display = "block";
-            canvas.style.display = "none";
-            scoreboard.style.display = "none";
-            waitingText.style.display = "none";
+            if (!connected) {
+                waitingText.style.display = "block";
+            }
         });
     </script>
 </body>
