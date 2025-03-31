@@ -35,20 +35,6 @@
             border: none;
             border-radius: 5px;
         }
-        #restartButton {
-            position: fixed;
-            bottom: 30px;
-            left: calc(50% - 180px);
-            padding: 20px;
-            font-size: 20px;
-            cursor: pointer;
-            z-index: 10001;
-            display: none;
-            background: #333;
-            color: white;
-            border: none;
-            border-radius: 5px;
-        }
         #scoreboard {
             position: fixed;
             top: 20px;
@@ -76,116 +62,62 @@
             padding: 20px;
             border-radius: 10px;
         }
-        #opponentConnectedText {
+        #connectedClients {
             position: fixed;
-            top: 50%;
+            top: 100px;
             left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 24px;
+            transform: translateX(-50%);
+            font-size: 20px;
             color: white;
-            z-index: 10004;
-            display: none;
-            text-align: center;
+            z-index: 10002;
             background: rgba(0,0,0,0.7);
-            padding: 20px;
+            padding: 10px;
             border-radius: 10px;
         }
     </style>
 </head>
 <body>
-    <button id="startButton">Pong starten</button>
-    <button id="restartButton">Neustart</button>
     <div id="waitingText">Warte auf Gegner...</div>
-    <div id="opponentConnectedText">Gegner verbunden!</div>
+    <div id="connectedClients">Verbunden: 0 Spieler</div>
+    <button id="startButton">Pong starten</button>
     <canvas id="pongCanvas"></canvas>
-    <div id="scoreboard">
-        <div class="teams-container">
-            <div class="team">
-                <div class="team-name">Spieler 1</div>
-                <div class="team-score" id="player1Score">0</div>
-            </div>
-            <div class="team">
-                <div class="team-name">Spieler 2</div>
-                <div class="team-score" id="player2Score">0</div>
-            </div>
-        </div>
-    </div>
-
+    
     <script>
         const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
         
         const canvas = document.getElementById("pongCanvas");
         const ctx = canvas.getContext("2d");
         const startButton = document.getElementById("startButton");
-        const restartButton = document.getElementById("restartButton");
-        const scoreboard = document.getElementById("scoreboard");
-        const player1ScoreElement = document.getElementById("player1Score");
-        const player2ScoreElement = document.getElementById("player2Score");
         const waitingText = document.getElementById("waitingText");
-        const opponentConnectedText = document.getElementById("opponentConnectedText");
+        const connectedClients = document.getElementById("connectedClients");
 
         let gameRunning = false;
         let playerNumber = null;
         let player1Score = 0;
         let player2Score = 0;
-
-        let ball = { x: 0, y: 0, dx: 0, dy: 0, size: 10 };
-        let player1Y = 0;
-        let player2Y = 0;
-
         let connected = false;
-        let opponentConnected = false;
-
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener("resize", resizeCanvas);
-        resizeCanvas();
 
         socket.onopen = function() {
             connected = true;
             console.log("Mit Server verbunden");
+            socket.send(JSON.stringify({ type: "getPlayers" }));
         };
 
         socket.onmessage = function(event) {
             const data = JSON.parse(event.data);
             
-            if (data.type === "assignPlayer") {
-                playerNumber = data.player;
-                console.log("Du bist Spieler", playerNumber);
+            if (data.type === "updatePlayerCount") {
+                connectedClients.textContent = `Verbunden: ${data.count} Spieler`;
             }
-            else if (data.type === "gameStart") {
-                opponentConnected = true;
+
+            if (data.type === "playerList") {
+                console.log("Aktuelle Spieleranzahl:", data.count);
+            }
+
+            if (data.type === "gameStart") {
+                console.log("Spiel beginnt!");
                 waitingText.style.display = "none";
-                opponentConnectedText.style.display = "block"; // Gegner verbunden Text anzeigen
-                setTimeout(() => {
-                    opponentConnectedText.style.display = "none";
-                    startGame();
-                }, 2000); // 2 Sekunden warten, bevor das Spiel startet
-            }
-            else if (data.type === "gameState") {
-                ball.x = data.ball.x;
-                ball.y = data.ball.y;
-                ball.dx = data.ball.dx;
-                ball.dy = data.ball.dy;
-                
-                if (playerNumber === 1) {
-                    player2Y = data.player2Y;
-                } else {
-                    player1Y = data.player1Y;
-                }
-                
-                player1Score = data.player1Score;
-                player2Score = data.player2Score;
-                
-                player1ScoreElement.textContent = player1Score;
-                player2ScoreElement.textContent = player2Score;
-                
-                if (data.gameOver) {
-                    gameRunning = false;
-                    alert(playerNumber === 1 ? 'Spiel beendet, du hast gewonnen!' : 'Spiel beendet, du hast verloren!');
-                }
+                startGame();
             }
         };
 
@@ -201,17 +133,10 @@
             socket.send(JSON.stringify({ type: "ready" }));
         });
 
-        restartButton.addEventListener("click", () => {
-            gameRunning = false;
-            startButton.style.display = "block";
-            waitingText.style.display = "none";
-            opponentConnectedText.style.display = "none";
-        });
-
         function startGame() {
             gameRunning = true;
             canvas.style.display = "block";
-            scoreboard.style.display = "block";
+            // Dein Spielcode für Pong kann hier fortgesetzt werden
         }
     </script>
 </body>
