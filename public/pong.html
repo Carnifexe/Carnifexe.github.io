@@ -131,7 +131,6 @@
   </div>
   <canvas id="pongCanvas"></canvas>
 
-  <!-- Sound-Elemente -->
   <audio id="pingSound" src="ping.mp3" preload="auto"></audio>
   <audio id="pongSound" src="pong.mp3" preload="auto"></audio>
   <audio id="saHPSound" src="sahpsound.mp3" preload="auto"></audio>
@@ -141,7 +140,6 @@
   <audio id="powerupSound" src="powerup.mp3" preload="auto"></audio>
 
   <script>
-    // 1. Initialisierung
     const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
     const canvas = document.getElementById("pongCanvas");
     const ctx = canvas.getContext("2d");
@@ -155,7 +153,6 @@
     const player1ScoreElement = document.getElementById("player1Score");
     const player2ScoreElement = document.getElementById("player2Score");
 
-    // Sound-Elemente
     const pingSound = document.getElementById("pingSound");
     const pongSound = document.getElementById("pongSound");
     const saHPSound = document.getElementById("saHPSound");
@@ -164,7 +161,6 @@
     const winnerSound = document.getElementById("winnerSound");
     const powerupSound = document.getElementById("powerupSound");
 
-    // Sound stoppen Funktionen
     function stopNonGoalSounds() {
         [pingSound, pongSound, bounceSound, powerupSound].forEach(sound => {
             sound.pause();
@@ -179,14 +175,11 @@
         });
     }
 
-    // 2. Spielvariablen
     let gameRunning = false;
     let playerNumber = null;
     let isHost = false;
     let inQueue = false;
-    let ballSize = 10; // Definierte Ballgröße
     
-    // Pong-Elemente
     const basePaddleWidth = 15;
     const basePaddleHeight = 100;
     let paddleWidth = basePaddleWidth;
@@ -202,59 +195,21 @@
     let ballTrail = [];
     const maxTrailLength = 10;
     
-    // Schläger-Modifikatoren
-    let leftPaddleMultiplier = 1.0;
-    let rightPaddleMultiplier = 1.0;
-    const maxPaddleMultiplier = 2.0;
+    let leftPaddleMultiplier = 1.0;  
+    let rightPaddleMultiplier = 1.0; 
+    const maxPaddleMultiplier = 2.0; 
     const paddleIncreasePerGoal = 0.2;
 
-    // Spezielle Bälle Eigenschaften
     const SPECIAL_BALLS = {
-        FIRE: {
-            name: "fire",
-            color: "#ff0000",
-            speedMultiplier: 1.25,
-            sizeMultiplier: 1,
-            randomDirection: false,
-            doublePoints: false
-        },
-        ICE: {
-            name: "ice",
-            color: "#ffffff",
-            speedMultiplier: 0.8,
-            sizeMultiplier: 1,
-            randomDirection: true,
-            doublePoints: false
-        },
-        EARTH: {
-            name: "earth",
-            color: "#8B4513",
-            speedMultiplier: 0.85,
-            sizeMultiplier: 2,
-            randomDirection: false,
-            doublePoints: false
-        },
-        PLASMA: {
-            name: "plasma",
-            color: "#9400D3",
-            speedMultiplier: 1,
-            sizeMultiplier: 1,
-            randomDirection: true,
-            doublePoints: false
-        },
-        GOLD: {
-            name: "gold",
-            color: "#FFD700",
-            speedMultiplier: 2,
-            sizeMultiplier: 0.5,
-            randomDirection: false,
-            doublePoints: true
-        }
+        FIRE: { name: "fire", color: "#ff0000", speedMultiplier: 1.25, sizeMultiplier: 1, randomDirection: false, doublePoints: false },
+        ICE: { name: "ice", color: "#ffffff", speedMultiplier: 0.8, sizeMultiplier: 1, randomDirection: true, doublePoints: false },
+        EARTH: { name: "earth", color: "#8B4513", speedMultiplier: 0.85, sizeMultiplier: 2, randomDirection: false, doublePoints: false },
+        PLASMA: { name: "plasma", color: "#9400D3", speedMultiplier: 1, sizeMultiplier: 1, randomDirection: true, doublePoints: false },
+        GOLD: { name: "gold", color: "#FFD700", speedMultiplier: 2, sizeMultiplier: 0.5, randomDirection: false, doublePoints: true }
     };
 
     let currentSpecialBall = null;
 
-    // 3. Canvas Setup
     function resizeCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
@@ -263,7 +218,6 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // 4. WebSocket-Handler
     socket.onopen = () => {
       console.log("Mit Server verbunden");
     };
@@ -285,364 +239,113 @@
         scoreboard.style.display = "flex";
       }
 
-      if (data.type === "paddleMove") {
-        if (data.player === 1) player1Y = data.y;
-        if (data.player === 2) player2Y = data.y;
+      if (data.type === "scoreUpdate") {
+        player1Score = data.player1Score;
+        player2Score = data.player2Score;
+        player1ScoreElement.textContent = player1Score;
+        player2ScoreElement.textContent = player2Score;
       }
 
       if (data.type === "ballUpdate") {
-        ballX = data.x;
-        ballY = data.y;
-        ballSpeedX = data.speedX;
-        ballSpeedY = data.speedY;
-        if (data.specialBall) {
-          currentSpecialBall = SPECIAL_BALLS[data.specialBall];
+        ballX = data.ballX;
+        ballY = data.ballY;
+        ballSpeedX = data.ballSpeedX;
+        ballSpeedY = data.ballSpeedY;
+      }
+
+      if (data.type === "paddleUpdate") {
+        if (data.player === 1) {
+          player1Y = data.paddleY;
         } else {
-          currentSpecialBall = null;
+          player2Y = data.paddleY;
         }
       }
 
-      if (data.type === "scoreUpdate") {
-        player1Score = data.player1;
-        player2Score = data.player2;
-        leftPaddleMultiplier = data.leftPaddleMultiplier;
-        rightPaddleMultiplier = data.rightPaddleMultiplier;
-        updateScoreboard();
-        
-        if (player1Score >= 10 || player2Score >= 10) {
-          gameRunning = false;
-          if ((playerNumber === 1 && player1Score >= 10) || (playerNumber === 2 && player2Score >= 10)) {
-            winnerSound.play();
-            alert("Du hast gewonnen!");
-          } else {
-            alert("Du hast verloren!");
-          }
-          location.reload();
-        }
-      }
-
-      if (data.type === "paddleSizeUpdate") {
-        leftPaddleMultiplier = data.leftPaddleMultiplier;
-        rightPaddleMultiplier = data.rightPaddleMultiplier;
-      }
-
-      if (data.type === "opponentDisconnected") {
-        alert("Dein Gegner hat das Spiel verlassen!");
-        location.reload();
-      }
-
-      if (data.type === "playSound") {
-        if (data.sound === "ping") pingSound.play();
-        if (data.sound === "pong") pongSound.play();
-        if (data.sound === "bounce") bounceSound.play();
-        if (data.sound === "powerup") powerupSound.play();
+      if (data.type === "specialBallUpdate") {
+        currentSpecialBall = data.specialBall;
       }
     };
 
-    // 5. Warteschlangen-Logik
-    queueButton.addEventListener("click", () => {
-      if (!inQueue) {
-        socket.send(JSON.stringify({ type: "joinQueue" }));
-        queueButton.textContent = "Warteschlange verlassen";
-        queueStatus.textContent = "In Warteschlange...";
-        queueStatus.style.color = "#FFA500";
-        inQueue = true;
-      } else {
-        socket.send(JSON.stringify({ type: "leaveQueue" }));
-        queueButton.textContent = "Warteschlange betreten";
-        queueStatus.textContent = "Nicht in Warteschlange";
-        queueStatus.style.color = "white";
-        inQueue = false;
-      }
-    });
-
-    // 6. Countdown-Logik
     function startCountdown() {
-      waitingScreen.style.display = "none";
+      gameRunning = true;
       readyScreen.style.display = "flex";
-      
-      let counter = 3;
-      countdown.textContent = "Ready...";
-      
+      let countdownTime = 3;
       const countdownInterval = setInterval(() => {
-        if (counter > 0) {
-          countdown.textContent = counter;
-          counter--;
-        } else {
+        countdown.textContent = countdownTime;
+        countdownTime--;
+        if (countdownTime < 0) {
           clearInterval(countdownInterval);
-          countdown.textContent = "GO!";
-          setTimeout(() => {
-            readyScreen.style.display = "none";
-            startGame();
-          }, 500);
+          readyScreen.style.display = "none";
+          startGame();
         }
       }, 1000);
     }
 
-    // 7. Spielsteuerung per Maus
-    document.addEventListener('mousemove', (e) => {
-      if (!gameRunning) return;
-      let newY = e.clientY - (paddleHeight * (playerNumber === 1 ? leftPaddleMultiplier : rightPaddleMultiplier)) / 2;
-      newY = Math.max(0, Math.min(canvas.height - (paddleHeight * (playerNumber === 1 ? leftPaddleMultiplier : rightPaddleMultiplier)), newY));
+    function startGame() {
+      setInterval(() => {
+        updateGame();
+        render();
+      }, 1000 / 60);
+    }
 
-      if (playerNumber === 1) {
-        player1Y = newY;
-        socket.send(JSON.stringify({ 
-          type: "paddleMove", 
-          player: 1, 
-          y: player1Y 
-        }));
-      } else if (playerNumber === 2) {
-        player2Y = newY;
-        socket.send(JSON.stringify({ 
-          type: "paddleMove", 
-          player: 2, 
-          y: player2Y 
-        }));
+    function updateGame() {
+      if (ballY <= 0 || ballY >= canvas.height) {
+        ballSpeedY = -ballSpeedY;
+        bounceSound.play();
       }
-    });
+      ballX += ballSpeedX;
+      ballY += ballSpeedY;
 
-    // 8. Spiel-Logik
-    function resetGame() {
+      if (ballX <= basePaddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
+        ballSpeedX = -ballSpeedX;
+        ballSpeedX *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
+        ballSpeedY *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
+        pongSound.play();
+      } else if (ballX >= canvas.width - basePaddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight) {
+        ballSpeedX = -ballSpeedX;
+        ballSpeedX *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
+        ballSpeedY *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
+        pongSound.play();
+      } else if (ballX < 0) {
+        player2Score++;
+        player2ScoreElement.textContent = player2Score;
+        ballReset();
+      } else if (ballX > canvas.width) {
+        player1Score++;
+        player1ScoreElement.textContent = player1Score;
+        ballReset();
+      }
+
+      if (player1Score >= 5 || player2Score >= 5) {
+        stopAllSounds();
+        winnerSound.play();
+      }
+    }
+
+    function ballReset() {
       ballX = canvas.width / 2;
       ballY = canvas.height / 2;
-      ballSpeedX = 5 * (Math.random() > 0.5 ? 1 : -1);
-      ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
-      ballTrail = [];
-      
-      if (Math.random() < 0.2 && isHost) {
-        const specialBalls = Object.values(SPECIAL_BALLS);
-        currentSpecialBall = specialBalls[Math.floor(Math.random() * specialBalls.length)];
-        socket.send(JSON.stringify({
-          type: "ballUpdate",
-          specialBall: Object.keys(SPECIAL_BALLS).find(key => SPECIAL_BALLS[key] === currentSpecialBall)
-        }));
-      } else {
-        currentSpecialBall = null;
-      }
+      ballSpeedX = -ballSpeedX;
+      ballSpeedY = 5;
+      currentSpecialBall = randomSpecialBall();
     }
 
-    function updateScoreboard() {
-      player1ScoreElement.textContent = player1Score;
-      player2ScoreElement.textContent = player2Score;
+    function randomSpecialBall() {
+      const keys = Object.keys(SPECIAL_BALLS);
+      const randomKey = keys[Math.floor(Math.random() * keys.length)];
+      return SPECIAL_BALLS[randomKey];
     }
 
-    function drawCenterLine() {
-      ctx.strokeStyle = "#333";
-      ctx.setLineDash([10, 10]);
-      ctx.beginPath();
-      ctx.moveTo(canvas.width / 2, 0);
-      ctx.lineTo(canvas.width / 2, canvas.height);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-
-    function drawBall() {
-      // Hintergrund-Overlay für Motion-Blur
-      ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      drawCenterLine();
-      
-      // Ball-Spur
-      for (let i = 0; i < ballTrail.length; i++) {
-        const alpha = (i / ballTrail.length) * 0.8;
-        const size = ballSize * (1 - i / (ballTrail.length * 1.8));
-        
-        ctx.beginPath();
-        ctx.arc(ballTrail[i].x, ballTrail[i].y, size, 0, Math.PI * 2);
-        
-        const gradient = ctx.createRadialGradient(
-          ballTrail[i].x, ballTrail[i].y, 0,
-          ballTrail[i].x, ballTrail[i].y, size
-        );
-        
-        if (currentSpecialBall) {
-          gradient.addColorStop(0, currentSpecialBall.color);
-          gradient.addColorStop(1, "rgba(255,255,255,0)");
-        } else {
-          gradient.addColorStop(0, "rgba(255,255,255,0.8)");
-          gradient.addColorStop(1, "rgba(255,255,100,0)");
-        }
-        
-        ctx.fillStyle = gradient;
-        ctx.fill();
-        ctx.closePath();
-      }
-      
-      // Hauptball mit Glow-Effekt
-      const glowSize = ballSize + 5;
-      const gradient = ctx.createRadialGradient(
-        ballX, ballY, 0,
-        ballX, ballY, glowSize
-      );
-      
-      if (currentSpecialBall) {
-        gradient.addColorStop(0, currentSpecialBall.color);
-        gradient.addColorStop(0.7, currentSpecialBall.color);
-        gradient.addColorStop(1, "rgba(255,255,255,0)");
-      } else {
-        gradient.addColorStop(0, "rgba(255,255,255,1)");
-        gradient.addColorStop(0.7, "rgba(255,255,200,0.7)");
-        gradient.addColorStop(1, "rgba(255,255,0,0)");
-      }
-      
-      ctx.beginPath();
-      ctx.arc(ballX, ballY, glowSize, 0, Math.PI * 2);
-      ctx.fillStyle = gradient;
-      ctx.fill();
-      ctx.closePath();
-      
-      // Kern des Balls
-      ctx.beginPath();
-      ctx.arc(ballX, ballY, ballSize, 0, Math.PI * 2);
-      ctx.fillStyle = currentSpecialBall ? currentSpecialBall.color : "white";
-      ctx.fill();
-      ctx.closePath();
-    }
-
-    function drawPaddles() {
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#fff";
-      // Linker Schläger (Player 1)
-      ctx.fillRect(
-        0, 
-        player1Y, 
-        paddleWidth, 
-        paddleHeight * leftPaddleMultiplier
-      );
-      
-      // Rechter Schläger (Player 2)
-      ctx.fillRect(
-        canvas.width - paddleWidth, 
-        player2Y, 
-        paddleWidth, 
-        paddleHeight * rightPaddleMultiplier
-      );
-    }
-
-    function handleGoal(scoringPlayer) {
-      if (!isHost) return;
-      
-      const pointsToAdd = currentSpecialBall?.doublePoints ? 2 : 1;
-      
-      if (scoringPlayer === 1) {
-        player1Score += pointsToAdd;
-        leftPaddleMultiplier = 1.0;
-        rightPaddleMultiplier = Math.min(rightPaddleMultiplier + paddleIncreasePerGoal, maxPaddleMultiplier);
-      } else {
-        player2Score += pointsToAdd;
-        rightPaddleMultiplier = 1.0;
-        leftPaddleMultiplier = Math.min(leftPaddleMultiplier + paddleIncreasePerGoal, maxPaddleMultiplier);
-      }
-      
-      socket.send(JSON.stringify({
-        type: "scoreUpdate",
-        player1: player1Score,
-        player2: player2Score,
-        leftPaddleMultiplier: leftPaddleMultiplier,
-        rightPaddleMultiplier: rightPaddleMultiplier
-      }));
-      
-      socket.send(JSON.stringify({ 
-        type: "playSound", 
-        sound: scoringPlayer === 1 ? "saHP" : "ls" 
-      }));
-      
-      powerupSound.play();
-      resetGame();
-    }
-
-    function gameLoop() {
-      if (!gameRunning) return;
-      
-      // Ball-Spur aktualisieren
-      ballTrail.push({x: ballX, y: ballY});
-      if (ballTrail.length > maxTrailLength) {
-        ballTrail.shift();
-      }
-      
-      // Nur der Host berechnet die Ballphysik
-      if (isHost) {
-        const ballRadius = ballSize / 2;
-        const speedMultiplier = currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
-        ballX += ballSpeedX * speedMultiplier;
-        ballY += ballSpeedY * speedMultiplier;
-        
-        // Kollision mit Wänden
-        if (ballY - ballRadius <= 0 || ballY + ballRadius >= canvas.height) {
-          ballSpeedY = -ballSpeedY;
-          socket.send(JSON.stringify({ type: "playSound", sound: "bounce" }));
-        }
-        
-        // Kollision mit Paddles
-        if (ballX - ballRadius <= paddleWidth && 
-            ballY + ballRadius >= player1Y && 
-            ballY - ballRadius <= player1Y + (paddleHeight * leftPaddleMultiplier)) {
-          ballSpeedX = Math.abs(ballSpeedX) * 1.05;
-          socket.send(JSON.stringify({ type: "playSound", sound: "ping" }));
-          
-          if (Math.random() < 0.2) {
-            const specialBalls = Object.values(SPECIAL_BALLS);
-            currentSpecialBall = specialBalls[Math.floor(Math.random() * specialBalls.length)];
-            socket.send(JSON.stringify({
-              type: "ballUpdate",
-              specialBall: Object.keys(SPECIAL_BALLS).find(key => SPECIAL_BALLS[key] === currentSpecialBall)
-            }));
-          }
-        }
-        
-        if (ballX + ballRadius >= canvas.width - paddleWidth && 
-            ballY + ballRadius >= player2Y && 
-            ballY - ballRadius <= player2Y + (paddleHeight * rightPaddleMultiplier)) {
-          ballSpeedX = -Math.abs(ballSpeedX) * 1.05;
-          socket.send(JSON.stringify({ type: "playSound", sound: "pong" }));
-          
-          if (Math.random() < 0.2) {
-            const specialBalls = Object.values(SPECIAL_BALLS);
-            currentSpecialBall = specialBalls[Math.floor(Math.random() * specialBalls.length)];
-            socket.send(JSON.stringify({
-              type: "ballUpdate",
-              specialBall: Object.keys(SPECIAL_BALLS).find(key => SPECIAL_BALLS[key] === currentSpecialBall)
-            }));
-          }
-        }
-        
-        // Torerkennung
-        if (ballX - ballRadius < 0) {
-          handleGoal(2); // Tor für Spieler 2
-        }
-        
-        if (ballX + ballRadius > canvas.width) {
-          handleGoal(1); // Tor für Spieler 1
-        }
-        
-        // Ballposition an Gegner senden
-        socket.send(JSON.stringify({
-          type: "ballUpdate",
-          x: ballX,
-          y: ballY,
-          speedX: ballSpeedX,
-          speedY: ballSpeedY,
-          specialBall: currentSpecialBall ? Object.keys(SPECIAL_BALLS).find(key => SPECIAL_BALLS[key] === currentSpecialBall) : null
-        }));
-      }
-      
-      drawBall();
-      drawPaddles();
-      requestAnimationFrame(gameLoop);
-    }
-
-    function startGame() {
-      gameRunning = true;
-      canvas.style.display = "block";
-      resetGame();
-      updateScoreboard();
-      
-      // Schlägergrößen zurücksetzen
-      leftPaddleMultiplier = 1.0;
-      rightPaddleMultiplier = 1.0;
-      
-      gameLoop();
+      ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
+      ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
+      ctx.beginPath();
+      ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
+      ctx.fillStyle = currentSpecialBall ? currentSpecialBall.color : "#fff";
+      ctx.fill();
+      ctx.closePath();
     }
   </script>
 </body>
