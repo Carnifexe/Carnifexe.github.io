@@ -115,6 +115,13 @@
       margin-top: 10px;
       color: #aaa;
     }
+    #latencyDisplay {
+      position: fixed;
+      bottom: 80px;
+      left: 20px;
+      font-size: 14px;
+      color: #aaa;
+    }
   </style>
 </head>
 <body>
@@ -146,6 +153,10 @@
     Spieler online: <span id="totalPlayersCount">0</span>
   </div>
 
+  <div id="latencyDisplay">
+    Latenz: <span id="latencyValue">0</span>ms
+  </div>
+
   <div id="gameContainer">
     <canvas id="pongCanvas"></canvas>
   </div>
@@ -162,8 +173,9 @@
     const PADDLE_HEIGHT = 100;
     const BALL_RADIUS = 10;
     const INITIAL_BALL_SPEED = 5;
-    const NETWORK_BUFFER_SIZE = 3;
-    const EXTRAPOLATION_FACTOR = 1.2; // Für Latenzkompensation
+    const NETWORK_BUFFER_SIZE = 5;
+    const EXTRAPOLATION_FACTOR = 1.1;
+    const MAX_REWIND_TIME = 100; // ms
 
     // Initialisierung
     const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
@@ -183,7 +195,8 @@
       playerCount: document.getElementById("playerCount"),
       queueStatus: document.getElementById("queueStatus"),
       player1Score: document.getElementById("player1Score"),
-      player2Score: document.getElementById("player2Score")
+      player2Score: document.getElementById("player2Score"),
+      latencyValue: document.getElementById("latencyValue")
     };
 
     // Spielzustand
@@ -204,28 +217,34 @@
         targetX: 0, targetY: 0,
         lastUpdate: 0
       },
-      ballBuffer: [],
+      serverBallStates: [],
+      predictedBallStates: [],
+      lastServerUpdate: 0,
       lastNetworkUpdate: 0,
       lastPingTime: 0,
-      latency: 0
+      latency: 0,
+      canvasWidth: 0,
+      canvasHeight: 0
     };
 
     // Canvas initialisieren
     function initCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      game.canvasWidth = window.innerWidth;
+      game.canvasHeight = window.innerHeight;
+      canvas.width = game.canvasWidth;
+      canvas.height = game.canvasHeight;
       resetGameState();
     }
 
     function resetGameState() {
-      game.players[0].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
-      game.players[1].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
+      game.players[0].y = game.canvasHeight / 2 - PADDLE_HEIGHT / 2;
+      game.players[1].y = game.canvasHeight / 2 - PADDLE_HEIGHT / 2;
       resetBall();
     }
 
     function resetBall() {
-      game.ball.x = canvas.width / 2;
-      game.ball.y = canvas.height / 2;
+      game.ball.x = game.canvasWidth / 2;
+      game.ball.y = game.canvasHeight / 2;
       game.ball.renderX = game.ball.x;
       game.ball.renderY = game.ball.y;
       game.ball.targetX = game.ball.x;
@@ -233,54 +252,88 @@
       game.ball.speedX = INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1);
       game.ball.speedY = INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1);
       game.ball.lastUpdate = performance.now();
-      game.ballBuffer = [];
+      game.serverBallStates = [];
+      game.predictedBallStates = [];
     }
 
     // Netzwerk-Ballinterpolation mit Latenzkompensation
     function updateBallFromNetwork(data) {
       const now = performance.now();
-      game.latency = now - (data.timestamp || now);
-      
-      game.ballBuffer.push({
+      const serverTime = data.timestamp || now;
+      game.latency = now - serverTime;
+      ui.latencyValue.textContent = Math.round(game.latency);
+
+      // Serverzustand speichern
+      game.serverBallStates.push({
         x: data.ballX,
         y: data.ballY,
         speedX: data.ballSpeedX,
         speedY: data.ballSpeedY,
-        timestamp: data.timestamp || now
+        timestamp: serverTime,
+        receivedAt: now
       });
 
       // Puffer begrenzen
-      if (game.ballBuffer.length > NETWORK_BUFFER_SIZE) {
-        game.ballBuffer.shift();
+      if (game.serverBallStates.length > NETWORK_BUFFER_SIZE) {
+        game.serverBallStates.shift();
       }
 
-      // Neuesten Zustand verarbeiten
-      if (game.ballBuffer.length > 0) {
-        const newest = game.ballBuffer[game.ballBuffer.length - 1];
-        const renderTime = now + (game.latency * EXTRAPOLATION_FACTOR);
-        
+      // Neuesten Serverzustand verwenden
+      if (game.serverBallStates.length > 0) {
+        const newest = game.serverBallStates[game.serverBallStates.length - 1];
+        game.lastServerUpdate = now;
+
+        // Extrapolation mit Geschwindigkeit und Latenz
+        const extrapolationTime = game.latency * EXTRAPOLATION_FACTOR / 1000;
+        game.ball.targetX = newest.x + newest.speedX * extrapolationTime;
+        game.ball.targetY = newest.y + newest.speedY * extrapolationTime;
         game.ball.speedX = newest.speedX;
         game.ball.speedY = newest.speedY;
-        
-        // Extrapolation mit Geschwindigkeit und Latenz
-        game.ball.targetX = newest.x + (newest.speedX * game.latency / 1000 * EXTRAPOLATION_FACTOR);
-        game.ball.targetY = newest.y + (newest.speedY * game.latency / 1000 * EXTRAPOLATION_FACTOR);
-        game.ball.lastUpdate = now;
+
+        // Reconciliation mit vorhergesagten Zuständen
+        reconcileWithServer();
+      }
+    }
+
+    function reconcileWithServer() {
+      if (game.serverBallStates.length < 2) return;
+
+      const serverState = game.serverBallStates[game.serverBallStates.length - 1];
+      const error = Math.sqrt(
+        Math.pow(game.ball.x - serverState.x, 2) + 
+        Math.pow(game.ball.y - serverState.y, 2)
+      );
+
+      // Wenn die Abweichung zu groß ist, zur Serverposition korrigieren
+      if (error > 20) {
+        game.ball.renderX = serverState.x;
+        game.ball.renderY = serverState.y;
+        game.ball.x = serverState.x;
+        game.ball.y = serverState.y;
+        game.ball.targetX = serverState.x;
+        game.ball.targetY = serverState.y;
       }
     }
 
     function interpolateBall() {
       const now = performance.now();
-      const delta = now - game.ball.lastUpdate;
-      
-      if (delta < 100) {
-        const t = Math.min(delta / BALL_UPDATE_RATE, 1);
-        game.ball.renderX = game.ball.targetX * t + game.ball.renderX * (1 - t);
-        game.ball.renderY = game.ball.targetY * t + game.ball.renderY * (1 - t);
-      } else {
+      const delta = now - game.lastServerUpdate;
+
+      // Wenn wir lange keine Updates hatten, direkt zur Zielposition springen
+      if (delta > 200) {
         game.ball.renderX = game.ball.targetX;
         game.ball.renderY = game.ball.targetY;
+        return;
       }
+
+      // Glatte Interpolation zur Zielposition
+      const t = Math.min(delta / BALL_UPDATE_RATE, 1);
+      game.ball.renderX = lerp(game.ball.renderX, game.ball.targetX, t);
+      game.ball.renderY = lerp(game.ball.renderY, game.ball.targetY, t);
+    }
+
+    function lerp(start, end, t) {
+      return start * (1 - t) + end * t;
     }
 
     function drawGame() {
@@ -313,9 +366,13 @@
       if (!game.running) return;
 
       if (game.isHost) {
-        // Ballbewegung mit präziser Kollision
-        game.ball.x += game.ball.speedX;
-        game.ball.y += game.ball.speedY;
+        // Ballbewegung mit präziser Kollision (nur Host)
+        const now = performance.now();
+        const delta = (now - game.ball.lastUpdate) / 1000;
+        game.ball.lastUpdate = now;
+
+        game.ball.x += game.ball.speedX * delta * 60; // Normalisiert auf 60fps
+        game.ball.y += game.ball.speedY * delta * 60;
 
         // Wandkollision
         if (game.ball.y <= BALL_RADIUS || game.ball.y >= canvas.height - BALL_RADIUS) {
@@ -360,7 +417,6 @@
         }
 
         // Spielzustand senden (60fps)
-        const now = performance.now();
         if (now - game.lastNetworkUpdate >= BALL_UPDATE_RATE) {
           socket.send(JSON.stringify({
             type: "gameState",
@@ -505,6 +561,7 @@
           
         case "pong":
           game.latency = performance.now() - data.timestamp;
+          ui.latencyValue.textContent = Math.round(game.latency);
           break;
       }
     };
