@@ -20,6 +20,10 @@ let players = [];
 let rooms = [];
 let queue = [];  // Warteschlange für Spieler
 
+// Tore zählen
+let player1Score = 0;
+let player2Score = 0;
+
 // Ping/Pong für stabile Verbindungen
 setInterval(() => {
   wss.clients.forEach((ws) => {
@@ -91,6 +95,16 @@ wss.on('connection', (ws) => {
     if (data.type === "ballUpdate") {
       const room = rooms.find(r => r.players.includes(ws));
       if (room) {
+        // Ball-Update überwachen und Tore zählen
+        if (data.x <= 0) {  // Spieler 2 hat ein Tor erzielt
+          player2Score++;
+          sendScoreUpdate(room);
+        }
+        if (data.x >= 1) {  // Spieler 1 hat ein Tor erzielt
+          player1Score++;
+          sendScoreUpdate(room);
+        }
+
         room.players.forEach(player => {
           if (player !== ws && player.readyState === WebSocket.OPEN) {
             player.send(JSON.stringify({
@@ -159,6 +173,19 @@ function broadcastQueueCount() {
       client.send(JSON.stringify({ 
         type: "queueUpdate", 
         count 
+      }));
+    }
+  });
+}
+
+function sendScoreUpdate(room) {
+  // Sendet den aktuellen Spielstand an beide Spieler im Raum
+  room.players.forEach(player => {
+    if (player.readyState === WebSocket.OPEN) {
+      player.send(JSON.stringify({
+        type: 'scoreUpdate',
+        player1Score,
+        player2Score
       }));
     }
   });
