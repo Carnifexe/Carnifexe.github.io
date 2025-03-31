@@ -13,7 +13,7 @@ let players = [];
 let queue = [];
 let rooms = [];
 
-// Ping clients every 30 seconds
+// Ping alle 30 Sekunden
 setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.readyState === WebSocket.OPEN) {
@@ -109,7 +109,7 @@ wss.on('connection', (ws) => {
         }
       }
     } catch (error) {
-      console.error('Error processing message:', error);
+      console.error('Fehler bei Nachrichtenverarbeitung:', error);
     }
   });
 
