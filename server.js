@@ -39,6 +39,7 @@ wss.on('connection', (ws) => {
   console.log('Neuer Spieler verbunden');
   players.push(ws);
   broadcastPlayerCount();
+  broadcastTotalPlayers();
 
   ws.on('message', (message) => {
     try {
@@ -116,6 +117,7 @@ wss.on('connection', (ws) => {
     
     broadcastPlayerCount();
     broadcastQueueCount();
+    broadcastTotalPlayers();
   });
 });
 
@@ -160,6 +162,15 @@ function handleGoal(room, scorer) {
       scores[room.roomId].player2Score++;
     }
     
+    // Spielende bei 10 Punkten
+    if (scores[room.roomId].player1Score >= 10 || scores[room.roomId].player2Score >= 10) {
+      broadcastToRoom(room, null, {
+        type: "gameEnded"
+      });
+      cleanupRoom(room);
+      return;
+    }
+
     room.lastGoalTime = Date.now();
     
     broadcastToRoom(room, null, {
@@ -203,20 +214,23 @@ function broadcastToRoom(room, excludeWs, message) {
 }
 
 function broadcastPlayerCount() {
-  const count = players.length;
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ type: 'updatePlayerCount', count }));
-    }
-  });
-}
-
-function broadcastQueueCount() {
   const count = queue.length;
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify({ 
         type: "queueUpdate", 
+        count 
+      }));
+    }
+  });
+}
+
+function broadcastTotalPlayers() {
+  const count = players.length;
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({ 
+        type: "totalPlayersUpdate", 
         count 
       }));
     }
