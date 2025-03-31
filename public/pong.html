@@ -188,8 +188,7 @@
     // Pong-Elemente
     const basePaddleWidth = 15;
     const basePaddleHeight = 100;
-    let paddleWidth = basePaddleWidth;
-    let paddleHeight = basePaddleHeight;
+    const ballSize = 10;
     let player1Y = canvas.height / 2 - basePaddleHeight / 2;
     let player2Y = canvas.height / 2 - basePaddleHeight / 2;
     let ballX = canvas.width / 2;
@@ -199,13 +198,13 @@
     let player1Score = 0;
     let player2Score = 0;
     let ballTrail = [];
-    const maxTrailLength = 10;
+    const maxTrailLength = 5;
     
     // Schläger-Modifikatoren
-    let leftPaddleMultiplier = 1.0;  // Multiplikator für linken Schläger (Player 1)
-    let rightPaddleMultiplier = 1.0; // Multiplikator für rechten Schläger (Player 2)
-    const maxPaddleMultiplier = 2.0; // Maximale Größe (100% größer = doppelte Größe)
-    const paddleIncreasePerGoal = 0.2; // 20% Vergrößerung pro Tor
+    let leftPaddleMultiplier = 1.0;
+    let rightPaddleMultiplier = 1.0;
+    const maxPaddleMultiplier = 2.0;
+    const paddleIncreasePerGoal = 0.2;
 
     // Spezielle Bälle Eigenschaften
     const SPECIAL_BALLS = {
@@ -273,7 +272,6 @@
 
       if (data.type === "queueUpdate") {
         playerCount.textContent = `${data.count} Spieler in Warteschlange`;
-        // Wenn 2 Spieler in der Warteschlange sind, kann der Countdown starten.
         if (data.count === 2 && inQueue) {
           startCountdown();
         }
@@ -309,7 +307,6 @@
         rightPaddleMultiplier = data.rightPaddleMultiplier;
         updateScoreboard();
         
-        // Gewinner prüfen
         if (player1Score >= 10 || player2Score >= 10) {
           gameRunning = false;
           if ((playerNumber === 1 && player1Score >= 10) || (playerNumber === 2 && player2Score >= 10)) {
@@ -380,11 +377,11 @@
       }, 1000);
     }
 
-    // 7. Spielsteuerung per Maus (statt Tastatur)
+    // 7. Spielsteuerung per Maus
     document.addEventListener('mousemove', (e) => {
       if (!gameRunning) return;
-      let newY = e.clientY - (paddleHeight * (playerNumber === 1 ? leftPaddleMultiplier : rightPaddleMultiplier)) / 2;
-      newY = Math.max(0, Math.min(canvas.height - (paddleHeight * (playerNumber === 1 ? leftPaddleMultiplier : rightPaddleMultiplier)), newY));
+      let newY = e.clientY - (basePaddleHeight * (playerNumber === 1 ? leftPaddleMultiplier : rightPaddleMultiplier)) / 2;
+      newY = Math.max(0, Math.min(canvas.height - (basePaddleHeight * (playerNumber === 1 ? leftPaddleMultiplier : rightPaddleMultiplier)), newY));
 
       if (playerNumber === 1) {
         player1Y = newY;
@@ -407,12 +404,10 @@
     function resetGame() {
       ballX = canvas.width / 2;
       ballY = canvas.height / 2;
-      // Starte den Ball in eine zufällige Richtung
       ballSpeedX = 5 * (Math.random() > 0.5 ? 1 : -1);
       ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
       ballTrail = [];
       
-      // 20% Chance für einen speziellen Ball
       if (Math.random() < 0.2 && isHost) {
         const specialBalls = Object.values(SPECIAL_BALLS);
         currentSpecialBall = specialBalls[Math.floor(Math.random() * specialBalls.length)];
@@ -440,14 +435,13 @@
       ctx.setLineDash([]);
     }
 
-    function drawBall() {
-      // Leichter Hintergrund-Overlay für Motion-Blur
-      ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+    function clearCanvas() {
+      // Klarer Hintergrund ohne Motion-Blur-Spuren
+      ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Mittellinie zeichnen
-      drawCenterLine();
-      
+    }
+
+    function drawBall() {
       // Ball-Spur mit weichem Verlauf
       for (let i = 0; i < ballTrail.length; i++) {
         const alpha = (i / ballTrail.length) * 0.8;
@@ -456,7 +450,6 @@
         ctx.beginPath();
         ctx.arc(ballTrail[i].x, ballTrail[i].y, size, 0, Math.PI * 2);
         
-        // Farbverlauf für den Schweif
         const gradient = ctx.createRadialGradient(
           ballTrail[i].x, ballTrail[i].y, 0,
           ballTrail[i].x, ballTrail[i].y, size
@@ -508,20 +501,20 @@
 
     function drawPaddles() {
       ctx.fillStyle = "#fff";
-      // Linker Schläger (Player 1) mit aktuellem Multiplikator
+      // Linker Schläger
       ctx.fillRect(
         0, 
         player1Y, 
-        paddleWidth, 
-        paddleHeight * leftPaddleMultiplier
+        basePaddleWidth, 
+        basePaddleHeight * leftPaddleMultiplier
       );
       
-      // Rechter Schläger (Player 2) mit aktuellem Multiplikator
+      // Rechter Schläger
       ctx.fillRect(
-        canvas.width - paddleWidth, 
+        canvas.width - basePaddleWidth, 
         player2Y, 
-        paddleWidth, 
-        paddleHeight * rightPaddleMultiplier
+        basePaddleWidth, 
+        basePaddleHeight * rightPaddleMultiplier
       );
     }
 
@@ -540,18 +533,19 @@
         ballX += ballSpeedX * speedMultiplier;
         ballY += ballSpeedY * speedMultiplier;
         
-        // Kollision mit oberen und unteren Wänden
-        if (ballY <= 0 || ballY >= canvas.height) {
+        // Kollision mit Wänden
+        if (ballY <= ballSize || ballY >= canvas.height - ballSize) {
           ballSpeedY = -ballSpeedY;
           socket.send(JSON.stringify({ type: "playSound", sound: "bounce" }));
         }
         
-        // Kollision mit den Paddles
-        if (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + (paddleHeight * leftPaddleMultiplier)) {
+        // Kollision mit Paddles
+        if (ballX <= basePaddleWidth + ballSize && 
+            ballY >= player1Y && 
+            ballY <= player1Y + (basePaddleHeight * leftPaddleMultiplier)) {
           ballSpeedX = -ballSpeedX * 1.05;
           socket.send(JSON.stringify({ type: "playSound", sound: "ping" }));
           
-          // 20% Chance für einen speziellen Ball beim Treffer
           if (Math.random() < 0.2) {
             const specialBalls = Object.values(SPECIAL_BALLS);
             currentSpecialBall = specialBalls[Math.floor(Math.random() * specialBalls.length)];
@@ -562,11 +556,12 @@
           }
         }
         
-        if (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + (paddleHeight * rightPaddleMultiplier)) {
+        if (ballX >= canvas.width - basePaddleWidth - ballSize && 
+            ballY >= player2Y && 
+            ballY <= player2Y + (basePaddleHeight * rightPaddleMultiplier)) {
           ballSpeedX = -ballSpeedX * 1.05;
           socket.send(JSON.stringify({ type: "playSound", sound: "pong" }));
           
-          // 20% Chance für einen speziellen Ball beim Treffer
           if (Math.random() < 0.2) {
             const specialBalls = Object.values(SPECIAL_BALLS);
             currentSpecialBall = specialBalls[Math.floor(Math.random() * specialBalls.length)];
@@ -583,7 +578,6 @@
           const pointsToAdd = currentSpecialBall?.doublePoints ? 2 : 1;
           player2Score += pointsToAdd;
           
-          // Rechter Schläger zurücksetzen, linker Schläger vergrößern
           rightPaddleMultiplier = 1.0;
           leftPaddleMultiplier = Math.min(leftPaddleMultiplier + paddleIncreasePerGoal, maxPaddleMultiplier);
           
@@ -605,7 +599,6 @@
           const pointsToAdd = currentSpecialBall?.doublePoints ? 2 : 1;
           player1Score += pointsToAdd;
           
-          // Linker Schläger zurücksetzen, rechter Schläger vergrößern
           leftPaddleMultiplier = 1.0;
           rightPaddleMultiplier = Math.min(rightPaddleMultiplier + paddleIncreasePerGoal, maxPaddleMultiplier);
           
@@ -622,7 +615,7 @@
           resetGame();
         }
         
-        // Ballposition an den Gegner senden
+        // Ballposition an Gegner senden
         socket.send(JSON.stringify({
           type: "ballUpdate",
           x: ballX,
@@ -633,21 +626,25 @@
         }));
       }
       
-      drawBall();
+      clearCanvas();
+      drawCenterLine();
       drawPaddles();
+      drawBall();
       requestAnimationFrame(gameLoop);
     }
 
     function startGame() {
       gameRunning = true;
       canvas.style.display = "block";
-      resetGame();
-      updateScoreboard();
       
-      // Schlägergrößen zurücksetzen
+      // Initialisierung
+      player1Score = 0;
+      player2Score = 0;
       leftPaddleMultiplier = 1.0;
       rightPaddleMultiplier = 1.0;
       
+      resetGame();
+      updateScoreboard();
       gameLoop();
     }
   </script>
