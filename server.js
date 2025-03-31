@@ -11,16 +11,26 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Spielzustand
 const gameState = {
-  players: new Set(),
+  players: new Map(), // Speichert WebSocket-Instanzen mit IDs
   queue: [],
-  rooms: []
+  rooms: [],
+  totalPlayers: 0
 };
+
+// Verbindungsüberwachung
+const connectionCheck = setInterval(() => {
+  wss.clients.forEach(ws => {
+    if (ws.isAlive === false) return ws.terminate();
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 30000);
 
 function broadcastQueueCount() {
   const message = JSON.stringify({
     type: "queueUpdate",
     queueCount: gameState.queue.length,
-    totalCount: gameState.players.size
+    totalPlayers: gameState.players.size
   });
 
   wss.clients.forEach(client => {
@@ -39,15 +49,17 @@ function createRoom(player1, player2) {
   };
 
   const room = {
-    players: [player1, player2],
+    players: [player1.ws, player2.ws],
+    playerIds: [player1.id, player2.id],
     ball: {...initialBall},
     scores: [0, 0],
     paddles: [300, 300],
-    lastUpdate: Date.now()
+    lastUpdate: Date.now(),
+    gameLoop: null
   };
 
   // Starte Spiel-Loop
-  const gameLoop = setInterval(() => {
+  room.gameLoop = setInterval(() => {
     const now = Date.now();
     const delta = (now - room.lastUpdate) / 1000;
     room.lastUpdate = now;
@@ -63,21 +75,21 @@ function createRoom(player1, player2) {
     broadcastGameState(room);
   }, 16);
 
-  room.gameLoop = gameLoop;
+  gameState.rooms.push(room);
 
-  player1.send(JSON.stringify({
+  // Sende Startnachrichten
+  player1.ws.send(JSON.stringify({
     type: 'gameStart',
     playerNumber: 1,
     initialBall: initialBall
   }));
   
-  player2.send(JSON.stringify({
+  player2.ws.send(JSON.stringify({
     type: 'gameStart',
     playerNumber: 2,
     initialBall: initialBall
   }));
 
-  gameState.rooms.push(room);
   return room;
 }
 
@@ -122,6 +134,8 @@ function broadcastGameState(room) {
     ballY: room.ball.y,
     ballSpeedX: room.ball.speedX,
     ballSpeedY: room.ball.speedY,
+    player1Y: room.paddles[0],
+    player2Y: room.paddles[1],
     timestamp: Date.now()
   };
   
@@ -151,8 +165,6 @@ function broadcastScoreUpdate(room) {
 
 wss.on('connection', ws => {
   ws.isAlive = true;
-  gameState.players.add(ws);
-  broadcastQueueCount();
 
   ws.on('pong', () => { ws.isAlive = true; });
 
@@ -161,23 +173,32 @@ wss.on('connection', ws => {
       const data = JSON.parse(message);
       
       switch (data.type) {
+        case 'playerConnect':
+          // Neue Spielerverwaltung
+          gameState.players.set(data.playerId, { ws, id: data.playerId });
+          broadcastQueueCount();
+          break;
+          
         case 'joinQueue':
-          if (!gameState.queue.includes(ws)) {
-            gameState.queue.push(ws);
-            ws.send(JSON.stringify({ type: 'joinedQueue' }));
-            broadcastQueueCount();
-            
-            if (gameState.queue.length >= 2) {
-              const player1 = gameState.queue.shift();
-              const player2 = gameState.queue.shift();
-              createRoom(player1, player2);
+          if (!gameState.queue.some(p => p.id === data.playerId)) {
+            const player = gameState.players.get(data.playerId);
+            if (player) {
+              gameState.queue.push(player);
+              ws.send(JSON.stringify({ type: 'joinedQueue' }));
               broadcastQueueCount();
+              
+              if (gameState.queue.length >= 2) {
+                const player1 = gameState.queue.shift();
+                const player2 = gameState.queue.shift();
+                createRoom(player1, player2);
+                broadcastQueueCount();
+              }
             }
           }
           break;
           
         case 'leaveQueue':
-          gameState.queue = gameState.queue.filter(p => p !== ws);
+          gameState.queue = gameState.queue.filter(p => p.id !== data.playerId);
           ws.send(JSON.stringify({ type: 'leftQueue' }));
           broadcastQueueCount();
           break;
@@ -209,23 +230,36 @@ wss.on('connection', ws => {
   });
 
   ws.on('close', () => {
-    gameState.players.delete(ws);
-    gameState.queue = gameState.queue.filter(p => p !== ws);
-    
-    gameState.rooms = gameState.rooms.filter(room => {
-      if (room.players.includes(ws)) {
-        clearInterval(room.gameLoop);
-        room.players.forEach(p => {
-          if (p !== ws && p.readyState === WebSocket.OPEN) {
-            p.send(JSON.stringify({ type: 'gameEnded' }));
-          }
-        });
-        return false;
+    // Finde und entferne Spieler
+    let playerId;
+    gameState.players.forEach((player, id) => {
+      if (player.ws === ws) {
+        playerId = id;
       }
-      return true;
     });
     
-    broadcastQueueCount();
+    if (playerId) {
+      gameState.players.delete(playerId);
+      
+      // Entferne aus Warteschlange
+      gameState.queue = gameState.queue.filter(p => p.id !== playerId);
+      
+      // Beende Räume
+      gameState.rooms = gameState.rooms.filter(room => {
+        if (room.playerIds.includes(playerId)) {
+          clearInterval(room.gameLoop);
+          room.players.forEach(p => {
+            if (p !== ws && p.readyState === WebSocket.OPEN) {
+              p.send(JSON.stringify({ type: 'gameEnded' }));
+            }
+          });
+          return false;
+        }
+        return true;
+      });
+      
+      broadcastQueueCount();
+    }
   });
 });
 
