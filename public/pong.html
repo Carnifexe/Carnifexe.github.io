@@ -237,6 +237,8 @@
         playerNumber = data.playerNumber;
         isHost = data.playerNumber === 1;
         scoreboard.style.display = "flex";
+        canvas.style.display = "block";
+        gameRunning = true;
       }
 
       if (data.type === "scoreUpdate") {
@@ -244,6 +246,22 @@
         player2Score = data.player2Score;
         player1ScoreElement.textContent = player1Score;
         player2ScoreElement.textContent = player2Score;
+        
+        if (player1Score >= 5 || player2Score >= 5) {
+          stopAllSounds();
+          winnerSound.play();
+          setTimeout(() => {
+            resetGame();
+            gameRunning = false;
+            canvas.style.display = "none";
+            scoreboard.style.display = "none";
+            waitingScreen.style.display = "flex";
+            player1Score = 0;
+            player2Score = 0;
+            player1ScoreElement.textContent = "0";
+            player2ScoreElement.textContent = "0";
+          }, 3000);
+        }
       }
 
       if (data.type === "ballUpdate") {
@@ -255,19 +273,22 @@
 
       if (data.type === "paddleUpdate") {
         if (data.player === 1) {
-          player1Y = data.paddleY;
+          player1Y = data.y;
         } else {
-          player2Y = data.paddleY;
+          player2Y = data.y;
         }
       }
 
-      if (data.type === "specialBallUpdate") {
-        currentSpecialBall = data.specialBall;
+      if (data.type === "ballReset") {
+        ballX = data.ballX;
+        ballY = data.ballY;
+        ballSpeedX = data.ballSpeedX;
+        ballSpeedY = data.ballSpeedY;
+        currentSpecialBall = randomSpecialBall();
       }
     };
 
     function startCountdown() {
-      gameRunning = true;
       readyScreen.style.display = "flex";
       let countdownTime = 3;
       const countdownInterval = setInterval(() => {
@@ -282,51 +303,85 @@
     }
 
     function startGame() {
-      setInterval(() => {
-        updateGame();
-        render();
-      }, 1000 / 60);
+      gameRunning = true;
+      function gameLoop() {
+        if (gameRunning) {
+          updateGame();
+          render();
+          requestAnimationFrame(gameLoop);
+        }
+      }
+      gameLoop();
     }
 
     function updateGame() {
-      if (ballY <= 0 || ballY >= canvas.height) {
-        ballSpeedY = -ballSpeedY;
-        bounceSound.play();
-      }
-      ballX += ballSpeedX;
-      ballY += ballSpeedY;
+      if (isHost) {
+        // Ballbewegung
+        if (ballY <= 0 || ballY >= canvas.height) {
+          ballSpeedY = -ballSpeedY;
+          bounceSound.play();
+        }
+        
+        ballX += ballSpeedX;
+        ballY += ballSpeedY;
 
-      if (ballX <= basePaddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
-        ballSpeedX = -ballSpeedX;
-        ballSpeedX *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
-        ballSpeedY *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
-        pongSound.play();
-      } else if (ballX >= canvas.width - basePaddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight) {
-        ballSpeedX = -ballSpeedX;
-        ballSpeedX *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
-        ballSpeedY *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
-        pongSound.play();
-      } else if (ballX < 0) {
-        player2Score++;
-        player2ScoreElement.textContent = player2Score;
-        ballReset();
-      } else if (ballX > canvas.width) {
-        player1Score++;
-        player1ScoreElement.textContent = player1Score;
-        ballReset();
+        // Paddle-Kollision
+        if (ballX <= basePaddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
+          ballSpeedX = -ballSpeedX * 1.1;
+          ballSpeedX *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
+          ballSpeedY *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
+          pongSound.play();
+        } else if (ballX >= canvas.width - basePaddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight) {
+          ballSpeedX = -ballSpeedX * 1.1;
+          ballSpeedX *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
+          ballSpeedY *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
+          pongSound.play();
+        }
+
+        // Torerkennung
+        if (ballX < 0) {
+          socket.send(JSON.stringify({
+            type: "goal",
+            scorer: 2
+          }));
+        } else if (ballX > canvas.width) {
+          socket.send(JSON.stringify({
+            type: "goal",
+            scorer: 1
+          }));
+        }
+
+        // Ballposition an Gegner senden
+        socket.send(JSON.stringify({
+          type: "ballUpdate",
+          ballX,
+          ballY,
+          ballSpeedX,
+          ballSpeedY
+        }));
       }
 
-      if (player1Score >= 5 || player2Score >= 5) {
-        stopAllSounds();
-        winnerSound.play();
+      // Paddle-Bewegung senden
+      if (playerNumber === 1) {
+        socket.send(JSON.stringify({
+          type: "paddleMove",
+          player: 1,
+          y: player1Y
+        }));
+      } else if (playerNumber === 2) {
+        socket.send(JSON.stringify({
+          type: "paddleMove",
+          player: 2,
+          y: player2Y
+        }));
       }
     }
 
-    function ballReset() {
+    function resetGame() {
       ballX = canvas.width / 2;
       ballY = canvas.height / 2;
-      ballSpeedX = -ballSpeedX;
-      ballSpeedY = 5;
+      ballSpeedX = 5 * (Math.random() > 0.5 ? 1 : -1);
+      ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
       currentSpecialBall = randomSpecialBall();
     }
 
@@ -338,26 +393,46 @@
 
     function render() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Paddles zeichnen
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
       ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
+      
+      // Ball zeichnen
       ctx.beginPath();
-      ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
+      ctx.arc(ballX, ballY, currentSpecialBall?.sizeMultiplier ? 10 * currentSpecialBall.sizeMultiplier : 10, 0, Math.PI * 2);
       ctx.fillStyle = currentSpecialBall ? currentSpecialBall.color : "#fff";
       ctx.fill();
       ctx.closePath();
     }
 
+    // Tastatursteuerung
+    document.addEventListener('keydown', (e) => {
+      const paddleSpeed = 20;
+      if (playerNumber === 1) {
+        if (e.key === 'w' && player1Y > 0) {
+          player1Y -= paddleSpeed;
+        } else if (e.key === 's' && player1Y < canvas.height - paddleHeight) {
+          player1Y += paddleSpeed;
+        }
+      } else if (playerNumber === 2) {
+        if (e.key === 'ArrowUp' && player2Y > 0) {
+          player2Y -= paddleSpeed;
+        } else if (e.key === 'ArrowDown' && player2Y < canvas.height - paddleHeight) {
+          player2Y += paddleSpeed;
+        }
+      }
+    });
+
     // Warteschlangen-Button-Event
     queueButton.addEventListener('click', () => {
       if (!inQueue) {
-        // Spieler tritt der Warteschlange bei
         socket.send(JSON.stringify({ type: 'joinQueue' }));
         inQueue = true;
         queueButton.textContent = "Verlasse Warteschlange";
         queueStatus.textContent = "In Warteschlange...";
       } else {
-        // Spieler verlässt die Warteschlange
         socket.send(JSON.stringify({ type: 'leaveQueue' }));
         inQueue = false;
         queueButton.textContent = "Warteschlange betreten";
