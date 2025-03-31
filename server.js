@@ -65,16 +65,16 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'leftQueue' }));
         broadcastQueueCount();
       }
-      else if (data.type === 'ballUpdate') {
-        const room = rooms.find(r => r.players.includes(ws));
-        if (room) {
-          room.players.forEach(player => {
-            if (player !== ws && player.readyState === WebSocket.OPEN) {
-              player.send(JSON.stringify(data));
-            }
-          });
-        }
+else if (data.type === 'ballUpdate') {
+  const room = rooms.find(r => r.players.includes(ws));
+  if (room) {
+    room.players.forEach(player => {
+      if (player.readyState === WebSocket.OPEN) {
+        player.send(JSON.stringify(data));
       }
+    });
+  }
+}
       else if (data.type === 'paddleMove') {
         const room = rooms.find(r => r.players.includes(ws));
         if (room) {
