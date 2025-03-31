@@ -155,12 +155,13 @@
   <audio id="winnerSound" src="winner.mp3" preload="auto"></audio>
 
   <script>
+    // Initialisierung
     const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
     const canvas = document.getElementById("pongCanvas");
     const ctx = canvas.getContext("2d");
     const WINNING_SCORE = 5;
 
-    // UI Elements
+    // UI Elemente
     const gameContainer = document.getElementById("gameContainer");
     const queueButton = document.getElementById("queueButton");
     const waitingScreen = document.getElementById("waitingScreen");
@@ -171,7 +172,7 @@
     const playerCount = document.getElementById("playerCount");
     const queueStatus = document.getElementById("queueStatus");
 
-    // Game variables
+    // Spielvariablen
     let gameRunning = false;
     let playerNumber = null;
     let isHost = false;
@@ -179,16 +180,16 @@
     
     const paddleWidth = 15;
     const paddleHeight = 100;
-    let player1Y = canvas.height / 2 - paddleHeight / 2;
-    let player2Y = canvas.height / 2 - paddleHeight / 2;
-    let ballX = canvas.width / 2;
-    let ballY = canvas.height / 2;
+    let player1Y = 0;
+    let player2Y = 0;
+    let ballX = 0;
+    let ballY = 0;
     let ballSpeedX = 5;
     let ballSpeedY = 5;
     let player1Score = 0;
     let player2Score = 0;
 
-    // Initialize canvas
+    // Canvas initialisieren
     function initCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
@@ -198,6 +199,7 @@
       ballY = canvas.height / 2;
     }
 
+    // Ball zurücksetzen
     function resetBall() {
       ballX = canvas.width / 2;
       ballY = canvas.height / 2;
@@ -205,22 +207,23 @@
       ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
     }
 
+    // Spiel zeichnen
     function drawGame() {
-      // Clear canvas
+      // Hintergrund
       ctx.fillStyle = "black";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Draw paddles
+      // Paddles
       ctx.fillStyle = "white";
       ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
       ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
       
-      // Draw ball
+      // Ball
       ctx.beginPath();
       ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
       ctx.fill();
       
-      // Draw center line
+      // Mittellinie
       ctx.beginPath();
       ctx.setLineDash([10, 10]);
       ctx.moveTo(canvas.width/2, 0);
@@ -231,21 +234,22 @@
       ctx.setLineDash([]);
     }
 
+    // Spiel aktualisieren
     function updateGame() {
       if (!gameRunning) return;
 
       if (isHost) {
-        // Ball movement
+        // Ballbewegung
         ballX += ballSpeedX;
         ballY += ballSpeedY;
 
-        // Wall collision
+        // Wände
         if (ballY <= 0 || ballY >= canvas.height) {
           ballSpeedY = -ballSpeedY;
           document.getElementById("bounceSound").play();
         }
         
-        // Paddle collision
+        // Paddle-Kollision
         if (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
           ballSpeedX = -ballSpeedX * 1.05;
           document.getElementById("pongSound").play();
@@ -255,9 +259,10 @@
           document.getElementById("pongSound").play();
         }
 
-        // Scoring
+        // Punkte
         if (ballX < 0) {
           player2Score++;
+          document.getElementById("player2Score").textContent = player2Score;
           socket.send(JSON.stringify({
             type: "scoreUpdate",
             player: 2,
@@ -267,6 +272,7 @@
         } 
         else if (ballX > canvas.width) {
           player1Score++;
+          document.getElementById("player1Score").textContent = player1Score;
           socket.send(JSON.stringify({
             type: "scoreUpdate",
             player: 1,
@@ -275,7 +281,7 @@
           resetBall();
         }
 
-        // Send game state
+        // Spielzustand senden
         socket.send(JSON.stringify({
           type: "gameState",
           ballX,
@@ -288,6 +294,7 @@
       }
     }
 
+    // Spielschleife
     function gameLoop() {
       updateGame();
       drawGame();
@@ -296,6 +303,7 @@
       }
     }
 
+    // Countdown
     function startCountdown() {
       readyScreen.style.display = "flex";
       let countdownTime = 3;
@@ -311,6 +319,7 @@
       }, 1000);
     }
 
+    // Spiel starten
     function startGame() {
       gameRunning = true;
       gameContainer.style.display = "block";
@@ -322,6 +331,7 @@
       gameLoop();
     }
 
+    // Spiel zurücksetzen
     function resetGame() {
       gameRunning = false;
       gameContainer.style.display = "none";
@@ -334,7 +344,7 @@
       document.getElementById("player2Score").textContent = "0";
     }
 
-    // Event listeners
+    // Event Listener
     window.addEventListener('resize', initCanvas);
     canvas.addEventListener('mousemove', (e) => {
       if (!gameRunning) return;
@@ -356,10 +366,10 @@
       }));
     });
 
-    // Initialize canvas
+    // Initialisierung
     initCanvas();
 
-    // WebSocket handling
+    // WebSocket Nachrichten
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
