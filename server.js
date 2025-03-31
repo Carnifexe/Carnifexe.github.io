@@ -11,14 +11,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Spielzustand
 const gameState = {
-  players: new Map(), // Speichert WebSocket-Instanzen mit IDs
+  players: new Map(),
   queue: [],
-  rooms: [],
-  totalPlayers: 0
+  rooms: []
 };
 
 // Verbindungsüberwachung
-const connectionCheck = setInterval(() => {
+setInterval(() => {
   wss.clients.forEach(ws => {
     if (ws.isAlive === false) return ws.terminate();
     ws.isAlive = false;
@@ -26,7 +25,7 @@ const connectionCheck = setInterval(() => {
   });
 }, 30000);
 
-function broadcastQueueCount() {
+function broadcastQueueInfo() {
   const message = JSON.stringify({
     type: "queueUpdate",
     queueCount: gameState.queue.length,
@@ -174,9 +173,8 @@ wss.on('connection', ws => {
       
       switch (data.type) {
         case 'playerConnect':
-          // Neue Spielerverwaltung
           gameState.players.set(data.playerId, { ws, id: data.playerId });
-          broadcastQueueCount();
+          broadcastQueueInfo();
           break;
           
         case 'joinQueue':
@@ -185,13 +183,13 @@ wss.on('connection', ws => {
             if (player) {
               gameState.queue.push(player);
               ws.send(JSON.stringify({ type: 'joinedQueue' }));
-              broadcastQueueCount();
+              broadcastQueueInfo();
               
               if (gameState.queue.length >= 2) {
                 const player1 = gameState.queue.shift();
                 const player2 = gameState.queue.shift();
                 createRoom(player1, player2);
-                broadcastQueueCount();
+                broadcastQueueInfo();
               }
             }
           }
@@ -200,7 +198,7 @@ wss.on('connection', ws => {
         case 'leaveQueue':
           gameState.queue = gameState.queue.filter(p => p.id !== data.playerId);
           ws.send(JSON.stringify({ type: 'leftQueue' }));
-          broadcastQueueCount();
+          broadcastQueueInfo();
           break;
           
         case 'paddleMove':
@@ -258,7 +256,7 @@ wss.on('connection', ws => {
         return true;
       });
       
-      broadcastQueueCount();
+      broadcastQueueInfo();
     }
   });
 });
