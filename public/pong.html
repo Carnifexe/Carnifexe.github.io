@@ -227,7 +227,7 @@
       console.log("Empfangen:", data);
 
       if (data.type === "queueUpdate") {
-        playerCount.textContent = ${data.count} Spieler in Warteschlange;
+        playerCount.textContent = `${data.count} Spieler in Warteschlange`;
         if (data.count === 2 && inQueue) {
           startCountdown();
         }
@@ -347,6 +347,23 @@
       ctx.fill();
       ctx.closePath();
     }
+
+    // Warteschlangen-Button-Event
+    queueButton.addEventListener('click', () => {
+      if (!inQueue) {
+        // Spieler tritt der Warteschlange bei
+        socket.send(JSON.stringify({ type: 'joinQueue' }));
+        inQueue = true;
+        queueButton.textContent = "Verlasse Warteschlange";
+        queueStatus.textContent = "In Warteschlange...";
+      } else {
+        // Spieler verlässt die Warteschlange
+        socket.send(JSON.stringify({ type: 'leaveQueue' }));
+        inQueue = false;
+        queueButton.textContent = "Warteschlange betreten";
+        queueStatus.textContent = "Nicht in Warteschlange";
+      }
+    });
   </script>
 </body>
 </html>
