@@ -80,6 +80,16 @@
       border-radius: 5px;
       z-index: 30;
     }
+    #totalPlayers {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      font-size: 18px;
+      background: rgba(0,0,0,0.5);
+      padding: 10px 15px;
+      border-radius: 5px;
+      z-index: 30;
+    }
     .teams-container {
       display: flex;
       gap: 40px;
@@ -96,6 +106,15 @@
     .team-score {
       font-size: 32px;
       font-weight: bold;
+    }
+    #queueStatus {
+      font-size: 24px;
+      margin-top: 20px;
+    }
+    #playerCount {
+      font-size: 18px;
+      margin-top: 10px;
+      color: #aaa;
     }
   </style>
 </head>
@@ -124,6 +143,10 @@
     </div>
   </div>
 
+  <div id="totalPlayers">
+    Spieler online: <span id="totalPlayersCount">0</span>
+  </div>
+
   <div id="gameContainer">
     <canvas id="pongCanvas"></canvas>
   </div>
@@ -144,6 +167,9 @@
     const waitingScreen = document.getElementById("waitingScreen");
     const readyScreen = document.getElementById("readyScreen");
     const scoreboard = document.getElementById("scoreboard");
+    const totalPlayersElement = document.getElementById("totalPlayers");
+    const totalPlayersCount = document.getElementById("totalPlayersCount");
+    const playerCount = document.getElementById("playerCount");
     const queueStatus = document.getElementById("queueStatus");
 
     // Game variables
@@ -254,11 +280,26 @@
       requestAnimationFrame(gameLoop);
     }
 
+    function startCountdown() {
+      readyScreen.style.display = "flex";
+      let countdownTime = 3;
+      const countdownInterval = setInterval(() => {
+        countdown.textContent = countdownTime > 0 ? countdownTime : "GO!";
+        countdownTime--;
+        if (countdownTime < -1) {
+          clearInterval(countdownInterval);
+          readyScreen.style.display = "none";
+          startGame();
+        }
+      }, 1000);
+    }
+
     function startGame() {
       gameRunning = true;
       gameContainer.style.display = "block";
       waitingScreen.style.display = "none";
       scoreboard.style.display = "flex";
+      totalPlayersElement.style.display = "block";
       resizeCanvas();
       gameLoop();
     }
@@ -268,6 +309,7 @@
       gameContainer.style.display = "none";
       scoreboard.style.display = "none";
       waitingScreen.style.display = "flex";
+      totalPlayersElement.style.display = "none";
       player1Score = 0;
       player2Score = 0;
       document.getElementById("player1Score").textContent = "0";
@@ -280,11 +322,26 @@
 
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      
-      if (data.type === "gameStart") {
+      console.log("Empfangen:", data);
+
+      if (data.type === "queueUpdate") {
+        playerCount.textContent = `${data.queueCount} Spieler in Warteschlange`;
+        totalPlayersCount.textContent = data.totalCount;
+      }
+      else if (data.type === "joinedQueue") {
+        inQueue = true;
+        queueButton.textContent = "Verlasse Warteschlange";
+        queueStatus.textContent = "In Warteschlange...";
+      }
+      else if (data.type === "leftQueue") {
+        inQueue = false;
+        queueButton.textContent = "Warteschlange betreten";
+        queueStatus.textContent = "Nicht in Warteschlange";
+      }
+      else if (data.type === "gameStart") {
         playerNumber = data.playerNumber;
         isHost = data.playerNumber === 1;
-        startGame();
+        startCountdown();
       }
       else if (data.type === "ballUpdate") {
         ballX = data.ballX;
@@ -301,22 +358,13 @@
           setTimeout(resetGame, 3000);
         }
       }
-      else if (data.type === "queueUpdate") {
-        document.getElementById("playerCount").textContent = `${data.count} Spieler in Warteschlange`;
-      }
     };
 
     queueButton.addEventListener('click', () => {
       if (!inQueue) {
         socket.send(JSON.stringify({ type: 'joinQueue' }));
-        inQueue = true;
-        queueButton.textContent = "Verlasse Warteschlange";
-        queueStatus.textContent = "In Warteschlange...";
       } else {
         socket.send(JSON.stringify({ type: 'leaveQueue' }));
-        inQueue = false;
-        queueButton.textContent = "Warteschlange betreten";
-        queueStatus.textContent = "Nicht in Warteschlange";
       }
     });
   </script>
