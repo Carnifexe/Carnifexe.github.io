@@ -192,6 +192,8 @@
     function resizeCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+      player1Y = canvas.height / 2 - basePaddleHeight / 2;
+      player2Y = canvas.height / 2 - basePaddleHeight / 2;
       resetBall();
     }
 
@@ -316,6 +318,41 @@
       document.getElementById("player2Score").textContent = "0";
     }
 
+    // Tastatursteuerung für Schläger
+    document.addEventListener('keydown', (e) => {
+      if (!gameRunning) return;
+
+      const paddleSpeed = 20;
+      
+      // Spieler 1 (linker Schläger) - W/S-Tasten
+      if (playerNumber === 1) {
+        if (e.key.toLowerCase() === 'w' && player1Y > 0) {
+          player1Y -= paddleSpeed;
+        } 
+        else if (e.key.toLowerCase() === 's' && player1Y < canvas.height - basePaddleHeight) {
+          player1Y += paddleSpeed;
+        }
+      } 
+      // Spieler 2 (rechter Schläger) - Pfeiltasten
+      else if (playerNumber === 2) {
+        if (e.key === 'ArrowUp' && player2Y > 0) {
+          player2Y -= paddleSpeed;
+        } 
+        else if (e.key === 'ArrowDown' && player2Y < canvas.height - basePaddleHeight) {
+          player2Y += paddleSpeed;
+        }
+      }
+
+      // Schlägerposition an Gegner senden
+      if (playerNumber === 1 || playerNumber === 2) {
+        socket.send(JSON.stringify({
+          type: "paddleMove",
+          player: playerNumber,
+          y: playerNumber === 1 ? player1Y : player2Y
+        }));
+      }
+    });
+
     // Event listeners
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
@@ -356,6 +393,13 @@
         if (player1Score >= WINNING_SCORE || player2Score >= WINNING_SCORE) {
           document.getElementById("winnerSound").play();
           setTimeout(resetGame, 3000);
+        }
+      }
+      else if (data.type === "paddleMove") {
+        if (data.player === 1) {
+          player1Y = data.y;
+        } else if (data.player === 2) {
+          player2Y = data.y;
         }
       }
     };
