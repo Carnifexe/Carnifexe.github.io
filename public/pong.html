@@ -155,13 +155,12 @@
   <audio id="winnerSound" src="winner.mp3" preload="auto"></audio>
 
   <script>
-    // Initialisierung
     const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
     const canvas = document.getElementById("pongCanvas");
     const ctx = canvas.getContext("2d");
-    const WINNING_SCORE = 10;
+    const WINNING_SCORE = 5;
 
-    // UI Elemente
+    // UI Elements
     const gameContainer = document.getElementById("gameContainer");
     const queueButton = document.getElementById("queueButton");
     const waitingScreen = document.getElementById("waitingScreen");
@@ -172,7 +171,7 @@
     const playerCount = document.getElementById("playerCount");
     const queueStatus = document.getElementById("queueStatus");
 
-    // Spielvariablen
+    // Game variables
     let gameRunning = false;
     let playerNumber = null;
     let isHost = false;
@@ -180,50 +179,75 @@
     
     const paddleWidth = 15;
     const paddleHeight = 100;
-    let player1Y = 0;
-    let player2Y = 0;
-    let ballX = 0;
-    let ballY = 0;
+    let player1Y = canvas.height / 2 - paddleHeight / 2;
+    let player2Y = canvas.height / 2 - paddleHeight / 2;
+    let ballX = canvas.width / 2;
+    let ballY = canvas.height / 2;
     let ballSpeedX = 5;
     let ballSpeedY = 5;
     let player1Score = 0;
     let player2Score = 0;
 
-    // Canvas initialisieren
+    // Interpolation variables
+    let renderBallX = ballX;
+    let renderBallY = ballY;
+    let targetBallX = ballX;
+    let targetBallY = ballY;
+    let targetBallSpeedX = ballSpeedX;
+    let targetBallSpeedY = ballSpeedY;
+    let lastBallUpdate = Date.now();
+
     function initCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       player1Y = canvas.height / 2 - paddleHeight / 2;
       player2Y = canvas.height / 2 - paddleHeight / 2;
-      ballX = canvas.width / 2;
-      ballY = canvas.height / 2;
+      resetBall();
     }
 
-    // Ball zurücksetzen
     function resetBall() {
       ballX = canvas.width / 2;
       ballY = canvas.height / 2;
+      renderBallX = ballX;
+      renderBallY = ballY;
+      targetBallX = ballX;
+      targetBallY = ballY;
       ballSpeedX = 5 * (Math.random() > 0.5 ? 1 : -1);
       ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
+      targetBallSpeedX = ballSpeedX;
+      targetBallSpeedY = ballSpeedY;
     }
 
-    // Spiel zeichnen
+    function interpolateBall() {
+      const now = Date.now();
+      const delta = now - lastBallUpdate;
+      
+      if (delta < 100) { // Only interpolate if last update was <100ms ago
+        const t = Math.min(delta / 16, 1); // Normalize to ~60fps
+        renderBallX = targetBallX * t + renderBallX * (1 - t);
+        renderBallY = targetBallY * t + renderBallY * (1 - t);
+      } else {
+        renderBallX = targetBallX;
+        renderBallY = targetBallY;
+      }
+    }
+
     function drawGame() {
-      // Hintergrund
+      // Clear canvas
       ctx.fillStyle = "black";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Paddles
+      // Draw paddles
       ctx.fillStyle = "white";
       ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
       ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
       
-      // Ball
+      // Draw ball using interpolated position
       ctx.beginPath();
-      ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
+      ctx.arc(renderBallX, renderBallY, 10, 0, Math.PI * 2);
       ctx.fill();
       
-      // Mittellinie
+      // Draw center line
       ctx.beginPath();
       ctx.setLineDash([10, 10]);
       ctx.moveTo(canvas.width/2, 0);
@@ -234,22 +258,21 @@
       ctx.setLineDash([]);
     }
 
-    // Spiel aktualisieren
     function updateGame() {
       if (!gameRunning) return;
 
       if (isHost) {
-        // Ballbewegung
+        // Ball movement
         ballX += ballSpeedX;
         ballY += ballSpeedY;
 
-        // Wände
+        // Wall collision
         if (ballY <= 0 || ballY >= canvas.height) {
           ballSpeedY = -ballSpeedY;
           document.getElementById("bounceSound").play();
         }
         
-        // Paddle-Kollision
+        // Paddle collision
         if (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
           ballSpeedX = -ballSpeedX * 1.05;
           document.getElementById("pongSound").play();
@@ -259,7 +282,7 @@
           document.getElementById("pongSound").play();
         }
 
-        // Punkte
+        // Scoring
         if (ballX < 0) {
           player2Score++;
           document.getElementById("player2Score").textContent = player2Score;
@@ -281,7 +304,7 @@
           resetBall();
         }
 
-        // Spielzustand senden
+        // Send game state (60fps)
         socket.send(JSON.stringify({
           type: "gameState",
           ballX,
@@ -289,13 +312,16 @@
           ballSpeedX,
           ballSpeedY,
           player1Y,
-          player2Y
+          player2Y,
+          timestamp: Date.now()
         }));
       }
     }
 
-    // Spielschleife
     function gameLoop() {
+      if (!isHost) {
+        interpolateBall();
+      }
       updateGame();
       drawGame();
       if (gameRunning) {
@@ -303,7 +329,6 @@
       }
     }
 
-    // Countdown
     function startCountdown() {
       readyScreen.style.display = "flex";
       let countdownTime = 3;
@@ -319,7 +344,6 @@
       }, 1000);
     }
 
-    // Spiel starten
     function startGame() {
       gameRunning = true;
       gameContainer.style.display = "block";
@@ -327,11 +351,9 @@
       scoreboard.style.display = "flex";
       totalPlayersElement.style.display = "block";
       initCanvas();
-      resetBall();
       gameLoop();
     }
 
-    // Spiel zurücksetzen
     function resetGame() {
       gameRunning = false;
       gameContainer.style.display = "none";
@@ -344,7 +366,7 @@
       document.getElementById("player2Score").textContent = "0";
     }
 
-    // Event Listener
+    // Event listeners
     window.addEventListener('resize', initCanvas);
     canvas.addEventListener('mousemove', (e) => {
       if (!gameRunning) return;
@@ -366,10 +388,10 @@
       }));
     });
 
-    // Initialisierung
+    // Initialize game
     initCanvas();
 
-    // WebSocket Nachrichten
+    // WebSocket handling
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
@@ -393,10 +415,13 @@
         startCountdown();
       }
       else if (data.type === "gameState") {
-        ballX = data.ballX;
-        ballY = data.ballY;
-        ballSpeedX = data.ballSpeedX;
-        ballSpeedY = data.ballSpeedY;
+        if (!isHost) {
+          targetBallX = data.ballX;
+          targetBallY = data.ballY;
+          targetBallSpeedX = data.ballSpeedX;
+          targetBallSpeedY = data.ballSpeedY;
+          lastBallUpdate = data.timestamp || Date.now();
+        }
         player1Y = data.player1Y;
         player2Y = data.player2Y;
       }
