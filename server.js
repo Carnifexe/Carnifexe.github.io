@@ -13,7 +13,7 @@ let players = [];
 let queue = [];
 let rooms = [];
 
-// Ping clients every 30 seconds to check connection
+// Ping clients every 30 seconds
 setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.readyState === WebSocket.OPEN) {
@@ -79,6 +79,16 @@ wss.on('connection', (ws) => {
         if (room) {
           room.players.forEach(player => {
             if (player !== ws && player.readyState === WebSocket.OPEN) {
+              player.send(JSON.stringify(data));
+            }
+          });
+        }
+      }
+      else if (data.type === 'scoreUpdate') {
+        const room = rooms.find(r => r.players.includes(ws));
+        if (room) {
+          room.players.forEach(player => {
+            if (player.readyState === WebSocket.OPEN) {
               player.send(JSON.stringify(data));
             }
           });
