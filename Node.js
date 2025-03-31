@@ -1,47 +1,63 @@
 const WebSocket = require('ws');
-
 const wss = new WebSocket.Server({ port: 8080 });
 
-let players = [];
-let gameStarted = false;
+let players = []; // Alle verbundenen Spieler
+let rooms = [];    // Laufende Spiele (Räume)
 
 wss.on('connection', (ws) => {
-    if (players.length < 2) {
-        players.push(ws);
-        ws.send(JSON.stringify({ type: "assignPlayer", player: players.length }));
+    console.log("Ein neuer Client hat sich verbunden.");
 
-        // Wenn beide Spieler verbunden sind, starte das Spiel
-        if (players.length === 2 && !gameStarted) {
-            gameStarted = true;
-            players.forEach(player => {
-                player.send(JSON.stringify({ type: "gameStart" }));
-            });
-        }
-    } else {
-        ws.send(JSON.stringify({ type: "error", message: "Spiel ist voll." }));
+    // Füge den neuen Spieler zur Liste der verbundenen Spieler hinzu
+    players.push(ws);
+    broadcastPlayerCount(); // Sende die aktuelle Spieleranzahl an alle Clients
+
+    // Wenn 2 Spieler verbunden sind, starte ein Spiel
+    if (players.length % 2 === 0) {
+        const roomId = rooms.length + 1;
+        rooms.push({ roomId, players: players.slice(-2), gameStarted: false });
+        startGame(roomId);
     }
 
     ws.on('message', (message) => {
         const data = JSON.parse(message);
-        
-        // Verarbeite die Nachrichten (Spielzustand, Bewegungen, etc.)
-        if (data.type === "move") {
-            // Verarbeite Bewegungen der Spieler
-            // Hier kannst du die Logik zur Übertragung des aktuellen Spielzustands an beide Spieler einbauen
-            // Zum Beispiel:
-            if (data.player === 1) {
-                // Update für Spieler 1
-            } else {
-                // Update für Spieler 2
-            }
+
+        if (data.type === "getPlayers") {
+            // Sende die aktuelle Spieleranzahl zurück
+            ws.send(JSON.stringify({ type: "playerList", count: players.length, rooms }));
+        }
+
+        if (data.type === "ready") {
+            // Hier könnte man zusätzliche Logik für den Start des Spiels hinzufügen
+            console.log("Spielstartanfrage erhalten.");
         }
     });
 
     ws.on('close', () => {
-        // Verwalte die Verbindungsabbrüche und sende Nachrichten an die verbleibenden Spieler
+        // Entferne den Spieler aus der Liste der verbundenen Spieler
         players = players.filter(player => player !== ws);
-        if (players.length === 1) {
-            players[0].send(JSON.stringify({ type: "gameOver", message: "Der Gegner hat das Spiel verlassen!" }));
-        }
+        broadcastPlayerCount(); // Aktualisiere die Spieleranzahl
+
+        // Wenn ein Spielraum verlassen wurde, lösche den Raum
+        rooms = rooms.filter(room => !room.players.includes(ws));
     });
 });
+
+// Funktion, um die aktuelle Spieleranzahl an alle Clients zu senden
+function broadcastPlayerCount() {
+    const playerCount = players.length;
+    players.forEach(player => {
+        player.send(JSON.stringify({ type: "updatePlayerCount", count: playerCount }));
+    });
+}
+
+// Funktion, um das Spiel zu starten, wenn zwei Spieler verbunden sind
+function startGame(roomId) {
+    const room = rooms.find(r => r.roomId === roomId);
+    if (room && room.players.length === 2 && !room.gameStarted) {
+        room.gameStarted = true;
+
+        room.players.forEach(player => {
+            player.send(JSON.stringify({ type: "gameStart", roomId }));
+        });
+    }
+}
