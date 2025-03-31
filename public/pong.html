@@ -12,6 +12,7 @@
       color: white;
       font-family: Arial, sans-serif;
       text-align: center;
+      cursor: none;
     }
     #gameContainer {
       position: fixed;
@@ -318,39 +319,26 @@
       document.getElementById("player2Score").textContent = "0";
     }
 
-    // Tastatursteuerung für Schläger
-    document.addEventListener('keydown', (e) => {
+    // Maussteuerung
+    canvas.addEventListener('mousemove', (e) => {
       if (!gameRunning) return;
-
-      const paddleSpeed = 20;
       
-      // Spieler 1 (linker Schläger) - W/S-Tasten
+      const rect = canvas.getBoundingClientRect();
+      const mouseY = e.clientY - rect.top;
+      
+      // Aktualisiere je nach Spieler die richtige Position
       if (playerNumber === 1) {
-        if (e.key.toLowerCase() === 'w' && player1Y > 0) {
-          player1Y -= paddleSpeed;
-        } 
-        else if (e.key.toLowerCase() === 's' && player1Y < canvas.height - basePaddleHeight) {
-          player1Y += paddleSpeed;
-        }
-      } 
-      // Spieler 2 (rechter Schläger) - Pfeiltasten
-      else if (playerNumber === 2) {
-        if (e.key === 'ArrowUp' && player2Y > 0) {
-          player2Y -= paddleSpeed;
-        } 
-        else if (e.key === 'ArrowDown' && player2Y < canvas.height - basePaddleHeight) {
-          player2Y += paddleSpeed;
-        }
+        player1Y = Math.max(0, Math.min(mouseY - basePaddleHeight/2, canvas.height - basePaddleHeight));
+      } else if (playerNumber === 2) {
+        player2Y = Math.max(0, Math.min(mouseY - basePaddleHeight/2, canvas.height - basePaddleHeight));
       }
 
-      // Schlägerposition an Gegner senden
-      if (playerNumber === 1 || playerNumber === 2) {
-        socket.send(JSON.stringify({
-          type: "paddleMove",
-          player: playerNumber,
-          y: playerNumber === 1 ? player1Y : player2Y
-        }));
-      }
+      // Sende Position an Gegner
+      socket.send(JSON.stringify({
+        type: "paddleMove",
+        player: playerNumber,
+        y: playerNumber === 1 ? player1Y : player2Y
+      }));
     });
 
     // Event listeners
@@ -359,7 +347,6 @@
 
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      console.log("Empfangen:", data);
 
       if (data.type === "queueUpdate") {
         playerCount.textContent = `${data.queueCount} Spieler in Warteschlange`;
