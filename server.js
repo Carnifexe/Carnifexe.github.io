@@ -13,6 +13,15 @@ let players = [];
 let queue = [];
 let rooms = [];
 
+// Ping alle 30 Sekunden zur Verbindungsüberwachung
+setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.ping();
+    }
+  });
+}, 30000);
+
 function broadcastQueueCount() {
   const queueCount = queue.length;
   const totalCount = players.length;
@@ -65,23 +74,31 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'leftQueue' }));
         broadcastQueueCount();
       }
-else if (data.type === 'ballUpdate') {
-  const room = rooms.find(r => r.players.includes(ws));
-  if (room) {
-    room.players.forEach(player => {
-      if (player.readyState === WebSocket.OPEN) {
-        player.send(JSON.stringify(data));
+      else if (data.type === 'ballUpdate') {
+        const room = rooms.find(r => r.players.includes(ws));
+        if (room) {
+          room.players.forEach(player => {
+            if (player.readyState === WebSocket.OPEN) {
+              player.send(JSON.stringify({
+                type: "ballUpdate",
+                x: data.x,
+                y: data.y,
+                sx: data.sx,
+                sy: data.sy,
+                p1: data.p1,
+                p2: data.p2
+              }));
+            }
+          });
+        }
       }
-    });
-  }
-}
       else if (data.type === 'paddleMove') {
         const room = rooms.find(r => r.players.includes(ws));
         if (room) {
           room.players.forEach(player => {
             if (player !== ws && player.readyState === WebSocket.OPEN) {
               player.send(JSON.stringify({
-                type: "paddleUpdate",
+                type: "paddleMove",
                 player: data.player,
                 y: data.y
               }));
