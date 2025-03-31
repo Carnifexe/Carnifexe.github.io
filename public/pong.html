@@ -74,6 +74,18 @@
             margin-top: 10px;
             color: #aaa;
         }
+        #scoreboard {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            z-index: 10004;
+            display: none;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 20px;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -88,6 +100,7 @@
         <div id="countdown">Ready...</div>
     </div>
 
+    <div id="scoreboard">Spieler 1: 0 | Spieler 2: 0</div>
     <canvas id="pongCanvas"></canvas>
 
     <script>
@@ -101,16 +114,32 @@
         const queueStatus = document.getElementById("queueStatus");
         const playerCount = document.getElementById("playerCount");
         const countdown = document.getElementById("countdown");
+        const scoreboard = document.getElementById("scoreboard");
 
         // 2. Spielvariablen
         let gameRunning = false;
         let playerNumber = null;
+        let isHost = false;
         let inQueue = false;
+        
+        // Pong-Elemente
+        const paddleWidth = 15;
+        const paddleHeight = 100;
+        const ballSize = 10;
+        let player1Y = canvas.height / 2 - paddleHeight / 2;
+        let player2Y = canvas.height / 2 - paddleHeight / 2;
+        let ballX = canvas.width / 2;
+        let ballY = canvas.height / 2;
+        let ballSpeedX = 5;
+        let ballSpeedY = 5;
+        let player1Score = 0;
+        let player2Score = 0;
 
         // 3. Canvas Setup
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
+            resetGame();
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
@@ -133,7 +162,31 @@
 
             if (data.type === "gameStart") {
                 playerNumber = data.playerNumber;
-                startGame();
+                isHost = data.playerNumber === 1;
+                scoreboard.style.display = "block";
+            }
+
+            if (data.type === "paddleMove") {
+                if (data.player === 1) player1Y = data.y;
+                if (data.player === 2) player2Y = data.y;
+            }
+
+            if (data.type === "ballUpdate") {
+                ballX = data.x;
+                ballY = data.y;
+                ballSpeedX = data.speedX;
+                ballSpeedY = data.speedY;
+            }
+
+            if (data.type === "scoreUpdate") {
+                player1Score = data.player1;
+                player2Score = data.player2;
+                updateScoreboard();
+            }
+
+            if (data.type === "opponentDisconnected") {
+                alert("Dein Gegner hat das Spiel verlassen!");
+                location.reload();
             }
         };
 
@@ -171,22 +224,140 @@
                     countdown.textContent = "GO!";
                     setTimeout(() => {
                         readyScreen.style.display = "none";
-                        socket.send(JSON.stringify({ type: "ready" }));
+                        startGame();
                     }, 500);
                 }
             }, 1000);
         }
 
-        // 7. Spiel-Logik (vereinfacht)
+        // 7. Spielsteuerung
+        document.addEventListener('keydown', (e) => {
+            if (!gameRunning) return;
+
+            const paddleSpeed = 20;
+            let newY;
+
+            // Spieler 1 (W/S)
+            if (playerNumber === 1 && (e.key === 'w' || e.key === 's')) {
+                newY = e.key === 'w' ? player1Y - paddleSpeed : player1Y + paddleSpeed;
+                player1Y = Math.max(0, Math.min(canvas.height - paddleHeight, newY));
+                socket.send(JSON.stringify({ 
+                    type: "paddleMove", 
+                    player: 1, 
+                    y: player1Y 
+                }));
+            }
+
+            // Spieler 2 (Pfeiltasten)
+            if (playerNumber === 2 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                newY = e.key === 'ArrowUp' ? player2Y - paddleSpeed : player2Y + paddleSpeed;
+                player2Y = Math.max(0, Math.min(canvas.height - paddleHeight, newY));
+                socket.send(JSON.stringify({ 
+                    type: "paddleMove", 
+                    player: 2, 
+                    y: player2Y 
+                }));
+            }
+        });
+
+        // 8. Spiel-Logik
+        function resetGame() {
+            ballX = canvas.width / 2;
+            ballY = canvas.height / 2;
+            ballSpeedX = 5 * (Math.random() > 0.5 ? 1 : -1);
+            ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
+        }
+
+        function updateScoreboard() {
+            scoreboard.textContent = `Spieler 1: ${player1Score} | Spieler 2: ${player2Score}`;
+        }
+
+        function draw() {
+            // Hintergrund
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Paddles
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
+            ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
+
+            // Ball
+            ctx.beginPath();
+            ctx.arc(ballX, ballY, ballSize, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Mittellinie
+            ctx.strokeStyle = "#333";
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+            
+            // Nur der Host berechnet die Ballphysik
+            if (isHost) {
+                ballX += ballSpeedX;
+                ballY += ballSpeedY;
+                
+                // Kollision mit Wänden
+                if (ballY <= 0 || ballY >= canvas.height) {
+                    ballSpeedY = -ballSpeedY;
+                }
+                
+                // Kollision mit Paddles
+                if (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
+                    ballSpeedX = -ballSpeedX * 1.05;
+                }
+                if (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight) {
+                    ballSpeedX = -ballSpeedX * 1.05;
+                }
+                
+                // Punkte zählen
+                if (ballX < 0) {
+                    player2Score++;
+                    socket.send(JSON.stringify({
+                        type: "scoreUpdate",
+                        player1: player1Score,
+                        player2: player2Score
+                    }));
+                    resetGame();
+                }
+                if (ballX > canvas.width) {
+                    player1Score++;
+                    socket.send(JSON.stringify({
+                        type: "scoreUpdate",
+                        player1: player1Score,
+                        player2: player2Score
+                    }));
+                    resetGame();
+                }
+                
+                // Ballposition an Gegner senden
+                socket.send(JSON.stringify({
+                    type: "ballUpdate",
+                    x: ballX,
+                    y: ballY,
+                    speedX: ballSpeedX,
+                    speedY: ballSpeedY
+                }));
+            }
+            
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
         function startGame() {
             gameRunning = true;
             canvas.style.display = "block";
-            
-            // Hier würde Ihr eigentlicher Spielcode stehen
-            ctx.fillStyle = "white";
-            ctx.font = "30px Arial";
-            ctx.fillText(`Spieler ${playerNumber} - Spiel gestartet!`, 
-                         canvas.width/2 - 200, canvas.height/2);
+            resetGame();
+            updateScoreboard();
+            gameLoop();
         }
     </script>
 </body>
