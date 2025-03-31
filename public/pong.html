@@ -62,39 +62,6 @@
             border-radius: 10px;
             text-align: center;
         }
-        .teams-container {
-            display: flex;
-            justify-content: center;
-            gap: 40px;
-        }
-        .team {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .team-name {
-            font-size: 18px;
-            color: #ffcc00;
-            margin-bottom: 5px;
-        }
-        .team-score {
-            font-size: 24px;
-            font-weight: bold;
-        }
-        #gameOverText {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 32px;
-            color: white;
-            z-index: 10002;
-            display: none;
-            text-align: center;
-            background: rgba(0,0,0,0.7);
-            padding: 20px;
-            border-radius: 10px;
-        }
         #waitingText {
             position: fixed;
             top: 50%;
@@ -128,7 +95,6 @@
 <body>
     <button id="startButton">Pong starten</button>
     <button id="restartButton">Neustart</button>
-    <div id="gameOverText"></div>
     <div id="waitingText">Warte auf Gegner...</div>
     <div id="opponentConnectedText">Gegner verbunden!</div>
     <canvas id="pongCanvas"></canvas>
@@ -145,19 +111,9 @@
         </div>
     </div>
 
-    <!-- Sound-Elemente -->
-    <audio id="pingSound" src="ping.mp3"></audio>
-    <audio id="pongSound" src="pong.mp3"></audio>
-    <audio id="scoreSound" src="sahpsound.mp3"></audio>
-    <audio id="bounceSound" src="bounce.mp3"></audio>
-    <audio id="winnerSound" src="winner.mp3"></audio>
-    <audio id="powerupSound" src="powerup.mp3"></audio>
-
     <script>
-        // WebSocket Verbindung
         const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
         
-        // Canvas und Elemente initialisieren
         const canvas = document.getElementById("pongCanvas");
         const ctx = canvas.getContext("2d");
         const startButton = document.getElementById("startButton");
@@ -165,19 +121,14 @@
         const scoreboard = document.getElementById("scoreboard");
         const player1ScoreElement = document.getElementById("player1Score");
         const player2ScoreElement = document.getElementById("player2Score");
-        const gameOverText = document.getElementById("gameOverText");
         const waitingText = document.getElementById("waitingText");
         const opponentConnectedText = document.getElementById("opponentConnectedText");
 
-        // Spielvariablen
         let gameRunning = false;
         let playerNumber = null;
         let player1Score = 0;
         let player2Score = 0;
-        const maxScore = 10;
-        const paddleHeight = 100;
-        const paddleWidth = 10;
-        
+
         let ball = { x: 0, y: 0, dx: 0, dy: 0, size: 10 };
         let player1Y = 0;
         let player2Y = 0;
@@ -185,7 +136,6 @@
         let connected = false;
         let opponentConnected = false;
 
-        // Canvas an Fenstergröße anpassen
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -193,20 +143,9 @@
         window.addEventListener("resize", resizeCanvas);
         resizeCanvas();
 
-        // WebSocket Events
         socket.onopen = function() {
             connected = true;
             console.log("Mit Server verbunden");
-        };
-
-        socket.onclose = function() {
-            connected = false;
-            if (gameRunning) {
-                gameRunning = false;
-                gameOverText.textContent = "Verbindung verloren";
-                gameOverText.style.display = "block";
-                restartButton.style.display = "block";
-            }
         };
 
         socket.onmessage = function(event) {
@@ -226,7 +165,6 @@
                 }, 2000); // 2 Sekunden warten, bevor das Spiel startet
             }
             else if (data.type === "gameState") {
-                // Spielzustand aktualisieren
                 ball.x = data.ball.x;
                 ball.y = data.ball.y;
                 ball.dx = data.ball.dx;
@@ -244,72 +182,13 @@
                 player1ScoreElement.textContent = player1Score;
                 player2ScoreElement.textContent = player2Score;
                 
-                // Prüfen ob Spiel vorbei
                 if (data.gameOver) {
                     gameRunning = false;
-                    gameOverText.textContent = playerNumber === 1 
-                        ? (player1Score >= maxScore ? "Du hast gewonnen!" : "Du hast verloren!")
-                        : (player2Score >= maxScore ? "Du hast gewonnen!" : "Du hast verloren!");
-                    gameOverText.style.display = "block";
-                    restartButton.style.display = "block";
-                    
-                    stopAllSounds();
-                    winnerSound.currentTime = 0;
-                    winnerSound.play();
+                    alert(playerNumber === 1 ? 'Spiel beendet, du hast gewonnen!' : 'Spiel beendet, du hast verloren!');
                 }
-            }
-            else if (data.type === "sound") {
-                playSound(data.sound);
             }
         };
 
-        // Spiel starten
-        function startGame() {
-            if (!connected) {
-                alert("Keine Verbindung zum Server");
-                return;
-            }
-            
-            stopAllSounds();
-            gameRunning = true;
-            
-            startButton.style.display = "none";
-            restartButton.style.display = "none";
-            canvas.style.display = "block";
-            scoreboard.style.display = "block";
-            gameOverText.style.display = "none";
-            
-            // Initiale Schlägerposition
-            player1Y = (canvas.height - paddleHeight) / 2;
-            player2Y = (canvas.height - paddleHeight) / 2;
-            
-            requestAnimationFrame(update);
-        }
-
-        // Maussteuerung
-        canvas.addEventListener("mousemove", (e) => {
-            if (!gameRunning || playerNumber === null) return;
-            
-            const mouseY = e.clientY - paddleHeight / 2;
-            
-            if (playerNumber === 1) {
-                player1Y = Math.max(0, Math.min(canvas.height - paddleHeight, mouseY));
-                socket.send(JSON.stringify({
-                    type: "move",
-                    player: 1,
-                    y: player1Y
-                }));
-            } else {
-                player2Y = Math.max(0, Math.min(canvas.height - paddleHeight, mouseY));
-                socket.send(JSON.stringify({
-                    type: "move",
-                    player: 2,
-                    y: player2Y
-                }));
-            }
-        });
-
-        // Start-Button
         startButton.addEventListener("click", () => {
             if (!connected) {
                 alert("Keine Verbindung zum Server");
@@ -319,33 +198,21 @@
             startButton.style.display = "none";
             waitingText.style.display = "block";
             
-            // Dem Server mitteilen, dass wir bereit sind
-            socket.send(JSON.stringify({
-                type: "ready"
-            }));
+            socket.send(JSON.stringify({ type: "ready" }));
         });
 
-        // Neustart-Button
         restartButton.addEventListener("click", () => {
-            gameOverText.style.display = "none";
+            gameRunning = false;
             startButton.style.display = "block";
-            canvas.style.display = "none";
-            scoreboard.style.display = "none";
-            
-            // Dem Server mitteilen, dass wir wieder bereit sind
-            if (connected) {
-                socket.send(JSON.stringify({
-                    type: "ready"
-                }));
-            }
+            waitingText.style.display = "none";
+            opponentConnectedText.style.display = "none";
         });
 
-        // Initialisierung sicherstellen
-        window.addEventListener('load', () => {
-            if (!connected) {
-                waitingText.style.display = "block";
-            }
-        });
+        function startGame() {
+            gameRunning = true;
+            canvas.style.display = "block";
+            scoreboard.style.display = "block";
+        }
     </script>
 </body>
 </html>
