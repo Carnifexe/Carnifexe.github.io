@@ -436,6 +436,7 @@
     }
 
     function clearCanvas() {
+      // Klarer Hintergrund ohne Motion-Blur-Spuren
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
@@ -571,8 +572,8 @@
           }
         }
         
-        // Torerkennung
-        if (ballX < -ballSize * 2) {  // Ball hat linken Rand verlassen
+        // Punkte zählen
+        if (ballX < 0) {
           // Spieler 2 (rechts) macht ein Tor
           const pointsToAdd = currentSpecialBall?.doublePoints ? 2 : 1;
           player2Score += pointsToAdd;
@@ -591,10 +592,9 @@
           socket.send(JSON.stringify({ type: "playSound", sound: "ls" }));
           powerupSound.play();
           resetGame();
-          return;  // Wichtig: Verlassen der Funktion nach Tor
         }
         
-        if (ballX > canvas.width + ballSize * 2) {  // Ball hat rechten Rand verlassen
+        if (ballX > canvas.width) {
           // Spieler 1 (links) macht ein Tor
           const pointsToAdd = currentSpecialBall?.doublePoints ? 2 : 1;
           player1Score += pointsToAdd;
@@ -613,7 +613,6 @@
           socket.send(JSON.stringify({ type: "playSound", sound: "saHP" }));
           powerupSound.play();
           resetGame();
-          return;  // Wichtig: Verlassen der Funktion nach Tor
         }
         
         // Ballposition an Gegner senden
