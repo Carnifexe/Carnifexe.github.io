@@ -20,6 +20,7 @@
             height: 100vh;
             z-index: 9999;
             display: none;
+            background: #000;
         }
         #startButton {
             position: fixed;
@@ -41,12 +42,12 @@
             left: 50%;
             transform: translateX(-50%);
             z-index: 10000;
-            display: none;
             color: white;
             background: rgba(0,0,0,0.5);
             padding: 15px 30px;
             border-radius: 10px;
             text-align: center;
+            display: none;
         }
         #waitingText {
             position: fixed;
@@ -81,8 +82,8 @@
     <canvas id="pongCanvas"></canvas>
 
     <script>
-        // WebSocket-Verbindung
-        const socket = new WebSocket('ws://localhost:8080'); // Ändere zu wss:// für HTTPS
+        // 1. Initialisierung
+        const socket = new WebSocket('ws://localhost:8080');
         const canvas = document.getElementById("pongCanvas");
         const ctx = canvas.getContext("2d");
         const startButton = document.getElementById("startButton");
@@ -90,66 +91,62 @@
         const connectedClients = document.getElementById("connectedClients");
         const scoreboard = document.getElementById("scoreboard");
 
-        // Spielvariablen
+        // 2. Spielvariablen
         let gameRunning = false;
         let playerNumber = null;
         let player1Score = 0;
         let player2Score = 0;
-        let connected = false;
-
-        // Pong-Spielelemente
+        
+        // Pong-Elemente
         const paddleWidth = 15;
         const paddleHeight = 100;
         const ballSize = 10;
-        let player1Y = canvas.height / 2 - paddleHeight / 2;
-        let player2Y = canvas.height / 2 - paddleHeight / 2;
-        let ballX = canvas.width / 2;
-        let ballY = canvas.height / 2;
-        let ballSpeedX = 5;
-        let ballSpeedY = 5;
+        let player1Y = 0;
+        let player2Y = 0;
+        let ballX = 0;
+        let ballY = 0;
+        let ballSpeedX = 0;
+        let ballSpeedY = 0;
 
-        // Canvas-Größe anpassen
+        // 3. Canvas Setup
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
+            // Initialpositionen setzen
+            player1Y = canvas.height / 2 - paddleHeight / 2;
+            player2Y = canvas.height / 2 - paddleHeight / 2;
+            resetBall();
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // WebSocket-Events
-        socket.onopen = function() {
-            connected = true;
-            console.log("Mit Server verbunden");
+        // 4. WebSocket-Handler
+        socket.onopen = () => {
+            console.log("Verbunden!");
             socket.send(JSON.stringify({ type: "getPlayers" }));
         };
 
-        socket.onmessage = function(event) {
+        socket.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            
+            console.log("Empfangen:", data.type);
+
             if (data.type === "updatePlayerCount") {
                 connectedClients.textContent = `Verbunden: ${data.count} Spieler`;
             }
 
             if (data.type === "gameStart") {
                 playerNumber = data.playerNumber;
-                console.log("Spiel gestartet als Spieler", playerNumber);
+                console.log("Ich bin Spieler", playerNumber);
                 waitingText.style.display = "none";
                 scoreboard.style.display = "block";
                 startGame();
             }
 
-            if (data.type === "opponentDisconnected") {
-                alert("Dein Gegner hat das Spiel verlassen!");
-                location.reload();
-            }
-
-            // Empfangene Paddle-Position des Gegners
-            if (data.type === "paddleMove" && data.player !== playerNumber) {
+            if (data.type === "paddleMove") {
                 if (data.player === 1) player1Y = data.y;
-                else player2Y = data.y;
+                if (data.player === 2) player2Y = data.y;
             }
 
-            // Empfangener Ball-Status
             if (data.type === "ballUpdate") {
                 ballX = data.x;
                 ballY = data.y;
@@ -157,107 +154,50 @@
                 ballSpeedY = data.speedY;
             }
 
-            // Score-Update
             if (data.type === "scoreUpdate") {
                 player1Score = data.player1;
                 player2Score = data.player2;
-                updateScoreboard();
+                scoreboard.textContent = `Spieler 1: ${player1Score} | Spieler 2: ${player2Score}`;
             }
         };
 
-        // Spielstart
+        // 5. Spielsteuerung
         startButton.addEventListener("click", () => {
-            if (!connected) {
-                alert("Keine Verbindung zum Server");
-                return;
-            }
             startButton.style.display = "none";
             waitingText.style.display = "block";
             socket.send(JSON.stringify({ type: "ready" }));
         });
 
-        // Tastatursteuerung
         document.addEventListener('keydown', (e) => {
             if (!gameRunning) return;
-            
+
             const paddleSpeed = 20;
             let newY;
-            
-            if (playerNumber === 1) {
-                if (e.key === 'w') newY = player1Y - paddleSpeed;
-                if (e.key === 's') newY = player1Y + paddleSpeed;
-                if (newY !== undefined) {
-                    player1Y = Math.max(0, Math.min(canvas.height - paddleHeight, newY));
-                    socket.send(JSON.stringify({ type: "paddleMove", player: 1, y: player1Y }));
-                }
-            } else if (playerNumber === 2) {
-                if (e.key === 'ArrowUp') newY = player2Y - paddleSpeed;
-                if (e.key === 'ArrowDown') newY = player2Y + paddleSpeed;
-                if (newY !== undefined) {
-                    player2Y = Math.max(0, Math.min(canvas.height - paddleHeight, newY));
-                    socket.send(JSON.stringify({ type: "paddleMove", player: 2, y: player2Y }));
-                }
+
+            // Spieler 1 (W/S)
+            if (playerNumber === 1 && (e.key === 'w' || e.key === 's')) {
+                newY = e.key === 'w' ? player1Y - paddleSpeed : player1Y + paddleSpeed;
+                player1Y = Math.max(0, Math.min(canvas.height - paddleHeight, newY));
+                socket.send(JSON.stringify({ 
+                    type: "paddleMove", 
+                    player: 1, 
+                    y: player1Y 
+                }));
+            }
+
+            // Spieler 2 (Pfeiltasten)
+            if (playerNumber === 2 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                newY = e.key === 'ArrowUp' ? player2Y - paddleSpeed : player2Y + paddleSpeed;
+                player2Y = Math.max(0, Math.min(canvas.height - paddleHeight, newY));
+                socket.send(JSON.stringify({ 
+                    type: "paddleMove", 
+                    player: 2, 
+                    y: player2Y 
+                }));
             }
         });
 
-        // Spiel-Loop
-        function gameLoop() {
-            if (!gameRunning) return;
-            
-            // Ball bewegen
-            ballX += ballSpeedX;
-            ballY += ballSpeedY;
-            
-            // Kollision mit Wänden
-            if (ballY <= 0 || ballY >= canvas.height) {
-                ballSpeedY = -ballSpeedY;
-            }
-            
-            // Kollision mit Paddles
-            if (
-                (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) ||
-                (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight)
-            ) {
-                ballSpeedX = -ballSpeedX * 1.05; // Beschleunigung beim Schlagen
-            }
-            
-            // Punkte zählen
-            if (ballX < 0) {
-                player2Score++;
-                resetBall();
-                socket.send(JSON.stringify({ 
-                    type: "scoreUpdate", 
-                    player1: player1Score, 
-                    player2: player2Score 
-                }));
-            }
-            if (ballX > canvas.width) {
-                player1Score++;
-                resetBall();
-                socket.send(JSON.stringify({ 
-                    type: "scoreUpdate", 
-                    player1: player1Score, 
-                    player2: player2Score 
-                }));
-            }
-            
-            // Zeichnen
-            draw();
-            
-            // Ball-Status an Gegner senden (nur wenn Spieler 1)
-            if (playerNumber === 1) {
-                socket.send(JSON.stringify({
-                    type: "ballUpdate",
-                    x: ballX,
-                    y: ballY,
-                    speedX: ballSpeedX,
-                    speedY: ballSpeedY
-                }));
-            }
-            
-            requestAnimationFrame(gameLoop);
-        }
-
+        // 6. Spiel-Logik
         function resetBall() {
             ballX = canvas.width / 2;
             ballY = canvas.height / 2;
@@ -269,34 +209,38 @@
             // Hintergrund
             ctx.fillStyle = "#000";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Mittellinie
-            ctx.strokeStyle = "#333";
-            ctx.beginPath();
-            ctx.moveTo(canvas.width / 2, 0);
-            ctx.lineTo(canvas.width / 2, canvas.height);
-            ctx.stroke();
-            
+
             // Paddles
             ctx.fillStyle = "#fff";
             ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
             ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
-            
+
             // Ball
             ctx.beginPath();
             ctx.arc(ballX, ballY, ballSize, 0, Math.PI * 2);
             ctx.fill();
+
+            // Mittellinie
+            ctx.strokeStyle = "#333";
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
         }
 
-        function updateScoreboard() {
-            scoreboard.textContent = `Spieler 1: ${player1Score} | Spieler 2: ${player2Score}`;
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            draw();
+            requestAnimationFrame(gameLoop);
         }
 
         function startGame() {
             gameRunning = true;
             canvas.style.display = "block";
             resetBall();
-            updateScoreboard();
             gameLoop();
         }
     </script>
