@@ -5,219 +5,91 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pong Multiplayer</title>
   <style>
+    /* Layout und Styling */
     body {
-      margin: 0;
-      overflow: hidden;
-      background: #000;
-      color: white;
-      font-family: Arial, sans-serif;
-      text-align: center;
-    }
-    canvas {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
+      display: flex;
+      justify-content: center;
+      align-items: center;
       height: 100vh;
-      z-index: 9999;
-      display: none;
-      background: #000;
+      margin: 0;
+      background-color: #1e1e1e;
     }
+
+    canvas {
+      background-color: #000;
+      display: block;
+    }
+
     #queueButton {
       position: fixed;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 15px 30px;
-      font-size: 20px;
-      cursor: pointer;
-      z-index: 10001;
-      background: #4CAF50;
+      top: 20px;
+      left: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #28a745;
       color: white;
       border: none;
-      border-radius: 5px;
+      cursor: pointer;
     }
-    #waitingScreen {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.8);
-      z-index: 10002;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-    }
-    #readyScreen {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.9);
-      z-index: 10003;
-      display: none;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      font-size: 72px;
-      font-weight: bold;
-    }
+
     #queueStatus {
-      font-size: 24px;
-      margin-top: 20px;
-    }
-    #playerCount {
-      font-size: 18px;
-      margin-top: 10px;
-      color: #aaa;
-    }
-    #scoreboard {
       position: fixed;
       top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 24px;
-      z-index: 10004;
-      display: none;
-      background: rgba(0,0,0,0.5);
-      padding: 10px 20px;
-      border-radius: 5px;
+      right: 20px;
+      font-size: 16px;
+      color: white;
     }
-    .teams-container {
-      display: flex;
-      gap: 40px;
-    }
-    .team {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .team-name {
-      font-size: 18px;
-      color: #aaa;
-    }
-    .team-score {
-      font-size: 32px;
-      font-weight: bold;
+
+    #playerCount {
+      position: fixed;
+      top: 50px;
+      right: 20px;
+      font-size: 16px;
+      color: white;
     }
   </style>
 </head>
 <body>
-  <div id="waitingScreen">
-    <h1>Pong Multiplayer</h1>
-    <button id="queueButton">Warteschlange betreten</button>
-    <div id="queueStatus">Nicht in Warteschlange</div>
-    <div id="playerCount">0 Spieler in Warteschlange</div>
-  </div>
+  <canvas id="pongCanvas" width="600" height="400"></canvas>
 
-  <div id="readyScreen">
-    <div id="countdown">Ready...</div>
-  </div>
-
-  <div id="scoreboard">
-    <div class="teams-container">
-      <div class="team">
-        <div class="team-name">Spieler 1</div>
-        <div class="team-score" id="player1Score">0</div>
-      </div>
-      <div class="team">
-        <div class="team-name">Spieler 2</div>
-        <div class="team-score" id="player2Score">0</div>
-      </div>
-    </div>
-  </div>
-  <canvas id="pongCanvas"></canvas>
-
-  <audio id="pingSound" src="ping.mp3" preload="auto"></audio>
-  <audio id="pongSound" src="pong.mp3" preload="auto"></audio>
-  <audio id="saHPSound" src="sahpsound.mp3" preload="auto"></audio>
-  <audio id="lsSound" src="lssound.mp3" preload="auto"></audio>
-  <audio id="bounceSound" src="bounce.mp3" preload="auto"></audio>
-  <audio id="winnerSound" src="winner.mp3" preload="auto"></audio>
-  <audio id="powerupSound" src="powerup.mp3" preload="auto"></audio>
+  <!-- Buttons und Statusanzeigen -->
+  <button id="queueButton">Warteschlange betreten</button>
+  <div id="queueStatus">Nicht in Warteschlange</div>
+  <div id="playerCount">0 Spieler in Warteschlange</div>
 
   <script>
+    // WebSocket-Verbindung zu unserem Server
     const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
     const canvas = document.getElementById("pongCanvas");
     const ctx = canvas.getContext("2d");
     const queueButton = document.getElementById("queueButton");
-    const waitingScreen = document.getElementById("waitingScreen");
-    const readyScreen = document.getElementById("readyScreen");
     const queueStatus = document.getElementById("queueStatus");
     const playerCount = document.getElementById("playerCount");
-    const countdown = document.getElementById("countdown");
-    const scoreboard = document.getElementById("scoreboard");
-    const player1ScoreElement = document.getElementById("player1Score");
-    const player2ScoreElement = document.getElementById("player2Score");
 
-    const pingSound = document.getElementById("pingSound");
-    const pongSound = document.getElementById("pongSound");
-    const saHPSound = document.getElementById("saHPSound");
-    const lsSound = document.getElementById("lsSound");
-    const bounceSound = document.getElementById("bounceSound");
-    const winnerSound = document.getElementById("winnerSound");
-    const powerupSound = document.getElementById("powerupSound");
-
-    function stopNonGoalSounds() {
-        [pingSound, pongSound, bounceSound, powerupSound].forEach(sound => {
-            sound.pause();
-            sound.currentTime = 0;
-        });
-    }
-
-    function stopAllSounds() {
-        [pingSound, pongSound, saHPSound, lsSound, bounceSound, powerupSound, winnerSound].forEach(sound => {
-            sound.pause();
-            sound.currentTime = 0;
-        });
-    }
-
-    let gameRunning = false;
-    let playerNumber = null;
-    let isHost = false;
     let inQueue = false;
-    
-    const basePaddleWidth = 15;
-    const basePaddleHeight = 100;
-    let paddleWidth = basePaddleWidth;
-    let paddleHeight = basePaddleHeight;
-    let player1Y = canvas.height / 2 - basePaddleHeight / 2;
-    let player2Y = canvas.height / 2 - basePaddleHeight / 2;
-    let ballX = canvas.width / 2;
-    let ballY = canvas.height / 2;
-    let ballSpeedX = 5;
-    let ballSpeedY = 5;
-    let player1Score = 0;
-    let player2Score = 0;
-    let ballTrail = [];
-    const maxTrailLength = 10;
-    
-    let leftPaddleMultiplier = 1.0;  
-    let rightPaddleMultiplier = 1.0; 
-    const maxPaddleMultiplier = 2.0; 
-    const paddleIncreasePerGoal = 0.2;
+    let playerNumber = null;
+    let gameRunning = false;
+    let ballSpeed = 5;
+    let playerPaddle = { x: 10, y: canvas.height / 2 - 50, width: 10, height: 100, dy: 0 };
+    let aiPaddle = { x: canvas.width - 20, y: canvas.height / 2 - 50, width: 10, height: 100, dy: 0 };
+    let ball = { x: canvas.width / 2, y: canvas.height / 2, radius: 10, speedX: ballSpeed, speedY: ballSpeed };
 
-    const SPECIAL_BALLS = {
-        FIRE: { name: "fire", color: "#ff0000", speedMultiplier: 1.25, sizeMultiplier: 1, randomDirection: false, doublePoints: false },
-        ICE: { name: "ice", color: "#ffffff", speedMultiplier: 0.8, sizeMultiplier: 1, randomDirection: true, doublePoints: false },
-        EARTH: { name: "earth", color: "#8B4513", speedMultiplier: 0.85, sizeMultiplier: 2, randomDirection: false, doublePoints: false },
-        PLASMA: { name: "plasma", color: "#9400D3", speedMultiplier: 1, sizeMultiplier: 1, randomDirection: true, doublePoints: false },
-        GOLD: { name: "gold", color: "#FFD700", speedMultiplier: 2, sizeMultiplier: 0.5, randomDirection: false, doublePoints: true }
-    };
+    // Event Listener für Warteschlangenbutton
+    queueButton.addEventListener('click', () => {
+      if (!inQueue) {
+        socket.send(JSON.stringify({ type: 'joinQueue' }));
+        inQueue = true;
+        queueButton.textContent = "Verlasse Warteschlange";
+        queueStatus.textContent = "In Warteschlange...";
+      } else {
+        socket.send(JSON.stringify({ type: 'leaveQueue' }));
+        inQueue = false;
+        queueButton.textContent = "Warteschlange betreten";
+        queueStatus.textContent = "Nicht in Warteschlange";
+      }
+    });
 
-    let currentSpecialBall = null;
-
-    function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      resetGame();
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
+    // Nachrichten vom Server empfangen
     socket.onopen = () => {
       console.log("Mit Server verbunden");
     };
@@ -226,127 +98,139 @@
       const data = JSON.parse(event.data);
       console.log("Empfangen:", data);
 
-      if (data.type === "queueUpdate") {
+      // Aktualisiere Warteschlangenstatus
+      if (data.type === 'queueUpdate') {
         playerCount.textContent = `${data.count} Spieler in Warteschlange`;
-        if (data.count === 2 && inQueue) {
+        if (data.count === 2 && !gameRunning) {
           startCountdown();
         }
       }
 
+      // Wenn das Spiel startet
       if (data.type === "gameStart") {
         playerNumber = data.playerNumber;
-        isHost = data.playerNumber === 1;
-        scoreboard.style.display = "flex";
-      }
-
-      if (data.type === "scoreUpdate") {
-        player1Score = data.player1Score;
-        player2Score = data.player2Score;
-        player1ScoreElement.textContent = player1Score;
-        player2ScoreElement.textContent = player2Score;
-      }
-
-      if (data.type === "ballUpdate") {
-        ballX = data.ballX;
-        ballY = data.ballY;
-        ballSpeedX = data.ballSpeedX;
-        ballSpeedY = data.ballSpeedY;
-      }
-
-      if (data.type === "paddleUpdate") {
-        if (data.player === 1) {
-          player1Y = data.paddleY;
-        } else {
-          player2Y = data.paddleY;
-        }
-      }
-
-      if (data.type === "specialBallUpdate") {
-        currentSpecialBall = data.specialBall;
+        gameRunning = true;
+        console.log("Spiel gestartet! Spieler", playerNumber);
+        resetGame();
+        draw();
       }
     };
 
     function startCountdown() {
-      gameRunning = true;
-      readyScreen.style.display = "flex";
       let countdownTime = 3;
       const countdownInterval = setInterval(() => {
-        countdown.textContent = countdownTime;
+        queueStatus.textContent = `Spiel startet in ${countdownTime}`;
         countdownTime--;
         if (countdownTime < 0) {
           clearInterval(countdownInterval);
-          readyScreen.style.display = "none";
+          queueStatus.textContent = "Spiel läuft!";
           startGame();
         }
       }, 1000);
     }
 
+    // Das eigentliche Spiel starten
     function startGame() {
-      setInterval(() => {
-        updateGame();
-        render();
-      }, 1000 / 60);
+      gameRunning = true;
+      console.log("Das Spiel beginnt!");
+      resetGame();
+      draw();
     }
 
-    function updateGame() {
-      if (ballY <= 0 || ballY >= canvas.height) {
-        ballSpeedY = -ballSpeedY;
-        bounceSound.play();
-      }
-      ballX += ballSpeedX;
-      ballY += ballSpeedY;
-
-      if (ballX <= basePaddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
-        ballSpeedX = -ballSpeedX;
-        ballSpeedX *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
-        ballSpeedY *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
-        pongSound.play();
-      } else if (ballX >= canvas.width - basePaddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight) {
-        ballSpeedX = -ballSpeedX;
-        ballSpeedX *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
-        ballSpeedY *= currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
-        pongSound.play();
-      } else if (ballX < 0) {
-        player2Score++;
-        player2ScoreElement.textContent = player2Score;
-        ballReset();
-      } else if (ballX > canvas.width) {
-        player1Score++;
-        player1ScoreElement.textContent = player1Score;
-        ballReset();
-      }
-
-      if (player1Score >= 5 || player2Score >= 5) {
-        stopAllSounds();
-        winnerSound.play();
-      }
+    // Spiel zurücksetzen
+    function resetGame() {
+      ball.x = canvas.width / 2;
+      ball.y = canvas.height / 2;
+      ball.speedX = ballSpeed;
+      ball.speedY = ballSpeed;
+      playerPaddle.y = canvas.height / 2 - playerPaddle.height / 2;
+      aiPaddle.y = canvas.height / 2 - aiPaddle.height / 2;
     }
 
-    function ballReset() {
-      ballX = canvas.width / 2;
-      ballY = canvas.height / 2;
-      ballSpeedX = -ballSpeedX;
-      ballSpeedY = 5;
-      currentSpecialBall = randomSpecialBall();
-    }
+    // Zeichnen der Spielobjekte
+    function draw() {
+      if (!gameRunning) return;
 
-    function randomSpecialBall() {
-      const keys = Object.keys(SPECIAL_BALLS);
-      const randomKey = keys[Math.floor(Math.random() * keys.length)];
-      return SPECIAL_BALLS[randomKey];
-    }
-
-    function render() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
-      ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
+
+      // Ball zeichnen
       ctx.beginPath();
-      ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
-      ctx.fillStyle = currentSpecialBall ? currentSpecialBall.color : "#fff";
+      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fillStyle = "#fff";
       ctx.fill();
       ctx.closePath();
+
+      // Spieler-Paddel zeichnen
+      ctx.fillRect(playerPaddle.x, playerPaddle.y, playerPaddle.width, playerPaddle.height);
+
+      // AI-Paddel zeichnen
+      ctx.fillRect(aiPaddle.x, aiPaddle.y, aiPaddle.width, aiPaddle.height);
+
+      // Ball bewegen
+      ball.x += ball.speedX;
+      ball.y += ball.speedY;
+
+      // Ball Kollision mit Wänden
+      if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+        ball.speedY = -ball.speedY;
+      }
+
+      // Ball Kollision mit Paddeln
+      if (ball.x - ball.radius < playerPaddle.x + playerPaddle.width &&
+          ball.y > playerPaddle.y && ball.y < playerPaddle.y + playerPaddle.height) {
+        ball.speedX = -ball.speedX;
+      }
+
+      if (ball.x + ball.radius > aiPaddle.x &&
+          ball.y > aiPaddle.y && ball.y < aiPaddle.y + aiPaddle.height) {
+        ball.speedX = -ball.speedX;
+      }
+
+      // Wenn Ball das Spielfeld verlässt
+      if (ball.x + ball.radius < 0 || ball.x - ball.radius > canvas.width) {
+        resetGame();
+      }
+
+      // AI Paddle Bewegung
+      aiPaddle.y = ball.y - aiPaddle.height / 2;
+
+      // Zeichnen wiederholen
+      requestAnimationFrame(draw);
     }
+
+    // Tasteneingaben für Spielersteuerung
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowUp') {
+        playerPaddle.dy = -5;
+      } else if (event.key === 'ArrowDown') {
+        playerPaddle.dy = 5;
+      }
+    });
+
+    document.addEventListener('keyup', () => {
+      playerPaddle.dy = 0;
+    });
+
+    // Spieler-Paddel Bewegung
+    function movePaddle() {
+      playerPaddle.y += playerPaddle.dy;
+
+      // Begrenzung des Spieler-Paddels im Canvas
+      if (playerPaddle.y < 0) playerPaddle.y = 0;
+      if (playerPaddle.y + playerPaddle.height > canvas.height) playerPaddle.y = canvas.height - playerPaddle.height;
+    }
+
+    // Game Loop für Paddle und Ball
+    function gameLoop() {
+      if (gameRunning) {
+        movePaddle();
+        draw();
+      }
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Game Loop starten
+    gameLoop();
   </script>
 </body>
 </html>
