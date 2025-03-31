@@ -89,6 +89,13 @@
       border-radius: 5px;
       z-index: 30;
     }
+    #latencyDisplay {
+      position: fixed;
+      bottom: 80px;
+      left: 20px;
+      font-size: 14px;
+      color: #aaa;
+    }
     .teams-container {
       display: flex;
       gap: 40px;
@@ -113,13 +120,6 @@
     #playerCount {
       font-size: 18px;
       margin-top: 10px;
-      color: #aaa;
-    }
-    #latencyDisplay {
-      position: fixed;
-      bottom: 80px;
-      left: 20px;
-      font-size: 14px;
       color: #aaa;
     }
   </style>
@@ -173,13 +173,13 @@
     const PADDLE_HEIGHT = 100;
     const BALL_RADIUS = 10;
     const INITIAL_BALL_SPEED = 5;
-    const NETWORK_BUFFER_SIZE = 5;
-    const EXTRAPOLATION_FACTOR = 1.1;
-    const MAX_REWIND_TIME = 100; // ms
+    const MAX_EXTRAPOLATION_TIME = 0.1; // Max 100ms Extrapolation
+    const MAX_PREDICTION_TIME = 0.2; // Max 200ms Vorhersage
+    const BUFFER_SIZE = 5; // Anzahl der gespeicherten Zustände
+    const SYNC_THRESHOLD = 30; // Pixel-Abweichung für sofortige Synchronisation
 
     // Initialisierung
     const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
-    socket.binaryType = 'arraybuffer';
     const canvas = document.getElementById("pongCanvas");
     const ctx = canvas.getContext("2d");
 
@@ -214,13 +214,10 @@
         x: 0, y: 0,
         speedX: 0, speedY: 0,
         renderX: 0, renderY: 0,
-        targetX: 0, targetY: 0,
         lastUpdate: 0
       },
-      serverBallStates: [],
-      predictedBallStates: [],
-      lastServerUpdate: 0,
-      lastNetworkUpdate: 0,
+      serverStates: [],
+      lastSeq: 0,
       lastPingTime: 0,
       latency: 0,
       canvasWidth: 0,
@@ -247,93 +244,90 @@
       game.ball.y = game.canvasHeight / 2;
       game.ball.renderX = game.ball.x;
       game.ball.renderY = game.ball.y;
-      game.ball.targetX = game.ball.x;
-      game.ball.targetY = game.ball.y;
       game.ball.speedX = INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1);
       game.ball.speedY = INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1);
       game.ball.lastUpdate = performance.now();
-      game.serverBallStates = [];
-      game.predictedBallStates = [];
+      game.serverStates = [];
     }
 
     // Netzwerk-Ballinterpolation mit Latenzkompensation
     function updateBallFromNetwork(data) {
       const now = performance.now();
-      const serverTime = data.timestamp || now;
-      game.latency = now - serverTime;
+      game.latency = now - data.timestamp;
       ui.latencyValue.textContent = Math.round(game.latency);
 
-      // Serverzustand speichern
-      game.serverBallStates.push({
+      // Ignoriere veraltete Pakete
+      if (data.seq && data.seq < game.lastSeq) return;
+      game.lastSeq = data.seq;
+
+      // Speichere Serverzustand
+      game.serverStates.push({
         x: data.ballX,
         y: data.ballY,
         speedX: data.ballSpeedX,
         speedY: data.ballSpeedY,
-        timestamp: serverTime,
+        timestamp: data.timestamp,
         receivedAt: now
       });
 
       // Puffer begrenzen
-      if (game.serverBallStates.length > NETWORK_BUFFER_SIZE) {
-        game.serverBallStates.shift();
+      if (game.serverStates.length > BUFFER_SIZE) {
+        game.serverStates.shift();
       }
 
-      // Neuesten Serverzustand verwenden
-      if (game.serverBallStates.length > 0) {
-        const newest = game.serverBallStates[game.serverBallStates.length - 1];
-        game.lastServerUpdate = now;
+      // Berechne die Position unter Berücksichtigung der Latenz
+      const newest = game.serverStates[game.serverStates.length - 1];
+      const extrapolationTime = Math.min(game.latency / 1000, MAX_EXTRAPOLATION_TIME);
+      
+      game.ball.x = newest.x;
+      game.ball.y = newest.y;
+      game.ball.speedX = newest.speedX;
+      game.ball.speedY = newest.speedY;
+      game.ball.targetX = newest.x + newest.speedX * extrapolationTime;
+      game.ball.targetY = newest.y + newest.speedY * extrapolationTime;
+      game.ball.lastUpdate = now;
 
-        // Extrapolation mit Geschwindigkeit und Latenz
-        const extrapolationTime = game.latency * EXTRAPOLATION_FACTOR / 1000;
-        game.ball.targetX = newest.x + newest.speedX * extrapolationTime;
-        game.ball.targetY = newest.y + newest.speedY * extrapolationTime;
-        game.ball.speedX = newest.speedX;
-        game.ball.speedY = newest.speedY;
-
-        // Reconciliation mit vorhergesagten Zuständen
-        reconcileWithServer();
-      }
-    }
-
-    function reconcileWithServer() {
-      if (game.serverBallStates.length < 2) return;
-
-      const serverState = game.serverBallStates[game.serverBallStates.length - 1];
-      const error = Math.sqrt(
-        Math.pow(game.ball.x - serverState.x, 2) + 
-        Math.pow(game.ball.y - serverState.y, 2)
-      );
-
-      // Wenn die Abweichung zu groß ist, zur Serverposition korrigieren
-      if (error > 20) {
-        game.ball.renderX = serverState.x;
-        game.ball.renderY = serverState.y;
-        game.ball.x = serverState.x;
-        game.ball.y = serverState.y;
-        game.ball.targetX = serverState.x;
-        game.ball.targetY = serverState.y;
+      // Sofortige Positionierung bei großen Abweichungen
+      if (Math.abs(game.ball.renderX - game.ball.targetX) > SYNC_THRESHOLD || 
+          Math.abs(game.ball.renderY - game.ball.targetY) > SYNC_THRESHOLD) {
+        game.ball.renderX = game.ball.targetX;
+        game.ball.renderY = game.ball.targetY;
       }
     }
 
     function interpolateBall() {
       const now = performance.now();
-      const delta = now - game.lastServerUpdate;
-
-      // Wenn wir lange keine Updates hatten, direkt zur Zielposition springen
-      if (delta > 200) {
-        game.ball.renderX = game.ball.targetX;
-        game.ball.renderY = game.ball.targetY;
-        return;
-      }
-
-      // Glatte Interpolation zur Zielposition
-      const t = Math.min(delta / BALL_UPDATE_RATE, 1);
+      const delta = now - game.ball.lastUpdate;
+      
+      // Keine Extrapolation bei fehlenden Updates
+      if (delta > 200) return;
+      
+      // Glatte Interpolation mit adaptiver Geschwindigkeit
+      const t = getInterpolationFactor(delta);
       game.ball.renderX = lerp(game.ball.renderX, game.ball.targetX, t);
       game.ball.renderY = lerp(game.ball.renderY, game.ball.targetY, t);
     }
 
     function lerp(start, end, t) {
       return start * (1 - t) + end * t;
+    }
+
+    function getInterpolationFactor(delta) {
+      if (game.latency < 50) return 0.3;  // Schnelle Interpolation bei niedriger Latenz
+      if (game.latency < 150) return 0.5; // Mittlere Geschwindigkeit
+      return 0.8;                         // Langsame Interpolation bei hoher Latenz
+    }
+
+    function predictBallMovement() {
+      if (game.isHost || game.serverStates.length === 0) return;
+      
+      const now = performance.now();
+      const delta = (now - game.ball.lastUpdate) / 1000;
+      
+      if (delta < MAX_PREDICTION_TIME) {
+        game.ball.renderX += game.ball.speedX * delta;
+        game.ball.renderY += game.ball.speedY * delta;
+      }
     }
 
     function drawGame() {
@@ -371,7 +365,7 @@
         const delta = (now - game.ball.lastUpdate) / 1000;
         game.ball.lastUpdate = now;
 
-        game.ball.x += game.ball.speedX * delta * 60; // Normalisiert auf 60fps
+        game.ball.x += game.ball.speedX * delta * 60;
         game.ball.y += game.ball.speedY * delta * 60;
 
         // Wandkollision
@@ -417,9 +411,10 @@
         }
 
         // Spielzustand senden (60fps)
-        if (now - game.lastNetworkUpdate >= BALL_UPDATE_RATE) {
+        if (now - game.lastPingTime >= BALL_UPDATE_RATE) {
           socket.send(JSON.stringify({
             type: "gameState",
+            seq: game.lastSeq + 1,
             ballX: game.ball.x,
             ballY: game.ball.y,
             ballSpeedX: game.ball.speedX,
@@ -428,24 +423,19 @@
             player2Y: game.players[1].y,
             timestamp: now
           }));
-          game.lastNetworkUpdate = now;
+          game.lastPingTime = now;
+          game.lastSeq++;
         }
       }
     }
 
     function gameLoop() {
       if (!game.isHost) {
+        predictBallMovement();
         interpolateBall();
       }
       updateGame();
       drawGame();
-      
-      // Latenzmessung
-      const now = performance.now();
-      if (now - game.lastPingTime > 1000) {
-        socket.send(JSON.stringify({ type: "ping", timestamp: now }));
-        game.lastPingTime = now;
-      }
       
       if (game.running) {
         requestAnimationFrame(gameLoop);
@@ -531,6 +521,12 @@
         case "gameStart":
           game.playerNumber = data.playerNumber;
           game.isHost = data.playerNumber === 1;
+          if (data.initialBall) {
+            game.ball.x = data.initialBall.x;
+            game.ball.y = data.initialBall.y;
+            game.ball.renderX = data.initialBall.x;
+            game.ball.renderY = data.initialBall.y;
+          }
           startCountdown();
           break;
           
