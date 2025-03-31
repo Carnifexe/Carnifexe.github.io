@@ -5,246 +5,67 @@ const http = require('http');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ 
-  server,
-  clientTracking: true,
-  verifyClient: (info, callback) => {
-    callback(true);
-  }
-});
+const wss = new WebSocket.Server({ server });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
 let players = [];
-let rooms = [];
 let queue = [];
-let scores = {};
-
-// Hilfsfunktionen
-function broadcastQueueCount() {
-  const count = queue.length;
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ 
-        type: "queueUpdate", 
-        count 
-      }));
-    }
-  });
-}
-
-function broadcastPlayerCount() {
-  const count = players.length;
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ 
-        type: "playerCountUpdate", 
-        count 
-      }));
-    }
-  });
-}
-
-function broadcastTotalPlayers() {
-  const count = players.length;
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ 
-        type: "totalPlayersUpdate", 
-        count 
-      }));
-    }
-  });
-}
-
-function findPlayerRoom(ws) {
-  return rooms.find(r => r.players.includes(ws));
-}
-
-function broadcastToRoom(room, excludeWs, message) {
-  room.players.forEach(player => {
-    if (player !== excludeWs && player.readyState === WebSocket.OPEN) {
-      player.send(JSON.stringify(message));
-    }
-  });
-}
-
-// Ping/Pong für Verbindungsstabilität
-setInterval(() => {
-  wss.clients.forEach((ws) => {
-    if (!ws.isAlive) {
-      console.log('Client wegen Inaktivität getrennt');
-      return ws.terminate();
-    }
-    ws.isAlive = false;
-    ws.ping();
-  });
-}, 30000);
+let rooms = [];
 
 wss.on('connection', (ws) => {
-  ws.isAlive = true;
-  ws.on('pong', () => ws.isAlive = true);
-
-  console.log('Neuer Spieler verbunden');
   players.push(ws);
-  broadcastPlayerCount();
-  broadcastTotalPlayers();
-  broadcastQueueCount();
-
+  
   ws.on('message', (message) => {
-    try {
-      const data = JSON.parse(message);
-      console.log('Empfangen:', data);
-
-      if (data.type === "joinQueue") {
-        if (!queue.includes(ws)) {
-          queue.push(ws);
-          broadcastQueueCount();
-          
-          if (queue.length >= 2) {
-            createRoom();
+    const data = JSON.parse(message);
+    
+    if (data.type === 'joinQueue') {
+      queue.push(ws);
+      if (queue.length >= 2) {
+        const player1 = queue.shift();
+        const player2 = queue.shift();
+        const room = { players: [player1, player2] };
+        rooms.push(room);
+        
+        player1.send(JSON.stringify({ 
+          type: 'gameStart', 
+          playerNumber: 1 
+        }));
+        player2.send(JSON.stringify({ 
+          type: 'gameStart', 
+          playerNumber: 2 
+        }));
+      }
+    }
+    else if (data.type === 'ballUpdate') {
+      const room = rooms.find(r => r.players.includes(ws));
+      if (room) {
+        room.players.forEach(player => {
+          if (player !== ws && player.readyState === WebSocket.OPEN) {
+            player.send(JSON.stringify(data));
           }
-        }
+        });
       }
-
-      if (data.type === "leaveQueue") {
-        queue = queue.filter(player => player !== ws);
-        broadcastQueueCount();
-      }
-
-      if (data.type === "paddleMove") {
-        const room = findPlayerRoom(ws);
-        if (room) {
-          broadcastToRoom(room, ws, {
-            type: "paddleUpdate",
-            player: data.player,
-            y: data.y
-          });
-        }
-      }
-
-      if (data.type === "ballUpdate") {
-        const room = findPlayerRoom(ws);
-        if (room) {
-          broadcastToRoom(room, ws, {
-            type: "ballUpdate",
-            ballX: data.ballX,
-            ballY: data.ballY,
-            ballSpeedX: data.ballSpeedX,
-            ballSpeedY: data.ballSpeedY
-          });
-        }
-      }
-
-      if (data.type === "goal") {
-        const room = findPlayerRoom(ws);
-        if (room) {
-          handleGoal(room, data.scorer);
-        }
-      }
-
-      if (data.type === "leaveGame") {
-        const room = findPlayerRoom(ws);
-        if (room) {
-          cleanupRoom(room);
-        }
-      }
-    } catch (error) {
-      console.error('Fehler bei der Nachrichtenverarbeitung:', error);
     }
   });
 
   ws.on('close', () => {
-    console.log('Spieler getrennt');
     players = players.filter(p => p !== ws);
     queue = queue.filter(p => p !== ws);
-    
-    const room = findPlayerRoom(ws);
-    if (room) {
-      cleanupRoom(room);
-    }
-    
-    broadcastPlayerCount();
-    broadcastQueueCount();
-    broadcastTotalPlayers();
+    rooms = rooms.filter(room => {
+      if (room.players.includes(ws)) {
+        room.players.forEach(p => {
+          if (p !== ws && p.readyState === WebSocket.OPEN) {
+            p.send(JSON.stringify({ type: 'gameEnded' }));
+          }
+        });
+        return false;
+      }
+      return true;
+    });
   });
 });
 
-function createRoom() {
-  const roomId = rooms.length + 1;
-  const roomPlayers = queue.splice(0, 2);
-  const newRoom = {
-    roomId,
-    players: roomPlayers,
-    host: roomPlayers[0],
-    canvasWidth: 800,
-    canvasHeight: 600,
-    lastGoalTime: 0
-  };
-  rooms.push(newRoom);
-  
-  roomPlayers[0].send(JSON.stringify({ 
-    type: "gameStart", 
-    playerNumber: 1,
-    isHost: true
-  }));
-  roomPlayers[1].send(JSON.stringify({ 
-    type: "gameStart", 
-    playerNumber: 2,
-    isHost: false
-  }));
-  
-  scores[roomId] = { player1Score: 0, player2Score: 0 };
-  
-  console.log(`Raum ${roomId} erstellt`);
-  broadcastQueueCount();
-}
-
-function handleGoal(room, scorer) {
-  if (Date.now() - room.lastGoalTime > 1000) {
-    if (scorer === 1) {
-      scores[room.roomId].player1Score++;
-    } else {
-      scores[room.roomId].player2Score++;
-    }
-    
-    if (scores[room.roomId].player1Score >= 10 || scores[room.roomId].player2Score >= 10) {
-      broadcastToRoom(room, null, {
-        type: "gameEnded"
-      });
-      cleanupRoom(room);
-      return;
-    }
-
-    room.lastGoalTime = Date.now();
-    
-    broadcastToRoom(room, null, {
-      type: "scoreUpdate",
-      player1Score: scores[room.roomId].player1Score,
-      player2Score: scores[room.roomId].player2Score
-    });
-
-    broadcastToRoom(room, null, {
-      type: "ballReset",
-      ballX: room.canvasWidth / 2,
-      ballY: room.canvasHeight / 2,
-      ballSpeedX: 5 * (Math.random() > 0.5 ? 1 : -1),
-      ballSpeedY: 5 * (Math.random() > 0.5 ? 1 : -1)
-    });
-  }
-}
-
-function cleanupRoom(room) {
-  room.players.forEach(player => {
-    if (player.readyState === WebSocket.OPEN) {
-      player.send(JSON.stringify({ type: "gameEnded" }));
-    }
-  });
-  rooms = rooms.filter(r => r !== room);
-  delete scores[room.roomId];
-}
-
-const port = process.env.PORT || 8080;
-server.listen(port, () => {
-  console.log(`Server läuft auf http://localhost:${port}`);
+server.listen(process.env.PORT || 8080, () => {
+  console.log('Server gestartet');
 });
