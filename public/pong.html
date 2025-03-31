@@ -13,15 +13,21 @@
       font-family: Arial, sans-serif;
       text-align: center;
     }
-    canvas {
+    #gameContainer {
       position: fixed;
       top: 0;
       left: 0;
       width: 100vw;
       height: 100vh;
-      z-index: 9999;
+      z-index: 9998;
       display: none;
-      background: #000;
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
     }
     #queueButton {
       position: fixed;
@@ -86,6 +92,17 @@
       padding: 10px 20px;
       border-radius: 5px;
     }
+    #totalPlayers {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      font-size: 18px;
+      z-index: 10005;
+      background: rgba(0,0,0,0.5);
+      padding: 10px 15px;
+      border-radius: 5px;
+      display: none;
+    }
     .teams-container {
       display: flex;
       gap: 40px;
@@ -129,7 +146,14 @@
       </div>
     </div>
   </div>
-  <canvas id="pongCanvas"></canvas>
+  
+  <div id="totalPlayers">
+    Spieler online: <span id="totalPlayersCount">0</span>
+  </div>
+
+  <div id="gameContainer">
+    <canvas id="pongCanvas"></canvas>
+  </div>
 
   <audio id="pingSound" src="ping.mp3" preload="auto"></audio>
   <audio id="pongSound" src="pong.mp3" preload="auto"></audio>
@@ -149,6 +173,10 @@
     const scoreboard = document.getElementById("scoreboard");
     const player1ScoreElement = document.getElementById("player1Score");
     const player2ScoreElement = document.getElementById("player2Score");
+    const totalPlayersElement = document.getElementById("totalPlayers");
+    const totalPlayersCount = document.getElementById("totalPlayersCount");
+
+    const WINNING_SCORE = 10;
 
     const pingSound = document.getElementById("pingSound");
     const pongSound = document.getElementById("pongSound");
@@ -172,10 +200,12 @@
     let player2Score = 0;
 
     function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      const gameContainer = document.getElementById("gameContainer");
+      canvas.width = gameContainer.clientWidth;
+      canvas.height = gameContainer.clientHeight;
       resetBall();
     }
+
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
@@ -194,11 +224,16 @@
         }
       }
 
+      if (data.type === "totalPlayersUpdate") {
+        totalPlayersCount.textContent = data.count;
+      }
+
       if (data.type === "gameStart") {
         playerNumber = data.playerNumber;
         isHost = data.playerNumber === 1;
         scoreboard.style.display = "flex";
-        canvas.style.display = "block";
+        document.getElementById("gameContainer").style.display = "block";
+        totalPlayersElement.style.display = "block";
         gameRunning = true;
         waitingScreen.style.display = "none";
       }
@@ -209,13 +244,14 @@
         player1ScoreElement.textContent = player1Score;
         player2ScoreElement.textContent = player2Score;
         
-        if (player1Score >= 5 || player2Score >= 5) {
+        if (player1Score >= WINNING_SCORE || player2Score >= WINNING_SCORE) {
           gameRunning = false;
           winnerSound.play();
           setTimeout(() => {
             resetGame();
-            canvas.style.display = "none";
+            document.getElementById("gameContainer").style.display = "none";
             scoreboard.style.display = "none";
+            totalPlayersElement.style.display = "none";
             waitingScreen.style.display = "flex";
           }, 3000);
         }
@@ -245,8 +281,9 @@
 
       if (data.type === "gameEnded") {
         gameRunning = false;
-        canvas.style.display = "none";
+        document.getElementById("gameContainer").style.display = "none";
         scoreboard.style.display = "none";
+        totalPlayersElement.style.display = "none";
         waitingScreen.style.display = "flex";
       }
     };
@@ -399,8 +436,9 @@
         queueButton.textContent = "Verlasse Warteschlange";
         queueStatus.textContent = "In Warteschlange...";
         waitingScreen.style.display = "flex";
-        canvas.style.display = "none";
+        document.getElementById("gameContainer").style.display = "none";
         scoreboard.style.display = "none";
+        totalPlayersElement.style.display = "none";
       } else {
         socket.send(JSON.stringify({ type: 'leaveQueue' }));
         inQueue = false;
