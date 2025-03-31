@@ -1,17 +1,31 @@
-// Importiere die notwendigen Module
 const express = require('express');
+const WebSocket = require('ws');
+const path = require('path');
+
 const app = express();
-const port = process.env.PORT || 3000; // Port für Glitch
+const server = require('http').createServer(app);
+const wss = new WebSocket.Server({ server });
 
-// Serviere statische Dateien (HTML, CSS, JS) aus dem 'public' Ordner
-app.use(express.static('public'));
+// Serve static files (deine HTML-Datei)
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Route für die Startseite (optional, aber nützlich, wenn du eine Index-Seite haben möchtest)
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/public/pong.html');
+// WebSocket-Verbindung
+wss.on('connection', (ws) => {
+  console.log('Ein Client hat sich verbunden');
+  
+  // Nachrichten an den Client senden
+  ws.send(JSON.stringify({ message: 'Willkommen zum Pong-Spiel!' }));
+
+  ws.on('message', (message) => {
+    console.log('Nachricht vom Client:', message);
+  });
+
+  ws.on('close', () => {
+    console.log('Ein Client hat die Verbindung beendet');
+  });
 });
 
-// Server starten
-app.listen(port, () => {
-  console.log(`Server läuft auf http://localhost:${port}`);
+// Start des Servers
+server.listen(8080, () => {
+  console.log('Server läuft auf http://localhost:8080');
 });
