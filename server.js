@@ -16,15 +16,6 @@ const gameState = {
   rooms: []
 };
 
-// Verbindungsüberwachung
-const connectionCheck = setInterval(() => {
-  wss.clients.forEach(ws => {
-    if (ws.isAlive === false) return ws.terminate();
-    ws.isAlive = false;
-    ws.ping();
-  });
-}, 30000);
-
 function broadcastQueueCount() {
   const message = JSON.stringify({
     type: "queueUpdate",
@@ -40,56 +31,54 @@ function broadcastQueueCount() {
 }
 
 function createRoom(player1, player2) {
+  const initialBall = {
+    x: 500,
+    y: 300,
+    speedX: 5 * (Math.random() > 0.5 ? 1 : -1),
+    speedY: 5 * (Math.random() > 0.5 ? 1 : -1)
+  };
+
   const room = {
     players: [player1, player2],
-    ball: {
-      x: 500, y: 300,
-      speedX: 5 * (Math.random() > 0.5 ? 1 : -1),
-      speedY: 5 * (Math.random() > 0.5 ? 1 : -1),
-      lastUpdate: Date.now()
-    },
-    paddles: [300, 300],
+    ball: {...initialBall},
     scores: [0, 0],
-    lastBroadcast: 0,
-    sequenceNumber: 0,
-    gameLoop: null
+    paddles: [300, 300],
+    lastUpdate: Date.now()
   };
 
   // Starte Spiel-Loop
-  room.gameLoop = setInterval(() => updateGameState(room), 16);
-  
-  // Sende initialen Zustand
-  broadcastGameState(room);
-  
-  player1.send(JSON.stringify({ 
-    type: 'gameStart', 
+  const gameLoop = setInterval(() => {
+    const now = Date.now();
+    const delta = (now - room.lastUpdate) / 1000;
+    room.lastUpdate = now;
+
+    // Ballbewegung
+    room.ball.x += room.ball.speedX * delta * 60;
+    room.ball.y += room.ball.speedY * delta * 60;
+
+    // Kollisionen
+    handleCollisions(room);
+
+    // Zustand an Spieler senden
+    broadcastGameState(room);
+  }, 16);
+
+  room.gameLoop = gameLoop;
+
+  player1.send(JSON.stringify({
+    type: 'gameStart',
     playerNumber: 1,
-    initialBall: room.ball
-  }));
-  player2.send(JSON.stringify({ 
-    type: 'gameStart', 
-    playerNumber: 2,
-    initialBall: room.ball
+    initialBall: initialBall
   }));
   
+  player2.send(JSON.stringify({
+    type: 'gameStart',
+    playerNumber: 2,
+    initialBall: initialBall
+  }));
+
   gameState.rooms.push(room);
   return room;
-}
-
-function updateGameState(room) {
-  const now = Date.now();
-  const delta = (now - room.ball.lastUpdate) / 1000;
-  room.ball.lastUpdate = now;
-
-  // Ballbewegung
-  room.ball.x += room.ball.speedX * delta * 60;
-  room.ball.y += room.ball.speedY * delta * 60;
-
-  // Kollisionen
-  handleCollisions(room);
-
-  // Zustand an Spieler senden
-  broadcastGameState(room);
 }
 
 function handleCollisions(room) {
@@ -124,32 +113,23 @@ function resetBall(room) {
   room.ball.y = 300;
   room.ball.speedX = 5 * (Math.random() > 0.5 ? 1 : -1);
   room.ball.speedY = 5 * (Math.random() > 0.5 ? 1 : -1);
-  room.ball.lastUpdate = Date.now();
 }
 
 function broadcastGameState(room) {
-  const now = Date.now();
-  if (now - room.lastBroadcast < 16) return; // Nicht öfter als 60fps
-  
-  room.sequenceNumber++;
   const state = {
     type: 'gameState',
-    seq: room.sequenceNumber,
-    ballX: Math.round(room.ball.x),
-    ballY: Math.round(room.ball.y),
-    ballSpeedX: Math.round(room.ball.speedX * 100) / 100,
-    ballSpeedY: Math.round(room.ball.speedY * 100) / 100,
-    player1Y: room.paddles[0],
-    player2Y: room.paddles[1],
-    timestamp: now
+    ballX: room.ball.x,
+    ballY: room.ball.y,
+    ballSpeedX: room.ball.speedX,
+    ballSpeedY: room.ball.speedY,
+    timestamp: Date.now()
   };
-
+  
   room.players.forEach(player => {
     if (player.readyState === WebSocket.OPEN) {
       player.send(JSON.stringify(state));
     }
   });
-  room.lastBroadcast = now;
 }
 
 function broadcastScoreUpdate(room) {
@@ -208,7 +188,6 @@ wss.on('connection', ws => {
             const playerIndex = room.players.indexOf(ws);
             room.paddles[playerIndex] = data.y;
             
-            // Aktualisiere anderen Spieler
             const otherPlayer = room.players[1 - playerIndex];
             if (otherPlayer.readyState === WebSocket.OPEN) {
               otherPlayer.send(JSON.stringify({
@@ -235,10 +214,7 @@ wss.on('connection', ws => {
     
     gameState.rooms = gameState.rooms.filter(room => {
       if (room.players.includes(ws)) {
-        // Beende Spiel-Loop
-        if (room.gameLoop) clearInterval(room.gameLoop);
-        
-        // Benachrichtige anderen Spieler
+        clearInterval(room.gameLoop);
         room.players.forEach(p => {
           if (p !== ws && p.readyState === WebSocket.OPEN) {
             p.send(JSON.stringify({ type: 'gameEnded' }));
@@ -255,11 +231,4 @@ wss.on('connection', ws => {
 
 server.listen(process.env.PORT || 8080, () => {
   console.log(`Server läuft auf Port ${process.env.PORT || 8080}`);
-});
-
-process.on('SIGINT', () => {
-  clearInterval(connectionCheck);
-  wss.close();
-  server.close();
-  process.exit();
 });
