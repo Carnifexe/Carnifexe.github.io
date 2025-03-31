@@ -75,6 +75,20 @@ wss.on('connection', (ws) => {
           });
         }
       }
+      else if (data.type === 'paddleMove') {
+        const room = rooms.find(r => r.players.includes(ws));
+        if (room) {
+          room.players.forEach(player => {
+            if (player !== ws && player.readyState === WebSocket.OPEN) {
+              player.send(JSON.stringify({
+                type: "paddleUpdate",
+                player: data.player,
+                y: data.y
+              }));
+            }
+          });
+        }
+      }
     } catch (error) {
       console.error('Nachrichtenverarbeitungsfehler:', error);
     }
