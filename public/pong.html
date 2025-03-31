@@ -19,7 +19,6 @@
       left: 0;
       width: 100vw;
       height: 100vh;
-      z-index: 9998;
       display: none;
     }
     canvas {
@@ -34,11 +33,11 @@
       padding: 15px 30px;
       font-size: 20px;
       cursor: pointer;
-      z-index: 10001;
       background: #4CAF50;
       color: white;
       border: none;
       border-radius: 5px;
+      z-index: 100;
     }
     #waitingScreen {
       position: fixed;
@@ -47,11 +46,11 @@
       width: 100%;
       height: 100%;
       background: rgba(0,0,0,0.8);
-      z-index: 10002;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
+      z-index: 50;
     }
     #readyScreen {
       position: fixed;
@@ -60,22 +59,13 @@
       width: 100%;
       height: 100%;
       background: rgba(0,0,0,0.9);
-      z-index: 10003;
       display: none;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       font-size: 72px;
       font-weight: bold;
-    }
-    #queueStatus {
-      font-size: 24px;
-      margin-top: 20px;
-    }
-    #playerCount {
-      font-size: 18px;
-      margin-top: 10px;
-      color: #aaa;
+      z-index: 75;
     }
     #scoreboard {
       position: fixed;
@@ -83,22 +73,22 @@
       left: 50%;
       transform: translateX(-50%);
       font-size: 24px;
-      z-index: 10004;
       display: none;
       background: rgba(0,0,0,0.5);
       padding: 10px 20px;
       border-radius: 5px;
+      z-index: 90;
     }
     #totalPlayers {
       position: fixed;
       top: 20px;
       right: 20px;
       font-size: 18px;
-      z-index: 10005;
       background: rgba(0,0,0,0.5);
       padding: 10px 15px;
       border-radius: 5px;
       display: none;
+      z-index: 90;
     }
     .teams-container {
       display: flex;
@@ -116,14 +106,6 @@
     .team-score {
       font-size: 32px;
       font-weight: bold;
-    }
-    .center-line {
-      position: absolute;
-      left: 50%;
-      top: 0;
-      width: 2px;
-      height: 100%;
-      background: rgba(255,255,255,0.2);
     }
   </style>
 </head>
@@ -158,12 +140,10 @@
 
   <div id="gameContainer">
     <canvas id="pongCanvas"></canvas>
-    <div class="center-line"></div>
   </div>
 
-  <audio id="pingSound" src="ping.mp3" preload="auto"></audio>
-  <audio id="pongSound" src="pong.mp3" preload="auto"></audio>
   <audio id="bounceSound" src="bounce.mp3" preload="auto"></audio>
+  <audio id="pongSound" src="pong.mp3" preload="auto"></audio>
   <audio id="winnerSound" src="winner.mp3" preload="auto"></audio>
 
   <script>
@@ -172,27 +152,15 @@
     const ctx = canvas.getContext("2d");
     const WINNING_SCORE = 10;
 
-    // UI Elemente
+    // UI Elements
+    const gameContainer = document.getElementById("gameContainer");
     const queueButton = document.getElementById("queueButton");
     const waitingScreen = document.getElementById("waitingScreen");
     const readyScreen = document.getElementById("readyScreen");
-    const queueStatus = document.getElementById("queueStatus");
-    const playerCount = document.getElementById("playerCount");
-    const countdown = document.getElementById("countdown");
     const scoreboard = document.getElementById("scoreboard");
-    const player1ScoreElement = document.getElementById("player1Score");
-    const player2ScoreElement = document.getElementById("player2Score");
     const totalPlayersElement = document.getElementById("totalPlayers");
-    const totalPlayersCount = document.getElementById("totalPlayersCount");
-    const gameContainer = document.getElementById("gameContainer");
 
-    // Sounds
-    const pingSound = document.getElementById("pingSound");
-    const pongSound = document.getElementById("pongSound");
-    const bounceSound = document.getElementById("bounceSound");
-    const winnerSound = document.getElementById("winnerSound");
-
-    // Spielvariablen
+    // Game variables
     let gameRunning = false;
     let playerNumber = null;
     let isHost = false;
@@ -210,8 +178,8 @@
     let player2Score = 0;
 
     function resizeCanvas() {
-      canvas.width = gameContainer.clientWidth;
-      canvas.height = gameContainer.clientHeight;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
       resetBall();
     }
 
@@ -222,36 +190,28 @@
       ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
     }
 
-    function resetGame() {
-      player1Score = 0;
-      player2Score = 0;
-      player1ScoreElement.textContent = "0";
-      player2ScoreElement.textContent = "0";
-      resetBall();
-    }
-
     function render() {
       // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       // Draw paddles
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = "white";
       ctx.fillRect(0, player1Y, basePaddleWidth, basePaddleHeight);
       ctx.fillRect(canvas.width - basePaddleWidth, player2Y, basePaddleWidth, basePaddleHeight);
       
       // Draw ball
       ctx.beginPath();
       ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = "white";
       ctx.fill();
-      ctx.closePath();
       
-      // Draw center line (dotted)
-      ctx.setLineDash([10, 10]);
+      // Draw center line
       ctx.beginPath();
-      ctx.moveTo(canvas.width / 2, 0);
-      ctx.lineTo(canvas.width / 2, canvas.height);
-      ctx.strokeStyle = "rgba(255,255,255,0.2)";
+      ctx.setLineDash([10, 10]);
+      ctx.moveTo(canvas.width/2, 0);
+      ctx.lineTo(canvas.width/2, canvas.height);
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.setLineDash([]);
@@ -262,84 +222,56 @@
         // Ball movement
         if (ballY <= 0 || ballY >= canvas.height) {
           ballSpeedY = -ballSpeedY;
-          bounceSound.play();
+          document.getElementById("bounceSound").play();
         }
         
         ballX += ballSpeedX;
         ballY += ballSpeedY;
 
         // Paddle collision
-        let scored = false;
-        if (ballX <= basePaddleWidth) {
-          if (ballY >= player1Y && ballY <= player1Y + basePaddleHeight) {
-            ballSpeedX = -ballSpeedX * 1.1;
-            pongSound.play();
-          } else {
-            scored = true;
-            socket.send(JSON.stringify({ type: "goal", scorer: 2 }));
-          }
+        if (ballX <= basePaddleWidth && ballY >= player1Y && ballY <= player1Y + basePaddleHeight) {
+          ballSpeedX = -ballSpeedX * 1.1;
+          document.getElementById("pongSound").play();
         } 
-        else if (ballX >= canvas.width - basePaddleWidth) {
-          if (ballY >= player2Y && ballY <= player2Y + basePaddleHeight) {
-            ballSpeedX = -ballSpeedX * 1.1;
-            pongSound.play();
-          } else {
-            scored = true;
-            socket.send(JSON.stringify({ type: "goal", scorer: 1 }));
-          }
+        else if (ballX >= canvas.width - basePaddleWidth && ballY >= player2Y && ballY <= player2Y + basePaddleHeight) {
+          ballSpeedX = -ballSpeedX * 1.1;
+          document.getElementById("pongSound").play();
         }
 
-        if (!scored) {
-          socket.send(JSON.stringify({
-            type: "ballUpdate",
-            ballX,
-            ballY,
-            ballSpeedX,
-            ballSpeedY
-          }));
+        // Score points
+        if (ballX < 0) {
+          player2Score++;
+          resetBall();
+        } else if (ballX > canvas.width) {
+          player1Score++;
+          resetBall();
         }
-      }
 
-      // Send paddle position
-      if (playerNumber === 1) {
+        // Send game state
         socket.send(JSON.stringify({
-          type: "paddleMove",
-          player: 1,
-          y: player1Y
-        }));
-      } else if (playerNumber === 2) {
-        socket.send(JSON.stringify({
-          type: "paddleMove",
-          player: 2,
-          y: player2Y
+          type: "ballUpdate",
+          ballX,
+          ballY,
+          ballSpeedX,
+          ballSpeedY,
+          player1Score,
+          player2Score
         }));
       }
-      
-      render();
     }
 
-    function startCountdown() {
-      readyScreen.style.display = "flex";
-      let countdownTime = 3;
-      const countdownInterval = setInterval(() => {
-        countdown.textContent = countdownTime > 0 ? countdownTime : "GO!";
-        countdownTime--;
-        if (countdownTime < -1) {
-          clearInterval(countdownInterval);
-          readyScreen.style.display = "none";
-          startGame();
-        }
-      }, 1000);
+    function gameLoop() {
+      if (!gameRunning) return;
+      
+      updateGame();
+      render();
+      requestAnimationFrame(gameLoop);
     }
 
     function startGame() {
       gameRunning = true;
-      function gameLoop() {
-        if (gameRunning) {
-          updateGame();
-          requestAnimationFrame(gameLoop);
-        }
-      }
+      gameContainer.style.display = "block";
+      resizeCanvas();
       gameLoop();
     }
 
@@ -347,127 +279,37 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    document.addEventListener('keydown', (e) => {
-      if (!gameRunning) return;
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
       
-      const paddleSpeed = 20;
-      if (playerNumber === 1) {
-        if (e.key === 'w' && player1Y > 0) {
-          player1Y -= paddleSpeed;
-        } else if (e.key === 's' && player1Y < canvas.height - basePaddleHeight) {
-          player1Y += paddleSpeed;
-        }
-      } else if (playerNumber === 2) {
-        if (e.key === 'ArrowUp' && player2Y > 0) {
-          player2Y -= paddleSpeed;
-        } else if (e.key === 'ArrowDown' && player2Y < canvas.height - basePaddleHeight) {
-          player2Y += paddleSpeed;
-        }
+      if (data.type === "gameStart") {
+        playerNumber = data.playerNumber;
+        isHost = data.playerNumber === 1;
+        startGame();
       }
-    });
+      else if (data.type === "ballUpdate") {
+        ballX = data.ballX;
+        ballY = data.ballY;
+        ballSpeedX = data.ballSpeedX;
+        ballSpeedY = data.ballSpeedY;
+        player1Score = data.player1Score;
+        player2Score = data.player2Score;
+        document.getElementById("player1Score").textContent = player1Score;
+        document.getElementById("player2Score").textContent = player2Score;
+      }
+    };
 
     queueButton.addEventListener('click', () => {
       if (!inQueue) {
-        if (gameRunning) {
-          gameRunning = false;
-          socket.send(JSON.stringify({ type: 'leaveGame' }));
-        }
-        
         socket.send(JSON.stringify({ type: 'joinQueue' }));
         inQueue = true;
         queueButton.textContent = "Verlasse Warteschlange";
-        queueStatus.textContent = "In Warteschlange...";
-        waitingScreen.style.display = "flex";
-        gameContainer.style.display = "none";
-        scoreboard.style.display = "none";
-        totalPlayersElement.style.display = "none";
       } else {
         socket.send(JSON.stringify({ type: 'leaveQueue' }));
         inQueue = false;
         queueButton.textContent = "Warteschlange betreten";
-        queueStatus.textContent = "Nicht in Warteschlange";
       }
     });
-
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      console.log("Empfangen:", data);
-
-      if (data.type === "queueUpdate") {
-        playerCount.textContent = `${data.count} Spieler in Warteschlange`;
-        if (data.count === 2 && inQueue) {
-          startCountdown();
-        }
-      }
-
-      if (data.type === "totalPlayersUpdate") {
-        totalPlayersCount.textContent = data.count;
-      }
-
-      if (data.type === "gameStart") {
-        playerNumber = data.playerNumber;
-        isHost = data.playerNumber === 1;
-        scoreboard.style.display = "flex";
-        gameContainer.style.display = "block";
-        totalPlayersElement.style.display = "block";
-        gameRunning = true;
-        waitingScreen.style.display = "none";
-        resizeCanvas();
-      }
-
-      if (data.type === "scoreUpdate") {
-        player1Score = data.player1Score;
-        player2Score = data.player2Score;
-        player1ScoreElement.textContent = player1Score;
-        player2ScoreElement.textContent = player2Score;
-        
-        if (player1Score >= WINNING_SCORE || player2Score >= WINNING_SCORE) {
-          gameRunning = false;
-          winnerSound.play();
-          setTimeout(() => {
-            resetGame();
-            gameContainer.style.display = "none";
-            scoreboard.style.display = "none";
-            totalPlayersElement.style.display = "none";
-            waitingScreen.style.display = "flex";
-          }, 3000);
-        }
-      }
-
-      if (data.type === "ballUpdate") {
-        ballX = data.ballX;
-        ballY = data.ballY;
-        ballSpeedX = data.ballSpeedX;
-        ballSpeedY = data.ballSpeedY;
-      }
-
-      if (data.type === "paddleUpdate") {
-        if (data.player === 1) {
-          player1Y = data.y;
-        } else {
-          player2Y = data.y;
-        }
-      }
-
-      if (data.type === "ballReset") {
-        ballX = data.ballX;
-        ballY = data.ballY;
-        ballSpeedX = data.ballSpeedX;
-        ballSpeedY = data.ballSpeedY;
-      }
-
-      if (data.type === "gameEnded") {
-        gameRunning = false;
-        gameContainer.style.display = "none";
-        scoreboard.style.display = "none";
-        totalPlayersElement.style.display = "none";
-        waitingScreen.style.display = "flex";
-      }
-    };
-
-    socket.onopen = () => {
-      console.log("Mit Server verbunden");
-    };
   </script>
 </body>
 </html>
