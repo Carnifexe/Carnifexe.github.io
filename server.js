@@ -42,9 +42,22 @@ function broadcastQueueCount() {
 function createRoom(player1, player2) {
   const room = {
     players: [player1, player2],
-    createdAt: Date.now()
+    ball: {
+      x: 500, y: 300,
+      speedX: 5 * (Math.random() > 0.5 ? 1 : -1),
+      speedY: 5 * (Math.random() > 0.5 ? 1 : -1),
+      lastUpdate: Date.now()
+    },
+    paddles: [300, 300],
+    scores: [0, 0],
+    createdAt: Date.now(),
+    gameLoop: null
   };
+
   gameState.rooms.push(room);
+  
+  // Starte Spiel-Loop
+  room.gameLoop = setInterval(() => updateGameState(room), 16);
   
   player1.send(JSON.stringify({ type: 'gameStart', playerNumber: 1 }));
   player2.send(JSON.stringify({ type: 'gameStart', playerNumber: 2 }));
@@ -52,19 +65,95 @@ function createRoom(player1, player2) {
   return room;
 }
 
-function handleGameState(ws, data) {
-  const room = gameState.rooms.find(r => r.players.includes(ws));
-  if (!room) return;
-
+function updateGameState(room) {
   const now = Date.now();
-  const compensatedData = {
-    ...data,
-    timestamp: now
-  };
+  const delta = (now - room.ball.lastUpdate) / 1000;
+  room.ball.lastUpdate = now;
 
+  // Ballbewegung
+  room.ball.x += room.ball.speedX * delta * 60;
+  room.ball.y += room.ball.speedY * delta * 60;
+
+  // Kollisionen
+  handleCollisions(room);
+
+  // Zustand an Spieler senden
+  broadcastGameState(room);
+}
+
+function handleCollisions(room) {
+  // Wandkollision
+  if (room.ball.y <= 10 || room.ball.y >= 590) {
+    room.ball.speedY = -room.ball.speedY;
+  }
+  
+  // Paddle-Kollision
+  if (room.ball.x <= 30 && room.ball.x >= 15 && 
+      room.ball.y >= room.paddles[0] && room.ball.y <= room.paddles[0] + 100) {
+    room.ball.speedX = -room.ball.speedX * 1.05;
+  } else if (room.ball.x >= 970 && room.ball.x <= 985 && 
+             room.ball.y >= room.paddles[1] && room.ball.y <= room.paddles[1] + 100) {
+    room.ball.speedX = -room.ball.speedX * 1.05;
+  }
+  
+  // Punkte
+  if (room.ball.x < 0) {
+    room.scores[1]++;
+    resetBall(room);
+    broadcastScoreUpdate(room);
+  } else if (room.ball.x > 1000) {
+    room.scores[0]++;
+    resetBall(room);
+    broadcastScoreUpdate(room);
+  }
+}
+
+function resetBall(room) {
+  room.ball.x = 500;
+  room.ball.y = 300;
+  room.ball.speedX = 5 * (Math.random() > 0.5 ? 1 : -1);
+  room.ball.speedY = 5 * (Math.random() > 0.5 ? 1 : -1);
+  room.ball.lastUpdate = Date.now();
+}
+
+function broadcastGameState(room) {
+  const state = {
+    type: 'gameState',
+    ballX: room.ball.x,
+    ballY: room.ball.y,
+    ballSpeedX: room.ball.speedX,
+    ballSpeedY: room.ball.speedY,
+    player1Y: room.paddles[0],
+    player2Y: room.paddles[1],
+    timestamp: Date.now()
+  };
+  
   room.players.forEach(player => {
-    if (player !== ws && player.readyState === WebSocket.OPEN) {
-      player.send(JSON.stringify(compensatedData));
+    if (player.readyState === WebSocket.OPEN) {
+      player.send(JSON.stringify(state));
+    }
+  });
+}
+
+function broadcastScoreUpdate(room) {
+  const scoreUpdate = {
+    type: 'scoreUpdate',
+    player1: room.scores[0],
+    player2: room.scores[1]
+  };
+  
+  room.players.forEach(player => {
+    if (player.readyState === WebSocket.OPEN) {
+      player.send(JSON.stringify({
+        type: 'scoreUpdate',
+        player: 1,
+        score: room.scores[0]
+      }));
+      player.send(JSON.stringify({
+        type: 'scoreUpdate',
+        player: 2,
+        score: room.scores[1]
+      }));
     }
   });
 }
@@ -102,30 +191,21 @@ wss.on('connection', ws => {
           broadcastQueueCount();
           break;
           
-        case 'gameState':
-          handleGameState(ws, data);
-          break;
-          
         case 'paddleMove':
-        case 'paddleUpdate':
           const room = gameState.rooms.find(r => r.players.includes(ws));
           if (room) {
-            room.players.forEach(player => {
-              if (player !== ws && player.readyState === WebSocket.OPEN) {
-                player.send(JSON.stringify(data));
-              }
-            });
-          }
-          break;
-          
-        case 'scoreUpdate':
-          const scoreRoom = gameState.rooms.find(r => r.players.includes(ws));
-          if (scoreRoom) {
-            scoreRoom.players.forEach(player => {
-              if (player.readyState === WebSocket.OPEN) {
-                player.send(JSON.stringify(data));
-              }
-            });
+            const playerIndex = room.players.indexOf(ws);
+            room.paddles[playerIndex] = data.y;
+            
+            // Aktualisiere anderen Spieler
+            const otherPlayer = room.players[1 - playerIndex];
+            if (otherPlayer.readyState === WebSocket.OPEN) {
+              otherPlayer.send(JSON.stringify({
+                type: 'paddleMove',
+                player: playerIndex + 1,
+                y: data.y
+              }));
+            }
           }
           break;
           
@@ -144,6 +224,10 @@ wss.on('connection', ws => {
     
     gameState.rooms = gameState.rooms.filter(room => {
       if (room.players.includes(ws)) {
+        // Beende Spiel-Loop
+        if (room.gameLoop) clearInterval(room.gameLoop);
+        
+        // Benachrichtige anderen Spieler
         room.players.forEach(p => {
           if (p !== ws && p.readyState === WebSocket.OPEN) {
             p.send(JSON.stringify({ type: 'gameEnded' }));
