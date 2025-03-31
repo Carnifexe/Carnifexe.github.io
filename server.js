@@ -13,7 +13,7 @@ let players = [];
 let queue = [];
 let rooms = [];
 
-// Ping alle 30 Sekunden
+// Ping clients every 30 seconds
 setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.readyState === WebSocket.OPEN) {
@@ -77,11 +77,25 @@ wss.on('connection', (ws) => {
       else if (data.type === 'gameState') {
         const room = rooms.find(r => r.players.includes(ws));
         if (room) {
-          room.players.forEach(player => {
-            if (player !== ws && player.readyState === WebSocket.OPEN) {
-              player.send(JSON.stringify(data));
-            }
-          });
+          const now = Date.now();
+          // Throttle to ~60fps
+          if (now - (ws.lastUpdate || 0) > 16) {
+            room.players.forEach(player => {
+              if (player !== ws && player.readyState === WebSocket.OPEN) {
+                player.send(JSON.stringify({
+                  type: "gameState",
+                  ballX: data.ballX,
+                  ballY: data.ballY,
+                  ballSpeedX: data.ballSpeedX,
+                  ballSpeedY: data.ballSpeedY,
+                  player1Y: data.player1Y,
+                  player2Y: data.player2Y,
+                  timestamp: now
+                }));
+              }
+            });
+            ws.lastUpdate = now;
+          }
         }
       }
       else if (data.type === 'scoreUpdate') {
@@ -109,7 +123,7 @@ wss.on('connection', (ws) => {
         }
       }
     } catch (error) {
-      console.error('Fehler bei Nachrichtenverarbeitung:', error);
+      console.error('Error processing message:', error);
     }
   });
 
