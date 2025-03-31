@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pong Spiel</title>
+    <title>Pong Multiplayer</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background: transparent;
+            background: #000;
             color: white;
             font-family: Arial, sans-serif;
         }
@@ -35,20 +35,6 @@
             border: none;
             border-radius: 5px;
         }
-        #restartButton {
-            position: fixed;
-            bottom: 30px;
-            left: calc(50% - 180px);
-            padding: 20px;
-            font-size: 20px;
-            cursor: pointer;
-            z-index: 10001;
-            display: none;
-            background: #333;
-            color: white;
-            border: none;
-            border-radius: 5px;
-        }
         #scoreboard {
             position: fixed;
             top: 20px;
@@ -62,490 +48,257 @@
             border-radius: 10px;
             text-align: center;
         }
-        .teams-container {
-            display: flex;
-            justify-content: center;
-            gap: 40px;
-        }
-        .team {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .team-name {
-            font-size: 18px;
-            color: #ffcc00;
-            margin-bottom: 5px;
-        }
-        .team-score {
-            font-size: 24px;
-            font-weight: bold;
-        }
-        #gameOverText {
+        #waitingText {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 32px;
+            font-size: 24px;
             color: white;
-            z-index: 10002;
+            z-index: 10003;
             display: none;
             text-align: center;
             background: rgba(0,0,0,0.7);
             padding: 20px;
             border-radius: 10px;
         }
+        #connectedClients {
+            position: fixed;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 20px;
+            color: white;
+            z-index: 10002;
+        }
     </style>
 </head>
 <body>
+    <div id="waitingText">Warte auf Gegner...</div>
+    <div id="connectedClients">Verbunden: 0 Spieler</div>
+    <div id="scoreboard">Spieler 1: 0 | Spieler 2: 0</div>
     <button id="startButton">Pong starten</button>
-    <button id="restartButton">Neustart</button>
-    <div id="gameOverText"></div>
     <canvas id="pongCanvas"></canvas>
-    <div id="scoreboard">
-        <div class="teams-container">
-            <div class="team">
-                <div class="team-name">Los Santos</div>
-                <div class="team-score" id="computerScore">0</div>
-            </div>
-            <div class="team">
-                <div class="team-name">SAHP</div>
-                <div class="team-score" id="playerScore">0</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Sound-Elemente -->
-    <audio id="pingSound" src="ping.mp3"></audio>
-    <audio id="pongSound" src="pong.mp3"></audio>
-    <audio id="saHPSound" src="sahpsound.mp3"></audio>
-    <audio id="lsSound" src="lssound.mp3"></audio>
-    <audio id="bounceSound" src="bounce.mp3"></audio>
-    <audio id="winnerSound" src="winner.mp3"></audio>
-    <audio id="powerupSound" src="powerup.mp3"></audio>
 
     <script>
-        // Canvas und Elemente initialisieren
+        // WebSocket-Verbindung
+        const socket = new WebSocket('ws://localhost:8080'); // Ändere zu wss:// für HTTPS
         const canvas = document.getElementById("pongCanvas");
         const ctx = canvas.getContext("2d");
         const startButton = document.getElementById("startButton");
-        const restartButton = document.getElementById("restartButton");
+        const waitingText = document.getElementById("waitingText");
+        const connectedClients = document.getElementById("connectedClients");
         const scoreboard = document.getElementById("scoreboard");
-        const playerScoreElement = document.getElementById("playerScore");
-        const computerScoreElement = document.getElementById("computerScore");
-        const gameOverText = document.getElementById("gameOverText");
-
-        // Sound-Elemente
-        const pingSound = document.getElementById("pingSound");
-        const pongSound = document.getElementById("pongSound");
-        const saHPSound = document.getElementById("saHPSound");
-        const lsSound = document.getElementById("lsSound");
-        const bounceSound = document.getElementById("bounceSound");
-        const winnerSound = document.getElementById("winnerSound");
-        const powerupSound = document.getElementById("powerupSound");
-
-        // Sound stoppen Funktionen
-        function stopNonGoalSounds() {
-            [pingSound, pongSound, bounceSound, powerupSound].forEach(sound => {
-                sound.pause();
-                sound.currentTime = 0;
-            });
-        }
-
-        function stopAllSounds() {
-            [pingSound, pongSound, saHPSound, lsSound, bounceSound, powerupSound, winnerSound].forEach(sound => {
-                sound.pause();
-                sound.currentTime = 0;
-            });
-        }
 
         // Spielvariablen
         let gameRunning = false;
-        let playerScore = 0;
-        let computerScore = 0;
-        const maxScore = 10;
-        const basePaddleHeight = 100;
-        const paddleWidth = 10;
-        let ballSpeedMultiplier = 1;
-        const ballSpeedIncrease = 0.05;
-        const maxPaddleMultiplier = 2;
-        
-        // Ball und Schläger
-        let ball, leftPaddleY, rightPaddleY;
-        let leftPaddleMultiplier = 1;
-        let rightPaddleMultiplier = 1;
-        const ballTrail = [];
-        const maxTrailLength = 15;
-        
-        // Spezielle Bälle Eigenschaften
-        const SPECIAL_BALLS = {
-            FIRE: {
-                name: "fire",
-                color: "#ff0000",
-                speedMultiplier: 1.25,
-                sizeMultiplier: 1,
-                randomDirection: false,
-                doublePoints: false
-            },
-            ICE: {
-                name: "ice",
-                color: "#ffffff",
-                speedMultiplier: 0.8,
-                sizeMultiplier: 1,
-                randomDirection: true,
-                doublePoints: false
-            },
-            EARTH: {
-                name: "earth",
-                color: "#8B4513",
-                speedMultiplier: 0.85,
-                sizeMultiplier: 2,
-                randomDirection: false,
-                doublePoints: false
-            },
-            PLASMA: {
-                name: "plasma",
-                color: "#9400D3",
-                speedMultiplier: 1,
-                sizeMultiplier: 1,
-                randomDirection: true,
-                doublePoints: false
-            },
-            GOLD: {
-                name: "gold",
-                color: "#FFD700",
-                speedMultiplier: 2,
-                sizeMultiplier: 0.5,
-                randomDirection: false,
-                doublePoints: true
-            }
-        };
-        
-        let currentSpecialBall = null;
+        let playerNumber = null;
+        let player1Score = 0;
+        let player2Score = 0;
+        let connected = false;
 
-        // Canvas an Fenstergröße anpassen
+        // Pong-Spielelemente
+        const paddleWidth = 15;
+        const paddleHeight = 100;
+        const ballSize = 10;
+        let player1Y = canvas.height / 2 - paddleHeight / 2;
+        let player2Y = canvas.height / 2 - paddleHeight / 2;
+        let ballX = canvas.width / 2;
+        let ballY = canvas.height / 2;
+        let ballSpeedX = 5;
+        let ballSpeedY = 5;
+
+        // Canvas-Größe anpassen
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
         }
-        window.addEventListener("resize", resizeCanvas);
+        window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // Mittellinie zeichnen
-        function drawCenterLine() {
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-            ctx.lineWidth = 2;
-            ctx.setLineDash([10, 10]);
+        // WebSocket-Events
+        socket.onopen = function() {
+            connected = true;
+            console.log("Mit Server verbunden");
+            socket.send(JSON.stringify({ type: "getPlayers" }));
+        };
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === "updatePlayerCount") {
+                connectedClients.textContent = `Verbunden: ${data.count} Spieler`;
+            }
+
+            if (data.type === "gameStart") {
+                playerNumber = data.playerNumber;
+                console.log("Spiel gestartet als Spieler", playerNumber);
+                waitingText.style.display = "none";
+                scoreboard.style.display = "block";
+                startGame();
+            }
+
+            if (data.type === "opponentDisconnected") {
+                alert("Dein Gegner hat das Spiel verlassen!");
+                location.reload();
+            }
+
+            // Empfangene Paddle-Position des Gegners
+            if (data.type === "paddleMove" && data.player !== playerNumber) {
+                if (data.player === 1) player1Y = data.y;
+                else player2Y = data.y;
+            }
+
+            // Empfangener Ball-Status
+            if (data.type === "ballUpdate") {
+                ballX = data.x;
+                ballY = data.y;
+                ballSpeedX = data.speedX;
+                ballSpeedY = data.speedY;
+            }
+
+            // Score-Update
+            if (data.type === "scoreUpdate") {
+                player1Score = data.player1;
+                player2Score = data.player2;
+                updateScoreboard();
+            }
+        };
+
+        // Spielstart
+        startButton.addEventListener("click", () => {
+            if (!connected) {
+                alert("Keine Verbindung zum Server");
+                return;
+            }
+            startButton.style.display = "none";
+            waitingText.style.display = "block";
+            socket.send(JSON.stringify({ type: "ready" }));
+        });
+
+        // Tastatursteuerung
+        document.addEventListener('keydown', (e) => {
+            if (!gameRunning) return;
+            
+            const paddleSpeed = 20;
+            let newY;
+            
+            if (playerNumber === 1) {
+                if (e.key === 'w') newY = player1Y - paddleSpeed;
+                if (e.key === 's') newY = player1Y + paddleSpeed;
+                if (newY !== undefined) {
+                    player1Y = Math.max(0, Math.min(canvas.height - paddleHeight, newY));
+                    socket.send(JSON.stringify({ type: "paddleMove", player: 1, y: player1Y }));
+                }
+            } else if (playerNumber === 2) {
+                if (e.key === 'ArrowUp') newY = player2Y - paddleSpeed;
+                if (e.key === 'ArrowDown') newY = player2Y + paddleSpeed;
+                if (newY !== undefined) {
+                    player2Y = Math.max(0, Math.min(canvas.height - paddleHeight, newY));
+                    socket.send(JSON.stringify({ type: "paddleMove", player: 2, y: player2Y }));
+                }
+            }
+        });
+
+        // Spiel-Loop
+        function gameLoop() {
+            if (!gameRunning) return;
+            
+            // Ball bewegen
+            ballX += ballSpeedX;
+            ballY += ballSpeedY;
+            
+            // Kollision mit Wänden
+            if (ballY <= 0 || ballY >= canvas.height) {
+                ballSpeedY = -ballSpeedY;
+            }
+            
+            // Kollision mit Paddles
+            if (
+                (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) ||
+                (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight)
+            ) {
+                ballSpeedX = -ballSpeedX * 1.05; // Beschleunigung beim Schlagen
+            }
+            
+            // Punkte zählen
+            if (ballX < 0) {
+                player2Score++;
+                resetBall();
+                socket.send(JSON.stringify({ 
+                    type: "scoreUpdate", 
+                    player1: player1Score, 
+                    player2: player2Score 
+                }));
+            }
+            if (ballX > canvas.width) {
+                player1Score++;
+                resetBall();
+                socket.send(JSON.stringify({ 
+                    type: "scoreUpdate", 
+                    player1: player1Score, 
+                    player2: player2Score 
+                }));
+            }
+            
+            // Zeichnen
+            draw();
+            
+            // Ball-Status an Gegner senden (nur wenn Spieler 1)
+            if (playerNumber === 1) {
+                socket.send(JSON.stringify({
+                    type: "ballUpdate",
+                    x: ballX,
+                    y: ballY,
+                    speedX: ballSpeedX,
+                    speedY: ballSpeedY
+                }));
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resetBall() {
+            ballX = canvas.width / 2;
+            ballY = canvas.height / 2;
+            ballSpeedX = 5 * (Math.random() > 0.5 ? 1 : -1);
+            ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
+        }
+
+        function draw() {
+            // Hintergrund
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Mittellinie
+            ctx.strokeStyle = "#333";
             ctx.beginPath();
             ctx.moveTo(canvas.width / 2, 0);
             ctx.lineTo(canvas.width / 2, canvas.height);
             ctx.stroke();
-            ctx.setLineDash([]);
-        }
-
-        // Ball zurücksetzen
-        function resetBall() {
-            ball = { 
-                x: canvas.width / 2, 
-                y: canvas.height / 2, 
-                dx: 4 * (Math.random() > 0.5 ? 1 : -1), 
-                dy: 4 * (Math.random() * 2 - 1),
-                size: 10
-            };
-            ballSpeedMultiplier = 1;
-            ballTrail.length = 0;
-            currentSpecialBall = null;
             
-            // 20% Chance für einen speziellen Ball
-            if (Math.random() < 0.2) {
-                const specialBalls = Object.values(SPECIAL_BALLS);
-                currentSpecialBall = specialBalls[Math.floor(Math.random() * specialBalls.length)];
-                ball.size = 10 * currentSpecialBall.sizeMultiplier;
-            }
+            // Paddles
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
+            ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
+            
+            // Ball
+            ctx.beginPath();
+            ctx.arc(ballX, ballY, ballSize, 0, Math.PI * 2);
+            ctx.fill();
         }
 
-        // Spiel starten
+        function updateScoreboard() {
+            scoreboard.textContent = `Spieler 1: ${player1Score} | Spieler 2: ${player2Score}`;
+        }
+
         function startGame() {
-            stopAllSounds();
             gameRunning = true;
-            playerScore = 0;
-            computerScore = 0;
-            leftPaddleMultiplier = 1;
-            rightPaddleMultiplier = 1;
-            
-            playerScoreElement.textContent = "0";
-            computerScoreElement.textContent = "0";
-            
-            startButton.style.display = "none";
-            restartButton.style.display = "none";
             canvas.style.display = "block";
-            scoreboard.style.display = "block";
-            gameOverText.style.display = "none";
-            
             resetBall();
-            leftPaddleY = (canvas.height - basePaddleHeight) / 2;
-            rightPaddleY = (canvas.height - basePaddleHeight) / 2;
-            
-            requestAnimationFrame(update);
+            updateScoreboard();
+            gameLoop();
         }
-
-        // Schläger zeichnen
-        function drawPaddle(x, y, height) {
-            ctx.fillStyle = "white";
-            ctx.fillRect(x, y, paddleWidth, height);
-        }
-
-        // Ball mit Motion-Blur zeichnen
-        function drawBall() {
-            // Leichter Hintergrund-Overlay für Motion-Blur
-            ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Mittellinie zeichnen
-            drawCenterLine();
-            
-            // Ball-Spur mit weichem Verlauf
-            for (let i = 0; i < ballTrail.length; i++) {
-                const alpha = (i / ballTrail.length) * 0.8;
-                const size = ball.size * (1 - i / (ballTrail.length * 1.8));
-                
-                ctx.beginPath();
-                ctx.arc(ballTrail[i].x, ballTrail[i].y, size, 0, Math.PI * 2);
-                
-                // Farbverlauf für den Schweif
-                const gradient = ctx.createRadialGradient(
-                    ballTrail[i].x, ballTrail[i].y, 0,
-                    ballTrail[i].x, ballTrail[i].y, size
-                );
-                
-                if (currentSpecialBall) {
-                    gradient.addColorStop(0, currentSpecialBall.color);
-                    gradient.addColorStop(1, "rgba(255,255,255,0)");
-                } else {
-                    gradient.addColorStop(0, "rgba(255,255,255,0.8)");
-                    gradient.addColorStop(1, "rgba(255,255,100,0)");
-                }
-                
-                ctx.fillStyle = gradient;
-                ctx.fill();
-                ctx.closePath();
-            }
-            
-            // Hauptball mit Glow-Effekt
-            const glowSize = ball.size + 5;
-            const gradient = ctx.createRadialGradient(
-                ball.x, ball.y, 0,
-                ball.x, ball.y, glowSize
-            );
-            
-            if (currentSpecialBall) {
-                gradient.addColorStop(0, currentSpecialBall.color);
-                gradient.addColorStop(0.7, currentSpecialBall.color);
-                gradient.addColorStop(1, "rgba(255,255,255,0)");
-            } else {
-                gradient.addColorStop(0, "rgba(255,255,255,1)");
-                gradient.addColorStop(0.7, "rgba(255,255,200,0.7)");
-                gradient.addColorStop(1, "rgba(255,255,0,0)");
-            }
-            
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, glowSize, 0, Math.PI * 2);
-            ctx.fillStyle = gradient;
-            ctx.fill();
-            ctx.closePath();
-            
-            // Kern des Balls
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ball.size, 0, Math.PI * 2);
-            ctx.fillStyle = currentSpecialBall ? currentSpecialBall.color : "white";
-            ctx.fill();
-            ctx.closePath();
-        }
-
-        // Spiel-Update
-        function update() {
-            if (!gameRunning) return;
-
-            // Ball-Spur aktualisieren
-            ballTrail.push({x: ball.x, y: ball.y});
-            if (ballTrail.length > maxTrailLength) {
-                ballTrail.shift();
-            }
-
-            // Ball bewegen mit speziellem Geschwindigkeitsmultiplikator
-            const speedMultiplier = currentSpecialBall ? currentSpecialBall.speedMultiplier : 1;
-            ball.x += ball.dx * ballSpeedMultiplier * speedMultiplier;
-            ball.y += ball.dy * ballSpeedMultiplier * speedMultiplier;
-
-            // Wände
-            if (ball.y - ball.size < 0 || ball.y + ball.size > canvas.height) {
-                ball.dy *= -1;
-                stopNonGoalSounds();
-                bounceSound.currentTime = 0;
-                bounceSound.play();
-            }
-
-            // Tore
-            if (ball.x < 0) {
-                // Ball geht links raus -> Los Santos (Computer) macht Tor
-                const pointsToAdd = currentSpecialBall?.doublePoints ? 2 : 1;
-                playerScore += pointsToAdd;
-                playerScoreElement.textContent = playerScore;
-                stopNonGoalSounds();
-                saHPSound.currentTime = 0;
-                saHPSound.play();
-                handleGoal('player');
-                return;
-            }
-
-            if (ball.x > canvas.width) {
-                // Ball geht rechts raus -> SAHP (Spieler) macht Tor
-                const pointsToAdd = currentSpecialBall?.doublePoints ? 2 : 1;
-                computerScore += pointsToAdd;
-                computerScoreElement.textContent = computerScore;
-                stopNonGoalSounds();
-                lsSound.currentTime = 0;
-                lsSound.play();
-                handleGoal('computer');
-                return;
-            }
-
-            // Kollision mit Schlägern (verbesserte Kollisionserkennung)
-            const leftPaddleHeight = basePaddleHeight * leftPaddleMultiplier;
-            const rightPaddleHeight = basePaddleHeight * rightPaddleMultiplier;
-
-            // Linker Schläger
-            if (ball.x - ball.size <= paddleWidth && 
-                ball.y + ball.size >= leftPaddleY && 
-                ball.y - ball.size <= leftPaddleY + leftPaddleHeight) {
-                
-                // Verhindern, dass der Ball im Schläger stecken bleibt
-                ball.x = paddleWidth + ball.size;
-                
-                // Richtung umkehren oder zufällig ändern
-                if (currentSpecialBall?.randomDirection) {
-                    ball.dx = Math.abs(ball.dx) * (Math.random() > 0.5 ? 1 : -1);
-                    ball.dy = (Math.random() * 8 - 4);
-                } else {
-                    ball.dx = Math.abs(ball.dx);
-                }
-                
-                ballSpeedMultiplier = Math.min(ballSpeedMultiplier + ballSpeedIncrease, 1.5);
-
-                // Sound abspielen
-                stopNonGoalSounds();
-                pongSound.currentTime = 0;
-                pongSound.play();
-
-                // Ballwinkel anpassen
-                const paddleCenter = (ball.y - leftPaddleY) / leftPaddleHeight - 0.5;
-                ball.dy += paddleCenter * 5;
-            }
-
-            // Rechter Schläger
-            if (ball.x + ball.size >= canvas.width - paddleWidth && 
-                ball.y + ball.size >= rightPaddleY && 
-                ball.y - ball.size <= rightPaddleY + rightPaddleHeight) {
-                
-                // Verhindern, dass der Ball im Schläger stecken bleibt
-                ball.x = canvas.width - paddleWidth - ball.size;
-                
-                // Richtung umkehren oder zufällig ändern
-                if (currentSpecialBall?.randomDirection) {
-                    ball.dx = -Math.abs(ball.dx) * (Math.random() > 0.5 ? 1 : -1);
-                    ball.dy = (Math.random() * 8 - 4);
-                } else {
-                    ball.dx = -Math.abs(ball.dx);
-                }
-                
-                ballSpeedMultiplier = Math.min(ballSpeedMultiplier + ballSpeedIncrease, 1.5);
-
-                // Sound abspielen
-                stopNonGoalSounds();
-                pingSound.currentTime = 0;
-                pingSound.play();
-
-                // Ballwinkel anpassen
-                const paddleCenter = (ball.y - rightPaddleY) / rightPaddleHeight - 0.5;
-                ball.dy += paddleCenter * 5;
-            }
-
-            // KI-Steuerung
-            const computerReactionSpeed = 0.11;
-            leftPaddleY += (ball.y - leftPaddleY - (basePaddleHeight * leftPaddleMultiplier)/2) * computerReactionSpeed;
-
-            // Schlägerbegrenzungen
-            leftPaddleY = Math.max(0, Math.min(canvas.height - basePaddleHeight * leftPaddleMultiplier, leftPaddleY));
-            rightPaddleY = Math.max(0, Math.min(canvas.height - basePaddleHeight * rightPaddleMultiplier, rightPaddleY));
-
-            // Zeichnen
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawPaddle(0, leftPaddleY, basePaddleHeight * leftPaddleMultiplier);
-            drawPaddle(canvas.width - paddleWidth, rightPaddleY, basePaddleHeight * rightPaddleMultiplier);
-            drawBall();
-
-            requestAnimationFrame(update);
-        }
-
-        function handleGoal(scorer) {
-            if (scorer === 'player') {
-                leftPaddleMultiplier = Math.min(leftPaddleMultiplier + 0.25, maxPaddleMultiplier);
-                rightPaddleMultiplier = 1;
-            } else {
-                rightPaddleMultiplier = Math.min(rightPaddleMultiplier + 0.25, maxPaddleMultiplier);
-                leftPaddleMultiplier = 1;
-            }
-            
-            powerupSound.currentTime = 0;
-            powerupSound.play();
-            resetBall();
-            
-            if (!checkGameOver()) {
-                setTimeout(() => {
-                    if (gameRunning) requestAnimationFrame(update);
-                }, 1000);
-            }
-        }
-
-        function checkGameOver() {
-            if (playerScore >= maxScore || computerScore >= maxScore) {
-                gameRunning = false;
-                gameOverText.textContent = playerScore >= maxScore 
-                    ? "SAHP hat gewonnen! Herzlichen Glückwunsch!" 
-                    : "Los Santos hat gewonnen!";
-                gameOverText.style.display = "block";
-                restartButton.style.display = "block";
-                
-                stopAllSounds();
-                winnerSound.currentTime = 0;
-                winnerSound.play();
-                return true;
-            }
-            return false;
-        }
-
-        // Maussteuerung
-        canvas.addEventListener("mousemove", (e) => {
-            const mouseY = e.clientY;
-            rightPaddleY = mouseY - (basePaddleHeight * rightPaddleMultiplier)/2;
-        });
-
-        // Start-Button
-        startButton.addEventListener("click", startGame);
-
-        // Neustart-Button
-        restartButton.addEventListener("click", () => {
-            gameOverText.style.display = "none";
-            startGame();
-        });
-
-        // Initialisierung sicherstellen
-        window.addEventListener('load', () => {
-            resizeCanvas();
-            startButton.style.display = "block";
-            canvas.style.display = "none";
-            scoreboard.style.display = "none";
-        });
     </script>
 </body>
 </html>
