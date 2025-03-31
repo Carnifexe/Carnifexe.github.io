@@ -367,21 +367,21 @@
         isHost = data.playerNumber === 1;
         startCountdown();
       }
-      else if (data.type === "ballUpdate") {
-        ballX = data.ballX;
-        ballY = data.ballY;
-        ballSpeedX = data.ballSpeedX;
-        ballSpeedY = data.ballSpeedY;
-        player1Score = data.player1Score;
-        player2Score = data.player2Score;
-        document.getElementById("player1Score").textContent = player1Score;
-        document.getElementById("player2Score").textContent = player2Score;
-        
-        if (player1Score >= WINNING_SCORE || player2Score >= WINNING_SCORE) {
-          document.getElementById("winnerSound").play();
-          setTimeout(resetGame, 3000);
-        }
-      }
+else if (data.type === "ballUpdate") {
+  ballX = data.ballX;
+  ballY = data.ballY;
+  ballSpeedX = data.ballSpeedX;
+  ballSpeedY = data.ballSpeedY;
+  player1Score = data.player1Score;
+  player2Score = data.player2Score;
+  document.getElementById("player1Score").textContent = player1Score;
+  document.getElementById("player2Score").textContent = player2Score;
+  
+  if (player1Score >= WINNING_SCORE || player2Score >= WINNING_SCORE) {
+    document.getElementById("winnerSound").play();
+    setTimeout(resetGame, 3000);
+  }
+}
       else if (data.type === "paddleMove") {
         if (data.player === 1) {
           player1Y = data.y;
