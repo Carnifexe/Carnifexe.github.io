@@ -73,17 +73,20 @@ wss.on('connection', (ws) => {
       }
     }
 
-    // Weiterleiten der Spielnachrichten an den Gegner
-    if (["paddleMove", "ballUpdate", "scoreUpdate"].includes(data.type)) {
-      const room = rooms.find(r => r.players.includes(ws));
-      if (room) {
+if (data.type === "paddleMove") {
+    const room = rooms.find(r => r.players.includes(ws));
+    if (room) {
         room.players.forEach(player => {
-          if (player !== ws && player.readyState === WebSocket.OPEN) {
-            player.send(message);
-          }
+            if (player !== ws && player.readyState === WebSocket.OPEN) {
+                player.send(JSON.stringify({
+                    type: "paddleMove",
+                    player: data.player,
+                    y: data.y
+                }));
+            }
         });
-      }
     }
+}
     
     if (data.type === "leaveQueue") {
       queue = queue.filter(player => player !== ws);
