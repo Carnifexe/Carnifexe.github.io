@@ -5,111 +5,111 @@ const http = require('http');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ 
+  server,
+  clientTracking: true,
+  verifyClient: (info, callback) => {
+    callback(true); // CORS für WebSockets erlauben
+  }
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Spieler- und Raumverwaltung
 let players = [];
 let rooms = [];
 
-// === OPTIMIERUNG 1: Ping/Pong für Verbindungsstabilität ===
-wss.on('connection', (ws) => {
-    ws.isAlive = true; // Flag für Verbindungsstatus
-    ws.on('pong', () => ws.isAlive = true); // Antwort auf Ping
-
-    console.log("Ein Client hat sich verbunden.");
-    players.push(ws);
-    console.log(`Aktuelle Spieleranzahl: ${players.length}`);
-
-    if (players.length % 2 === 0) {
-        console.log("Zwei Spieler sind verbunden. Spiel wird gestartet...");
-        const roomId = rooms.length + 1;
-        rooms.push({ roomId, players: players.slice(-2), gameStarted: false });
-        startGame(roomId);
-    } else {
-        broadcastPlayerCount();
-    }
-
-    // === OPTIMIERUNG 2: Try-Catch für Nachrichten-Parsing ===
-    ws.on('message', (message) => {
-        try {
-            const data = JSON.parse(message);
-            if (data.type === "getPlayers") {
-                ws.send(JSON.stringify({ type: "playerList", count: players.length, rooms }));
-            }
-            if (data.type === "ready") {
-                console.log("Spielstartanfrage erhalten.");
-                const room = rooms.find(room => room.players.includes(ws));
-                if (room && room.players.length === 2 && !room.gameStarted) {
-                    room.gameStarted = true;
-                    startGame(room.roomId);
-                }
-            }
-        } catch (error) {
-            console.error("Ungültige Nachricht:", error);
-        }
-    });
-
-    // === OPTIMIERUNG 3: Verbesserter Room-Cleanup ===
-    ws.on('close', () => {
-        players = players.filter(player => player !== ws);
-        console.log(`Spieler getrennt. Aktuelle Spieleranzahl: ${players.length}`);
-        
-        rooms = rooms.filter(room => {
-            const hasPlayer = room.players.includes(ws);
-            if (hasPlayer) {
-                room.players.forEach(p => {
-                    if (p !== ws && p.readyState === WebSocket.OPEN) {
-                        p.send(JSON.stringify({ type: "playerDisconnected" }));
-                    }
-                });
-            }
-            return !hasPlayer;
-        });
-        
-        broadcastPlayerCount();
-    });
-});
-
-// === OPTIMIERUNG 1: Ping-Intervall für inaktive Clients ===
+// Ping/Pong für stabile Verbindungen
 setInterval(() => {
-    wss.clients.forEach((ws) => {
-        if (!ws.isAlive) {
-            console.log("Client wegen Inaktivität getrennt.");
-            return ws.terminate();
-        }
-        ws.isAlive = false;
-        ws.ping();
-    });
+  wss.clients.forEach((ws) => {
+    if (!ws.isAlive) {
+      console.log('Client wegen Inaktivität getrennt');
+      return ws.terminate();
+    }
+    ws.isAlive = false;
+    ws.ping();
+  });
 }, 30000); // Alle 30 Sekunden prüfen
 
-function broadcastPlayerCount() {
-    const playerCount = players.length;
-    players.forEach(player => {
-        if (player.readyState === WebSocket.OPEN) {
-            player.send(JSON.stringify({ type: "updatePlayerCount", count: playerCount }));
+wss.on('connection', (ws) => {
+  ws.isAlive = true;
+  ws.on('pong', () => ws.isAlive = true);
+
+  console.log('Neuer Spieler verbunden');
+  players.push(ws);
+  broadcastPlayerCount();
+
+  // Raum erstellen, sobald 2 verfügbare Spieler da sind
+  const availablePlayers = players.filter(p => 
+    !rooms.some(room => room.players.includes(p))
+  );
+  if (availablePlayers.length >= 2) {
+    const roomId = rooms.length + 1;
+    const roomPlayers = availablePlayers.slice(0, 2);
+    rooms.push({ roomId, players: roomPlayers, gameStarted: false });
+    console.log(`Raum ${roomId} mit 2 Spielern erstellt`);
+    startGame(roomId);
+  }
+
+  // Nachrichten verarbeiten
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      console.log('Nachricht:', data.type); // Debug-Log
+
+      if (data.type === 'ready') {
+        const room = rooms.find(r => r.players.includes(ws));
+        if (room && !room.gameStarted) {
+          room.gameStarted = true;
+          startGame(room.roomId);
         }
+      }
+    } catch (error) {
+      console.error('Nachrichtenfehler:', error);
+    }
+  });
+
+  // Verbindungsabbruch
+  ws.on('close', () => {
+    players = players.filter(p => p !== ws);
+    rooms = rooms.filter(room => {
+      const index = room.players.indexOf(ws);
+      if (index !== -1) {
+        room.players[index].send(JSON.stringify({ type: 'opponentDisconnected' }));
+        return false; // Raum löschen
+      }
+      return true;
     });
+    broadcastPlayerCount();
+  });
+});
+
+// Hilfsfunktionen
+function broadcastPlayerCount() {
+  const count = players.length;
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({ type: 'updatePlayerCount', count }));
+    }
+  });
 }
 
 function startGame(roomId) {
-    const room = rooms.find(r => r.roomId === roomId);
-    if (room && room.players.length === 2 && !room.gameStarted) {
-        room.gameStarted = true;
-        room.players.forEach((player, index) => {
-            if (player.readyState === WebSocket.OPEN) {
-                player.send(JSON.stringify({ 
-                    type: "gameStart", 
-                    roomId,
-                    playerNumber: index + 1
-                }));
-            }
-        });
-        console.log(`Spiel im Raum ${roomId} gestartet!`);
-    }
+  const room = rooms.find(r => r.roomId === roomId);
+  if (room && room.players.length === 2) {
+    room.players.forEach((player, index) => {
+      player.send(JSON.stringify({
+        type: 'gameStart',
+        roomId,
+        playerNumber: index + 1
+      }));
+    });
+    console.log(`Spiel in Raum ${roomId} gestartet!`);
+  }
 }
 
+// Server starten
 const port = process.env.PORT || 8080;
 server.listen(port, () => {
-    console.log(`Server läuft auf Port ${port}`);
+  console.log(`Server läuft auf http://localhost:${port}`);
 });
