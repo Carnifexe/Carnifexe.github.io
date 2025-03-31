@@ -50,18 +50,29 @@ function createRoom(player1, player2) {
     },
     paddles: [300, 300],
     scores: [0, 0],
-    createdAt: Date.now(),
+    lastBroadcast: 0,
+    sequenceNumber: 0,
     gameLoop: null
   };
 
-  gameState.rooms.push(room);
-  
   // Starte Spiel-Loop
   room.gameLoop = setInterval(() => updateGameState(room), 16);
   
-  player1.send(JSON.stringify({ type: 'gameStart', playerNumber: 1 }));
-  player2.send(JSON.stringify({ type: 'gameStart', playerNumber: 2 }));
+  // Sende initialen Zustand
+  broadcastGameState(room);
   
+  player1.send(JSON.stringify({ 
+    type: 'gameStart', 
+    playerNumber: 1,
+    initialBall: room.ball
+  }));
+  player2.send(JSON.stringify({ 
+    type: 'gameStart', 
+    playerNumber: 2,
+    initialBall: room.ball
+  }));
+  
+  gameState.rooms.push(room);
   return room;
 }
 
@@ -117,31 +128,31 @@ function resetBall(room) {
 }
 
 function broadcastGameState(room) {
+  const now = Date.now();
+  if (now - room.lastBroadcast < 16) return; // Nicht öfter als 60fps
+  
+  room.sequenceNumber++;
   const state = {
     type: 'gameState',
-    ballX: room.ball.x,
-    ballY: room.ball.y,
-    ballSpeedX: room.ball.speedX,
-    ballSpeedY: room.ball.speedY,
+    seq: room.sequenceNumber,
+    ballX: Math.round(room.ball.x),
+    ballY: Math.round(room.ball.y),
+    ballSpeedX: Math.round(room.ball.speedX * 100) / 100,
+    ballSpeedY: Math.round(room.ball.speedY * 100) / 100,
     player1Y: room.paddles[0],
     player2Y: room.paddles[1],
-    timestamp: Date.now()
+    timestamp: now
   };
-  
+
   room.players.forEach(player => {
     if (player.readyState === WebSocket.OPEN) {
       player.send(JSON.stringify(state));
     }
   });
+  room.lastBroadcast = now;
 }
 
 function broadcastScoreUpdate(room) {
-  const scoreUpdate = {
-    type: 'scoreUpdate',
-    player1: room.scores[0],
-    player2: room.scores[1]
-  };
-  
   room.players.forEach(player => {
     if (player.readyState === WebSocket.OPEN) {
       player.send(JSON.stringify({
