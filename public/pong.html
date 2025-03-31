@@ -8,7 +8,7 @@
         body {
             margin: 0;
             overflow: hidden;
-            background: transparent;
+            background: #000;
             color: white;
             font-family: Arial, sans-serif;
         }
@@ -76,62 +76,228 @@
 <body>
     <div id="waitingText">Warte auf Gegner...</div>
     <div id="connectedClients">Verbunden: 0 Spieler</div>
+    <div id="scoreboard">Spieler 1: 0 | Spieler 2: 0</div>
     <button id="startButton">Pong starten</button>
     <canvas id="pongCanvas"></canvas>
-    
+
     <script>
-        const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
-        
+        // WebSocket-Verbindung
+        const socket = new WebSocket('ws://localhost:8080'); // Ändere zu wss:// für HTTPS
         const canvas = document.getElementById("pongCanvas");
         const ctx = canvas.getContext("2d");
         const startButton = document.getElementById("startButton");
         const waitingText = document.getElementById("waitingText");
         const connectedClients = document.getElementById("connectedClients");
+        const scoreboard = document.getElementById("scoreboard");
 
+        // Spielvariablen
         let gameRunning = false;
         let playerNumber = null;
         let player1Score = 0;
         let player2Score = 0;
         let connected = false;
 
+        // Pong-Spielelemente
+        const paddleWidth = 15;
+        const paddleHeight = 100;
+        const ballSize = 10;
+        let player1Y = canvas.height / 2 - paddleHeight / 2;
+        let player2Y = canvas.height / 2 - paddleHeight / 2;
+        let ballX = canvas.width / 2;
+        let ballY = canvas.height / 2;
+        let ballSpeedX = 5;
+        let ballSpeedY = 5;
+
+        // Canvas-Größe anpassen
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // WebSocket-Events
         socket.onopen = function() {
             connected = true;
             console.log("Mit Server verbunden");
             socket.send(JSON.stringify({ type: "getPlayers" }));
         };
 
-socket.onmessage = function(event) {
-    const data = JSON.parse(event.data);
-    
-    if (data.type === "updatePlayerCount") {
-        console.log("Spieleranzahl:", data.count);
-        connectedClients.textContent = `Verbunden: ${data.count} Spieler`;
-    }
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === "updatePlayerCount") {
+                connectedClients.textContent = `Verbunden: ${data.count} Spieler`;
+            }
 
-    if (data.type === "gameStart") {
-        console.log("Spiel beginnt! Spieler:", data.playerNumber);
-        playerNumber = data.playerNumber; // Speichere die Spielernummer
-        waitingText.style.display = "none";
-        startGame();
-    }
-};
+            if (data.type === "gameStart") {
+                playerNumber = data.playerNumber;
+                console.log("Spiel gestartet als Spieler", playerNumber);
+                waitingText.style.display = "none";
+                scoreboard.style.display = "block";
+                startGame();
+            }
 
+            if (data.type === "opponentDisconnected") {
+                alert("Dein Gegner hat das Spiel verlassen!");
+                location.reload();
+            }
+
+            // Empfangene Paddle-Position des Gegners
+            if (data.type === "paddleMove" && data.player !== playerNumber) {
+                if (data.player === 1) player1Y = data.y;
+                else player2Y = data.y;
+            }
+
+            // Empfangener Ball-Status
+            if (data.type === "ballUpdate") {
+                ballX = data.x;
+                ballY = data.y;
+                ballSpeedX = data.speedX;
+                ballSpeedY = data.speedY;
+            }
+
+            // Score-Update
+            if (data.type === "scoreUpdate") {
+                player1Score = data.player1;
+                player2Score = data.player2;
+                updateScoreboard();
+            }
+        };
+
+        // Spielstart
         startButton.addEventListener("click", () => {
             if (!connected) {
                 alert("Keine Verbindung zum Server");
                 return;
             }
-            
             startButton.style.display = "none";
             waitingText.style.display = "block";
-            
             socket.send(JSON.stringify({ type: "ready" }));
         });
+
+        // Tastatursteuerung
+        document.addEventListener('keydown', (e) => {
+            if (!gameRunning) return;
+            
+            const paddleSpeed = 20;
+            let newY;
+            
+            if (playerNumber === 1) {
+                if (e.key === 'w') newY = player1Y - paddleSpeed;
+                if (e.key === 's') newY = player1Y + paddleSpeed;
+                if (newY !== undefined) {
+                    player1Y = Math.max(0, Math.min(canvas.height - paddleHeight, newY));
+                    socket.send(JSON.stringify({ type: "paddleMove", player: 1, y: player1Y }));
+                }
+            } else if (playerNumber === 2) {
+                if (e.key === 'ArrowUp') newY = player2Y - paddleSpeed;
+                if (e.key === 'ArrowDown') newY = player2Y + paddleSpeed;
+                if (newY !== undefined) {
+                    player2Y = Math.max(0, Math.min(canvas.height - paddleHeight, newY));
+                    socket.send(JSON.stringify({ type: "paddleMove", player: 2, y: player2Y }));
+                }
+            }
+        });
+
+        // Spiel-Loop
+        function gameLoop() {
+            if (!gameRunning) return;
+            
+            // Ball bewegen
+            ballX += ballSpeedX;
+            ballY += ballSpeedY;
+            
+            // Kollision mit Wänden
+            if (ballY <= 0 || ballY >= canvas.height) {
+                ballSpeedY = -ballSpeedY;
+            }
+            
+            // Kollision mit Paddles
+            if (
+                (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) ||
+                (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight)
+            ) {
+                ballSpeedX = -ballSpeedX * 1.05; // Beschleunigung beim Schlagen
+            }
+            
+            // Punkte zählen
+            if (ballX < 0) {
+                player2Score++;
+                resetBall();
+                socket.send(JSON.stringify({ 
+                    type: "scoreUpdate", 
+                    player1: player1Score, 
+                    player2: player2Score 
+                }));
+            }
+            if (ballX > canvas.width) {
+                player1Score++;
+                resetBall();
+                socket.send(JSON.stringify({ 
+                    type: "scoreUpdate", 
+                    player1: player1Score, 
+                    player2: player2Score 
+                }));
+            }
+            
+            // Zeichnen
+            draw();
+            
+            // Ball-Status an Gegner senden (nur wenn Spieler 1)
+            if (playerNumber === 1) {
+                socket.send(JSON.stringify({
+                    type: "ballUpdate",
+                    x: ballX,
+                    y: ballY,
+                    speedX: ballSpeedX,
+                    speedY: ballSpeedY
+                }));
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resetBall() {
+            ballX = canvas.width / 2;
+            ballY = canvas.height / 2;
+            ballSpeedX = 5 * (Math.random() > 0.5 ? 1 : -1);
+            ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
+        }
+
+        function draw() {
+            // Hintergrund
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Mittellinie
+            ctx.strokeStyle = "#333";
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            
+            // Paddles
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
+            ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
+            
+            // Ball
+            ctx.beginPath();
+            ctx.arc(ballX, ballY, ballSize, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function updateScoreboard() {
+            scoreboard.textContent = `Spieler 1: ${player1Score} | Spieler 2: ${player2Score}`;
+        }
 
         function startGame() {
             gameRunning = true;
             canvas.style.display = "block";
-            // Dein Spielcode für Pong kann hier fortgesetzt werden
+            resetBall();
+            updateScoreboard();
+            gameLoop();
         }
     </script>
 </body>
