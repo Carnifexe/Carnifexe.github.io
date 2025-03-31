@@ -73,21 +73,38 @@ wss.on('connection', (ws) => {
       }
     }
 
-if (data.type === "paddleMove") {
-    const room = rooms.find(r => r.players.includes(ws));
-    if (room) {
+    if (data.type === "paddleMove") {
+      const room = rooms.find(r => r.players.includes(ws));
+      if (room) {
         room.players.forEach(player => {
-            if (player !== ws && player.readyState === WebSocket.OPEN) {
-                player.send(JSON.stringify({
-                    type: "paddleMove",
-                    player: data.player,
-                    y: data.y
-                }));
-            }
+          if (player !== ws && player.readyState === WebSocket.OPEN) {
+            player.send(JSON.stringify({
+              type: "paddleMove",
+              player: data.player,
+              y: data.y
+            }));
+          }
         });
+      }
     }
-}
-    
+
+    if (data.type === "ballUpdate") {
+      const room = rooms.find(r => r.players.includes(ws));
+      if (room) {
+        room.players.forEach(player => {
+          if (player !== ws && player.readyState === WebSocket.OPEN) {
+            player.send(JSON.stringify({
+              type: "ballUpdate",
+              x: data.x,
+              y: data.y,
+              speedX: data.speedX,
+              speedY: data.speedY
+            }));
+          }
+        });
+      }
+    }
+
     if (data.type === "leaveQueue") {
       queue = queue.filter(player => player !== ws);
       broadcastQueueCount();
