@@ -13,7 +13,7 @@ let players = [];
 let queue = [];
 let rooms = [];
 
-// Ping alle 30 Sekunden zur Verbindungsüberwachung
+// Ping clients every 30 seconds to check connection
 setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.readyState === WebSocket.OPEN) {
@@ -74,25 +74,17 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'leftQueue' }));
         broadcastQueueCount();
       }
-      else if (data.type === 'ballUpdate') {
+      else if (data.type === 'gameState') {
         const room = rooms.find(r => r.players.includes(ws));
         if (room) {
           room.players.forEach(player => {
-            if (player.readyState === WebSocket.OPEN) {
-              player.send(JSON.stringify({
-                type: "ballUpdate",
-                x: data.x,
-                y: data.y,
-                sx: data.sx,
-                sy: data.sy,
-                p1: data.p1,
-                p2: data.p2
-              }));
+            if (player !== ws && player.readyState === WebSocket.OPEN) {
+              player.send(JSON.stringify(data));
             }
           });
         }
       }
-      else if (data.type === 'paddleMove') {
+      else if (data.type === 'paddleMove' || data.type === 'paddleUpdate') {
         const room = rooms.find(r => r.players.includes(ws));
         if (room) {
           room.players.forEach(player => {
@@ -107,7 +99,7 @@ wss.on('connection', (ws) => {
         }
       }
     } catch (error) {
-      console.error('Nachrichtenverarbeitungsfehler:', error);
+      console.error('Error processing message:', error);
     }
   });
 
