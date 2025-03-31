@@ -152,6 +152,10 @@
     <canvas id="pongCanvas"></canvas>
   </div>
 
+  <audio id="bounceSound" src="bounce.mp3" preload="auto"></audio>
+  <audio id="pongSound" src="pong.mp3" preload="auto"></audio>
+  <audio id="winnerSound" src="winner.mp3" preload="auto"></audio>
+
   <script>
     const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
     const canvas = document.getElementById("pongCanvas");
@@ -185,6 +189,7 @@
     let ballSpeedY = 5;
     let player1Score = 0;
     let player2Score = 0;
+    let lastUpdateTime = 0;
 
     function initGame() {
       canvas.width = window.innerWidth;
@@ -230,6 +235,10 @@
     function updateGame() {
       if (!gameRunning) return;
 
+      const now = Date.now();
+      if (now - lastUpdateTime < 16) return;
+      lastUpdateTime = now;
+
       if (isHost) {
         // Ball movement
         ballX += ballSpeedX;
@@ -238,14 +247,17 @@
         // Wall collision
         if (ballY <= 0 || ballY >= canvas.height) {
           ballSpeedY = -ballSpeedY;
+          document.getElementById("bounceSound").play();
         }
         
         // Paddle collision
         if (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
           ballSpeedX = -ballSpeedX * 1.05;
+          document.getElementById("pongSound").play();
         } 
         else if (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight) {
           ballSpeedX = -ballSpeedX * 1.05;
+          document.getElementById("pongSound").play();
         }
 
         // Scoring
@@ -260,15 +272,17 @@
           resetBall();
         }
 
-        // Send game state
+        // Send complete game state
         socket.send(JSON.stringify({
           type: "gameState",
-          ballX,
-          ballY,
-          ballSpeedX,
-          ballSpeedY,
+          ballX: ballX.toFixed(1),
+          ballY: ballY.toFixed(1),
+          ballSpeedX: ballSpeedX.toFixed(2),
+          ballSpeedY: ballSpeedY.toFixed(2),
           player1Score,
-          player2Score
+          player2Score,
+          player1Y,
+          player2Y
         }));
       }
     }
@@ -340,6 +354,14 @@
         player: playerNumber,
         y: playerNumber === 1 ? player1Y : player2Y
       }));
+
+      if (!isHost) {
+        socket.send(JSON.stringify({
+          type: "paddleUpdate",
+          player: playerNumber,
+          y: playerNumber === 1 ? player1Y : player2Y
+        }));
+      }
     });
 
     // Initialize game
@@ -369,14 +391,20 @@
         startCountdown();
       }
       else if (data.type === "gameState") {
-        ballX = data.ballX;
-        ballY = data.ballY;
-        ballSpeedX = data.ballSpeedX;
-        ballSpeedY = data.ballSpeedY;
+        ballX = parseFloat(data.ballX);
+        ballY = parseFloat(data.ballY);
+        ballSpeedX = parseFloat(data.ballSpeedX);
+        ballSpeedY = parseFloat(data.ballSpeedY);
         player1Score = data.player1Score;
         player2Score = data.player2Score;
+        player1Y = data.player1Y;
+        player2Y = data.player2Y;
+        
+        document.getElementById("player1Score").textContent = player1Score;
+        document.getElementById("player2Score").textContent = player2Score;
         
         if (player1Score >= WINNING_SCORE || player2Score >= WINNING_SCORE) {
+          document.getElementById("winnerSound").play();
           setTimeout(resetGame, 3000);
         }
       }
