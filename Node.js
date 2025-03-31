@@ -46,6 +46,7 @@ wss.on('connection', (ws) => {
 function broadcastPlayerCount() {
     const playerCount = players.length;
     players.forEach(player => {
+        // Versenden Sie die aktualisierte Spieleranzahl an alle Clients
         player.send(JSON.stringify({ type: "updatePlayerCount", count: playerCount }));
     });
 }
