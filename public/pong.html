@@ -12,20 +12,20 @@
       color: white;
       font-family: Arial, sans-serif;
       text-align: center;
-      cursor: none;
     }
     #gameContainer {
       position: fixed;
       top: 0;
       left: 0;
-      width: 100vw;
-      height: 100vh;
+      width: 100%;
+      height: 100%;
       display: none;
-      z-index: 10;
     }
     canvas {
       display: block;
       background: #000;
+      width: 100%;
+      height: 100%;
     }
     #queueButton {
       position: fixed;
@@ -47,12 +47,12 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0,0,0,0.8);
+      background: #000;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      z-index: 15;
+      z-index: 10;
     }
     #readyScreen {
       position: fixed;
@@ -67,7 +67,7 @@
       align-items: center;
       font-size: 72px;
       font-weight: bold;
-      z-index: 25;
+      z-index: 30;
     }
     #scoreboard {
       position: fixed;
@@ -79,7 +79,7 @@
       background: rgba(0,0,0,0.5);
       padding: 10px 20px;
       border-radius: 5px;
-      z-index: 30;
+      z-index: 20;
     }
     #totalPlayers {
       position: fixed;
@@ -89,7 +89,7 @@
       background: rgba(0,0,0,0.5);
       padding: 10px 15px;
       border-radius: 5px;
-      z-index: 30;
+      z-index: 20;
     }
     .teams-container {
       display: flex;
@@ -152,15 +152,11 @@
     <canvas id="pongCanvas"></canvas>
   </div>
 
-  <audio id="bounceSound" src="bounce.mp3" preload="auto"></audio>
-  <audio id="pongSound" src="pong.mp3" preload="auto"></audio>
-  <audio id="winnerSound" src="winner.mp3" preload="auto"></audio>
-
   <script>
     const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
     const canvas = document.getElementById("pongCanvas");
     const ctx = canvas.getContext("2d");
-    const WINNING_SCORE = 10;
+    const WINNING_SCORE = 5;
 
     // UI Elements
     const gameContainer = document.getElementById("gameContainer");
@@ -179,10 +175,10 @@
     let isHost = false;
     let inQueue = false;
     
-    const basePaddleWidth = 15;
-    const basePaddleHeight = 100;
-    let player1Y = canvas.height / 2 - basePaddleHeight / 2;
-    let player2Y = canvas.height / 2 - basePaddleHeight / 2;
+    const paddleWidth = 15;
+    const paddleHeight = 100;
+    let player1Y = canvas.height / 2 - paddleHeight / 2;
+    let player2Y = canvas.height / 2 - paddleHeight / 2;
     let ballX = canvas.width / 2;
     let ballY = canvas.height / 2;
     let ballSpeedX = 5;
@@ -190,11 +186,11 @@
     let player1Score = 0;
     let player2Score = 0;
 
-    function resizeCanvas() {
+    function initGame() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      player1Y = canvas.height / 2 - basePaddleHeight / 2;
-      player2Y = canvas.height / 2 - basePaddleHeight / 2;
+      player1Y = canvas.height / 2 - paddleHeight / 2;
+      player2Y = canvas.height / 2 - paddleHeight / 2;
       resetBall();
     }
 
@@ -205,20 +201,19 @@
       ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
     }
 
-    function render() {
+    function drawGame() {
       // Clear canvas
       ctx.fillStyle = "black";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       // Draw paddles
       ctx.fillStyle = "white";
-      ctx.fillRect(0, player1Y, basePaddleWidth, basePaddleHeight);
-      ctx.fillRect(canvas.width - basePaddleWidth, player2Y, basePaddleWidth, basePaddleHeight);
+      ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
+      ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
       
       // Draw ball
       ctx.beginPath();
       ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
-      ctx.fillStyle = "white";
       ctx.fill();
       
       // Draw center line
@@ -233,38 +228,41 @@
     }
 
     function updateGame() {
+      if (!gameRunning) return;
+
       if (isHost) {
         // Ball movement
-        if (ballY <= 0 || ballY >= canvas.height) {
-          ballSpeedY = -ballSpeedY;
-          document.getElementById("bounceSound").play();
-        }
-        
         ballX += ballSpeedX;
         ballY += ballSpeedY;
 
+        // Wall collision
+        if (ballY <= 0 || ballY >= canvas.height) {
+          ballSpeedY = -ballSpeedY;
+        }
+        
         // Paddle collision
-        if (ballX <= basePaddleWidth && ballY >= player1Y && ballY <= player1Y + basePaddleHeight) {
-          ballSpeedX = -ballSpeedX * 1.1;
-          document.getElementById("pongSound").play();
+        if (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
+          ballSpeedX = -ballSpeedX * 1.05;
         } 
-        else if (ballX >= canvas.width - basePaddleWidth && ballY >= player2Y && ballY <= player2Y + basePaddleHeight) {
-          ballSpeedX = -ballSpeedX * 1.1;
-          document.getElementById("pongSound").play();
+        else if (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight) {
+          ballSpeedX = -ballSpeedX * 1.05;
         }
 
-        // Score points
+        // Scoring
         if (ballX < 0) {
           player2Score++;
+          document.getElementById("player2Score").textContent = player2Score;
           resetBall();
-        } else if (ballX > canvas.width) {
+        } 
+        else if (ballX > canvas.width) {
           player1Score++;
+          document.getElementById("player1Score").textContent = player1Score;
           resetBall();
         }
 
         // Send game state
         socket.send(JSON.stringify({
-          type: "ballUpdate",
+          type: "gameState",
           ballX,
           ballY,
           ballSpeedX,
@@ -276,22 +274,24 @@
     }
 
     function gameLoop() {
-      if (!gameRunning) return;
-      
       updateGame();
-      render();
-      requestAnimationFrame(gameLoop);
+      drawGame();
+      if (gameRunning) {
+        requestAnimationFrame(gameLoop);
+      }
     }
 
     function startCountdown() {
       readyScreen.style.display = "flex";
-      let countdownTime = 3;
       const countdownElement = document.getElementById("countdown");
-      const countdownInterval = setInterval(() => {
-        countdownElement.textContent = countdownTime > 0 ? countdownTime : "GO!";
-        countdownTime--;
-        if (countdownTime < -1) {
-          clearInterval(countdownInterval);
+      let count = 3;
+      
+      const timer = setInterval(() => {
+        countdownElement.textContent = count > 0 ? count : "GO!";
+        count--;
+        
+        if (count < 0) {
+          clearInterval(timer);
           readyScreen.style.display = "none";
           startGame();
         }
@@ -304,7 +304,7 @@
       waitingScreen.style.display = "none";
       scoreboard.style.display = "flex";
       totalPlayersElement.style.display = "block";
-      resizeCanvas();
+      initGame();
       gameLoop();
     }
 
@@ -320,7 +320,8 @@
       document.getElementById("player2Score").textContent = "0";
     }
 
-    // Mouse control
+    // Event listeners
+    window.addEventListener('resize', initGame);
     canvas.addEventListener('mousemove', (e) => {
       if (!gameRunning) return;
       
@@ -328,9 +329,10 @@
       const mouseY = e.clientY - rect.top;
       
       if (playerNumber === 1) {
-        player1Y = Math.max(0, Math.min(mouseY - basePaddleHeight/2, canvas.height - basePaddleHeight));
-      } else if (playerNumber === 2) {
-        player2Y = Math.max(0, Math.min(mouseY - basePaddleHeight/2, canvas.height - basePaddleHeight));
+        player1Y = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
+      } 
+      else if (playerNumber === 2) {
+        player2Y = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
       }
 
       socket.send(JSON.stringify({
@@ -340,10 +342,10 @@
       }));
     });
 
-    // Event listeners
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
+    // Initialize game
+    initGame();
 
+    // WebSocket handling
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
@@ -366,25 +368,23 @@
         isHost = data.playerNumber === 1;
         startCountdown();
       }
-      else if (data.type === "ballUpdate") {
+      else if (data.type === "gameState") {
         ballX = data.ballX;
         ballY = data.ballY;
         ballSpeedX = data.ballSpeedX;
         ballSpeedY = data.ballSpeedY;
         player1Score = data.player1Score;
         player2Score = data.player2Score;
-        document.getElementById("player1Score").textContent = player1Score;
-        document.getElementById("player2Score").textContent = player2Score;
         
         if (player1Score >= WINNING_SCORE || player2Score >= WINNING_SCORE) {
-          document.getElementById("winnerSound").play();
           setTimeout(resetGame, 3000);
         }
       }
       else if (data.type === "paddleMove") {
         if (data.player === 1) {
           player1Y = data.y;
-        } else if (data.player === 2) {
+        } 
+        else if (data.player === 2) {
           player2Y = data.y;
         }
       }
