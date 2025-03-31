@@ -88,30 +88,14 @@ wss.on('connection', (ws) => {
       if (data.type === "goal") {
         const room = findPlayerRoom(ws);
         if (room) {
-          if (!scores[room.roomId]) {
-            scores[room.roomId] = { player1Score: 0, player2Score: 0 };
-          }
-          
-          if (data.scorer === 1) {
-            scores[room.roomId].player1Score++;
-          } else if (data.scorer === 2) {
-            scores[room.roomId].player2Score++;
-          }
-          
-          broadcastToRoom(room, null, {
-            type: "scoreUpdate",
-            player1Score: scores[room.roomId].player1Score,
-            player2Score: scores[room.roomId].player2Score
-          });
+          handleGoal(room, data.scorer);
+        }
+      }
 
-          // Ball zurücksetzen
-          broadcastToRoom(room, null, {
-            type: "ballReset",
-            ballX: room.canvasWidth / 2,
-            ballY: room.canvasHeight / 2,
-            ballSpeedX: 5 * (Math.random() > 0.5 ? 1 : -1),
-            ballSpeedY: 5 * (Math.random() > 0.5 ? 1 : -1)
-          });
+      if (data.type === "leaveGame") {
+        const room = findPlayerRoom(ws);
+        if (room) {
+          cleanupRoom(room);
         }
       }
     } catch (error) {
@@ -125,17 +109,10 @@ wss.on('connection', (ws) => {
     queue = queue.filter(p => p !== ws);
     
     // Räume aufräumen
-    rooms = rooms.filter(room => {
-      if (room.players.includes(ws)) {
-        room.players.forEach(player => {
-          if (player !== ws && player.readyState === WebSocket.OPEN) {
-            player.send(JSON.stringify({ type: 'opponentDisconnected' }));
-          }
-        });
-        return false;
-      }
-      return true;
-    });
+    const room = findPlayerRoom(ws);
+    if (room) {
+      cleanupRoom(room);
+    }
     
     broadcastPlayerCount();
     broadcastQueueCount();
@@ -150,7 +127,8 @@ function createRoom() {
     players: roomPlayers,
     host: roomPlayers[0],
     canvasWidth: 800,
-    canvasHeight: 600
+    canvasHeight: 600,
+    lastGoalTime: 0
   };
   rooms.push(newRoom);
   
@@ -166,8 +144,50 @@ function createRoom() {
     isHost: false
   }));
   
+  // Scores initialisieren
+  scores[roomId] = { player1Score: 0, player2Score: 0 };
+  
   console.log(`Raum ${roomId} erstellt`);
   broadcastQueueCount();
+}
+
+function handleGoal(room, scorer) {
+  // Score nur einmal pro Tor erhöhen (1 Sekunde Cooldown)
+  if (Date.now() - room.lastGoalTime > 1000) {
+    if (scorer === 1) {
+      scores[room.roomId].player1Score++;
+    } else {
+      scores[room.roomId].player2Score++;
+    }
+    
+    room.lastGoalTime = Date.now();
+    
+    broadcastToRoom(room, null, {
+      type: "scoreUpdate",
+      player1Score: scores[room.roomId].player1Score,
+      player2Score: scores[room.roomId].player2Score
+    });
+
+    // Ball zurücksetzen
+    broadcastToRoom(room, null, {
+      type: "ballReset",
+      ballX: room.canvasWidth / 2,
+      ballY: room.canvasHeight / 2,
+      ballSpeedX: 5 * (Math.random() > 0.5 ? 1 : -1),
+      ballSpeedY: 5 * (Math.random() > 0.5 ? 1 : -1)
+    });
+  }
+}
+
+function cleanupRoom(room) {
+  room.players.forEach(player => {
+    if (player.readyState === WebSocket.OPEN) {
+      player.send(JSON.stringify({ type: "gameEnded" }));
+    }
+  });
+  // Raum aufräumen
+  rooms = rooms.filter(r => r !== room);
+  delete scores[room.roomId];
 }
 
 function findPlayerRoom(ws) {
