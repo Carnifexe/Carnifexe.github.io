@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pong Multiplayer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: transparent;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            display: none;
+        }
+        #startButton {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 20px;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 10001;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        #restartButton {
+            position: fixed;
+            bottom: 30px;
+            left: calc(50% - 180px);
+            padding: 20px;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 10001;
+            display: none;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        #scoreboard {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            display: none;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 15px 30px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .teams-container {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+        }
+        .team {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .team-name {
+            font-size: 18px;
+            color: #ffcc00;
+            margin-bottom: 5px;
+        }
+        .team-score {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        #gameOverText {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 32px;
+            color: white;
+            z-index: 10002;
+            display: none;
+            text-align: center;
+            background: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        #waitingText {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: white;
+            z-index: 10003;
+            display: none;
+            text-align: center;
+            background: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <button id="startButton">Pong starten</button>
+    <button id="restartButton">Neustart</button>
+    <div id="gameOverText"></div>
+    <div id="waitingText">Warte auf Gegner...</div>
+    <canvas id="pongCanvas"></canvas>
+    <div id="scoreboard">
+        <div class="teams-container">
+            <div class="team">
+                <div class="team-name">Spieler 1</div>
+                <div class="team-score" id="player1Score">0</div>
+            </div>
+            <div class="team">
+                <div class="team-name">Spieler 2</div>
+                <div class="team-score" id="player2Score">0</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sound-Elemente -->
+    <audio id="pingSound" src="ping.mp3"></audio>
+    <audio id="pongSound" src="pong.mp3"></audio>
+    <audio id="scoreSound" src="sahpsound.mp3"></audio>
+    <audio id="bounceSound" src="bounce.mp3"></audio>
+    <audio id="winnerSound" src="winner.mp3"></audio>
+    <audio id="powerupSound" src="powerup.mp3"></audio>
+
+    <script>
+        // WebSocket Verbindung
+        const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
+        
+        // Canvas und Elemente initialisieren
+        const canvas = document.getElementById("pongCanvas");
+        const ctx = canvas.getContext("2d");
+        const startButton = document.getElementById("startButton");
+        const restartButton = document.getElementById("restartButton");
+        const scoreboard = document.getElementById("scoreboard");
+        const player1ScoreElement = document.getElementById("player1Score");
+        const player2ScoreElement = document.getElementById("player2Score");
+        const gameOverText = document.getElementById("gameOverText");
+        const waitingText = document.getElementById("waitingText");
+
+        // Sound-Elemente
+        const pingSound = document.getElementById("pingSound");
+        const pongSound = document.getElementById("pongSound");
+        const scoreSound = document.getElementById("scoreSound");
+        const bounceSound = document.getElementById("bounceSound");
+        const winnerSound = document.getElementById("winnerSound");
+        const powerupSound = document.getElementById("powerupSound");
+
+        // Spielvariablen
+        let gameRunning = false;
+        let playerNumber = null;
+        let player1Score = 0;
+        let player2Score = 0;
+        const maxScore = 10;
+        const paddleHeight = 100;
+        const paddleWidth = 10;
+        let ballSpeedMultiplier = 1;
+        const ballSpeedIncrease = 0.05;
+        
+        // Ball und Schläger
+        let ball = { x: 0, y: 0, dx: 0, dy: 0, size: 10 };
+        let player1Y = 0;
+        let player2Y = 0;
+        const ballTrail = [];
+        const maxTrailLength = 15;
+        
+        // Verbindungsstatus
+        let connected = false;
+        let opponentConnected = false;
+
+        // Canvas an Fenstergröße anpassen
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
+
+        // WebSocket Events
+        socket.onopen = function() {
+            connected = true;
+            console.log("Mit Server verbunden");
+        };
+
+        socket.onclose = function() {
+            connected = false;
+            if (gameRunning) {
+                gameRunning = false;
+                gameOverText.textContent = "Verbindung verloren";
+                gameOverText.style.display = "block";
+                restartButton.style.display = "block";
+            }
+        };
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === "assignPlayer") {
+                playerNumber = data.player;
+                console.log("Du bist Spieler", playerNumber);
+            }
+            else if (data.type === "gameStart") {
+                opponentConnected = true;
+                waitingText.style.display = "none";
+                startGame();
+            }
+            else if (data.type === "gameState") {
+                // Spielzustand aktualisieren
+                ball.x = data.ball.x;
+                ball.y = data.ball.y;
+                ball.dx = data.ball.dx;
+                ball.dy = data.ball.dy;
+                
+                if (playerNumber === 1) {
+                    player2Y = data.player2Y;
+                } else {
+                    player1Y = data.player1Y;
+                }
+                
+                player1Score = data.player1Score;
+                player2Score = data.player2Score;
+                
+                player1ScoreElement.textContent = player1Score;
+                player2ScoreElement.textContent = player2Score;
+                
+                // Prüfen ob Spiel vorbei
+                if (data.gameOver) {
+                    gameRunning = false;
+                    gameOverText.textContent = playerNumber === 1 
+                        ? (player1Score >= maxScore ? "Du hast gewonnen!" : "Du hast verloren!")
+                        : (player2Score >= maxScore ? "Du hast gewonnen!" : "Du hast verloren!");
+                    gameOverText.style.display = "block";
+                    restartButton.style.display = "block";
+                    
+                    stopAllSounds();
+                    winnerSound.currentTime = 0;
+                    winnerSound.play();
+                }
+            }
+            else if (data.type === "sound") {
+                // Soundeffekte abspielen
+                playSound(data.sound);
+            }
+        };
+
+        function playSound(soundName) {
+            stopNonGoalSounds();
+            
+            switch(soundName) {
+                case "ping":
+                    pingSound.currentTime = 0;
+                    pingSound.play();
+                    break;
+                case "pong":
+                    pongSound.currentTime = 0;
+                    pongSound.play();
+                    break;
+                case "bounce":
+                    bounceSound.currentTime = 0;
+                    bounceSound.play();
+                    break;
+                case "score":
+                    scoreSound.currentTime = 0;
+                    scoreSound.play();
+                    break;
+                case "powerup":
+                    powerupSound.currentTime = 0;
+                    powerupSound.play();
+                    break;
+            }
+        }
+
+        // Sound stoppen Funktionen
+        function stopNonGoalSounds() {
+            [pingSound, pongSound, bounceSound, powerupSound].forEach(sound => {
+                sound.pause();
+                sound.currentTime = 0;
+            });
+        }
+
+        function stopAllSounds() {
+            [pingSound, pongSound, scoreSound, bounceSound, powerupSound, winnerSound].forEach(sound => {
+                sound.pause();
+                sound.currentTime = 0;
+            });
+        }
+
+        // Mittellinie zeichnen
+        function drawCenterLine() {
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // Schläger zeichnen
+        function drawPaddle(x, y) {
+            ctx.fillStyle = "white";
+            ctx.fillRect(x, y, paddleWidth, paddleHeight);
+        }
+
+        // Ball zeichnen
+        function drawBall() {
+            // Leichter Hintergrund-Overlay für Motion-Blur
+            ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Mittellinie zeichnen
+            drawCenterLine();
+            
+            // Ball-Spur mit weichem Verlauf
+            for (let i = 0; i < ballTrail.length; i++) {
+                const alpha = (i / ballTrail.length) * 0.8;
+                const size = ball.size * (1 - i / (ballTrail.length * 1.8));
+                
+                ctx.beginPath();
+                ctx.arc(ballTrail[i].x, ballTrail[i].y, size, 0, Math.PI * 2);
+                
+                // Farbverlauf für den Schweif
+                const gradient = ctx.createRadialGradient(
+                    ballTrail[i].x, ballTrail[i].y, 0,
+                    ballTrail[i].x, ballTrail[i].y, size
+                );
+                
+                gradient.addColorStop(0, "rgba(255,255,255,0.8)");
+                gradient.addColorStop(1, "rgba(255,255,100,0)");
+                
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                ctx.closePath();
+            }
+            
+            // Hauptball mit Glow-Effekt
+            const glowSize = ball.size + 5;
+            const gradient = ctx.createRadialGradient(
+                ball.x, ball.y, 0,
+                ball.x, ball.y, glowSize
+            );
+            
+            gradient.addColorStop(0, "rgba(255,255,255,1)");
+            gradient.addColorStop(0.7, "rgba(255,255,200,0.7)");
+            gradient.addColorStop(1, "rgba(255,255,0,0)");
+            
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, glowSize, 0, Math.PI * 2);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            ctx.closePath();
+            
+            // Kern des Balls
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.size, 0, Math.PI * 2);
+            ctx.fillStyle = "white";
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        // Spiel starten
+        function startGame() {
+            if (!connected) {
+                alert("Keine Verbindung zum Server");
+                return;
+            }
+            
+            stopAllSounds();
+            gameRunning = true;
+            
+            startButton.style.display = "none";
+            restartButton.style.display = "none";
+            canvas.style.display = "block";
+            scoreboard.style.display = "block";
+            gameOverText.style.display = "none";
+            
+            // Ball-Spur zurücksetzen
+            ballTrail.length = 0;
+            
+            // Initiale Schlägerposition
+            player1Y = (canvas.height - paddleHeight) / 2;
+            player2Y = (canvas.height - paddleHeight) / 2;
+            
+            requestAnimationFrame(update);
+        }
+
+        // Spiel-Update
+        function update() {
+            if (!gameRunning) return;
+
+            // Ball-Spur aktualisieren
+            ballTrail.push({x: ball.x, y: ball.y});
+            if (ballTrail.length > maxTrailLength) {
+                ballTrail.shift();
+            }
+
+            // Zeichnen
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Schläger zeichnen (abhängig von der Spielerposition)
+            if (playerNumber === 1) {
+                drawPaddle(0, player1Y);
+                drawPaddle(canvas.width - paddleWidth, player2Y);
+            } else {
+                drawPaddle(0, player2Y);
+                drawPaddle(canvas.width - paddleWidth, player1Y);
+            }
+            
+            drawBall();
+
+            requestAnimationFrame(update);
+        }
+
+        // Maussteuerung
+        canvas.addEventListener("mousemove", (e) => {
+            if (!gameRunning || playerNumber === null) return;
+            
+            const mouseY = e.clientY - paddleHeight / 2;
+            
+            // Spielerposition an Server senden
+            if (playerNumber === 1) {
+                player1Y = Math.max(0, Math.min(canvas.height - paddleHeight, mouseY));
+                socket.send(JSON.stringify({
+                    type: "move",
+                    player: 1,
+                    y: player1Y
+                }));
+            } else {
+                player2Y = Math.max(0, Math.min(canvas.height - paddleHeight, mouseY));
+                socket.send(JSON.stringify({
+                    type: "move",
+                    player: 2,
+                    y: player2Y
+                }));
+            }
+        });
+
+        // Start-Button
+        startButton.addEventListener("click", () => {
+            if (!connected) {
+                alert("Keine Verbindung zum Server");
+                return;
+            }
+            
+            startButton.style.display = "none";
+            waitingText.style.display = "block";
+            
+            // Dem Server mitteilen, dass wir bereit sind
+            socket.send(JSON.stringify({
+                type: "ready"
+            }));
+        });
+
+        // Neustart-Button
+        restartButton.addEventListener("click", () => {
+            gameOverText.style.display = "none";
+            startButton.style.display = "block";
+            canvas.style.display = "none";
+            scoreboard.style.display = "none";
+            
+            // Dem Server mitteilen, dass wir wieder bereit sind
+            if (connected) {
+                socket.send(JSON.stringify({
+                    type: "ready"
+                }));
+            }
+        });
+
+        // Initialisierung sicherstellen
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            startButton.style.display = "block";
+            canvas.style.display = "none";
+            scoreboard.style.display = "none";
+            waitingText.style.display = "none";
+        });
+    </script>
+</body>
+</html>
