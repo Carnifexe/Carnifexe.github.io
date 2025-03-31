@@ -100,20 +100,21 @@
             socket.send(JSON.stringify({ type: "getPlayers" }));
         };
 
-        socket.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            
-            if (data.type === "updatePlayerCount") {
-                console.log("Spieleranzahl:", data.count);
-                connectedClients.textContent = `Verbunden: ${data.count} Spieler`;
-            }
+socket.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    
+    if (data.type === "updatePlayerCount") {
+        console.log("Spieleranzahl:", data.count);
+        connectedClients.textContent = `Verbunden: ${data.count} Spieler`;
+    }
 
-            if (data.type === "gameStart") {
-                console.log("Spiel beginnt!");
-                waitingText.style.display = "none";
-                startGame();
-            }
-        };
+    if (data.type === "gameStart") {
+        console.log("Spiel beginnt! Spieler:", data.playerNumber);
+        playerNumber = data.playerNumber; // Speichere die Spielernummer
+        waitingText.style.display = "none";
+        startGame();
+    }
+};
 
         startButton.addEventListener("click", () => {
             if (!connected) {
