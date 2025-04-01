@@ -6,121 +6,41 @@
   <title>Pong Multiplayer</title>
   <style>
     body {
-      margin: 0;
-      overflow: hidden;
-      background: #000;
-      color: white;
       font-family: Arial, sans-serif;
       text-align: center;
     }
-    #gameContainer {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      display: none;
-    }
-    canvas {
-      display: block;
-      background: #000;
-    }
-    #queueButton {
-      position: fixed;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 15px 30px;
-      font-size: 20px;
-      cursor: pointer;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      z-index: 20;
-    }
+
     #waitingScreen {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: #000;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 15;
+      margin-top: 50px;
     }
-    #readyScreen {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.9);
+
+    #gameContainer {
       display: none;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      font-size: 72px;
-      font-weight: bold;
-      z-index: 25;
-    }
-    #scoreboard {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 24px;
-      display: none;
-      background: rgba(0,0,0,0.5);
-      padding: 10px 20px;
-      border-radius: 5px;
-      z-index: 30;
-    }
-    #totalPlayers {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      font-size: 18px;
-      background: rgba(0,0,0,0.5);
-      padding: 10px 15px;
-      border-radius: 5px;
-      z-index: 30;
-    }
-    #latencyDisplay {
-      position: fixed;
-      bottom: 80px;
-      left: 20px;
-      font-size: 14px;
-      color: #aaa;
-    }
-    .teams-container {
-      display: flex;
-      gap: 40px;
-    }
-    .team {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .team-name {
-      font-size: 18px;
-      color: #aaa;
-    }
-    .team-score {
-      font-size: 32px;
-      font-weight: bold;
-    }
-    #queueStatus {
-      font-size: 24px;
       margin-top: 20px;
     }
-    #playerCount {
-      font-size: 18px;
+
+    #pongCanvas {
+      border: 2px solid black;
+      background-color: black;
+      width: 800px;
+      height: 400px;
+    }
+
+    #roomList {
+      margin-top: 20px;
+      text-align: left;
+      max-width: 300px;
+      margin: 0 auto;
+    }
+
+    #roomList div {
+      margin: 10px 0;
+      cursor: pointer;
+    }
+
+    #queueStatus {
       margin-top: 10px;
-      color: #aaa;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -132,33 +52,12 @@
     <div id="playerCount">0 Spieler in Warteschlange</div>
   </div>
 
-  <div id="readyScreen">
-    <div id="countdown">Ready...</div>
-  </div>
-
-  <div id="scoreboard">
-    <div class="teams-container">
-      <div class="team">
-        <div class="team-name">Spieler 1</div>
-        <div class="team-score" id="player1Score">0</div>
-      </div>
-      <div class="team">
-        <div class="team-name">Spieler 2</div>
-        <div class="team-score" id="player2Score">0</div>
-      </div>
-    </div>
-  </div>
-
-  <div id="totalPlayers">
-    Spieler online: <span id="totalPlayersCount">0</span>
-  </div>
-
-  <div id="latencyDisplay">
-    Latenz: <span id="latencyValue">0</span>ms
-  </div>
-
   <div id="gameContainer">
     <canvas id="pongCanvas"></canvas>
+  </div>
+
+  <div id="roomList">
+    <!-- Räume anzeigen -->
   </div>
 
   <audio id="bounceSound" src="bounce.mp3" preload="auto"></audio>
@@ -166,353 +65,145 @@
   <audio id="winnerSound" src="winner.mp3" preload="auto"></audio>
 
   <script>
-    // Konfiguration
-    const BALL_UPDATE_RATE = 16;
-    const WINNING_SCORE = 5;
-    const PADDLE_WIDTH = 15;
-    const PADDLE_HEIGHT = 100;
-    const BALL_RADIUS = 10;
-    const INITIAL_BALL_SPEED = 5;
-    const INTERPOLATION_FACTOR = 0.2;
+    const socket = new WebSocket('ws://localhost:8080'); // Dein Server-URL hier einfügen
 
-    // Initialisierung
-    const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
-    const canvas = document.getElementById("pongCanvas");
-    const ctx = canvas.getContext("2d");
-
-    // UI Elemente
     const ui = {
       gameContainer: document.getElementById("gameContainer"),
       queueButton: document.getElementById("queueButton"),
-      waitingScreen: document.getElementById("waitingScreen"),
-      readyScreen: document.getElementById("readyScreen"),
-      scoreboard: document.getElementById("scoreboard"),
-      totalPlayers: document.getElementById("totalPlayers"),
-      totalPlayersCount: document.getElementById("totalPlayersCount"),
-      playerCount: document.getElementById("playerCount"),
+      roomList: document.getElementById("roomList"),
       queueStatus: document.getElementById("queueStatus"),
-      player1Score: document.getElementById("player1Score"),
-      player2Score: document.getElementById("player2Score"),
-      latencyValue: document.getElementById("latencyValue")
+      playerCount: document.getElementById("playerCount")
     };
 
-    // Spielzustand
-    const game = {
-      running: false,
+    let game = {
       playerNumber: null,
-      isHost: false,
-      inQueue: false,
-      scores: [0, 0],
-      players: [
-        { y: 0, targetY: 0 },
-        { y: 0, targetY: 0 }
-      ],
-      ball: {
-        x: 0, y: 0,
-        speedX: 0, speedY: 0,
-        renderX: 0, renderY: 0,
-        lastUpdate: 0
-      },
-      lastPingTime: 0,
-      latency: 0,
-      canvasWidth: 0,
-      canvasHeight: 0,
-      playerId: 'player-' + Math.random().toString(36).substr(2, 9)
+      roomId: null,
+      running: false,
+      playerId: 'player-' + Math.random().toString(36).substr(2, 9),
+      pongCanvas: document.getElementById("pongCanvas"),
+      context: document.getElementById("pongCanvas").getContext("2d"),
+      paddleWidth: 10,
+      paddleHeight: 100,
+      ballRadius: 10,
+      leftPaddleY: 0,
+      rightPaddleY: 0,
+      ballX: 400,
+      ballY: 200,
+      ballSpeedX: 2,
+      ballSpeedY: 2,
+      leftPaddleSpeed: 0,
+      rightPaddleSpeed: 0
     };
 
-    // Initialisierung
-    function initCanvas() {
-      game.canvasWidth = window.innerWidth;
-      game.canvasHeight = window.innerHeight;
-      canvas.width = game.canvasWidth;
-      canvas.height = game.canvasHeight;
-      resetGameState();
-    }
-
-    function resetGameState() {
-      game.players[0].y = game.canvasHeight / 2 - PADDLE_HEIGHT / 2;
-      game.players[1].y = game.canvasHeight / 2 - PADDLE_HEIGHT / 2;
-      resetBall();
-    }
-
-    function resetBall() {
-      game.ball.x = game.canvasWidth / 2;
-      game.ball.y = game.canvasHeight / 2;
-      game.ball.renderX = game.ball.x;
-      game.ball.renderY = game.ball.y;
-      game.ball.speedX = INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1);
-      game.ball.speedY = INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1);
-      game.ball.lastUpdate = performance.now();
-    }
-
-    function updateBallFromNetwork(data) {
-      const now = performance.now();
-      game.latency = now - data.timestamp;
-      ui.latencyValue.textContent = Math.round(game.latency);
-
-      game.ball.x = data.ballX;
-      game.ball.y = data.ballY;
-      game.ball.speedX = data.ballSpeedX;
-      game.ball.speedY = data.ballSpeedY;
-      game.ball.lastUpdate = now;
-    }
-
-    function interpolateBall() {
-      const t = INTERPOLATION_FACTOR;
-      game.ball.renderX = game.ball.renderX * (1 - t) + game.ball.x * t;
-      game.ball.renderY = game.ball.renderY * (1 - t) + game.ball.y * t;
-    }
-
-    function drawGame() {
-      // Hintergrund
-      ctx.fillStyle = "black";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Paddles
-      ctx.fillStyle = "white";
-      ctx.fillRect(0, game.players[0].y, PADDLE_WIDTH, PADDLE_HEIGHT);
-      ctx.fillRect(canvas.width - PADDLE_WIDTH, game.players[1].y, PADDLE_WIDTH, PADDLE_HEIGHT);
-      
-      // Ball
-      ctx.beginPath();
-      ctx.arc(game.ball.renderX, game.ball.renderY, BALL_RADIUS, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Mittellinie
-      ctx.beginPath();
-      ctx.setLineDash([10, 10]);
-      ctx.moveTo(canvas.width/2, 0);
-      ctx.lineTo(canvas.width/2, canvas.height);
-      ctx.strokeStyle = "rgba(255,255,255,0.5)";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-
-    function updateGame() {
-      if (!game.running) return;
-
-      if (game.isHost) {
-        const now = performance.now();
-        const delta = (now - game.ball.lastUpdate) / 1000;
-        game.ball.lastUpdate = now;
-
-        game.ball.x += game.ball.speedX * delta * 60;
-        game.ball.y += game.ball.speedY * delta * 60;
-
-        // Wandkollision
-        if (game.ball.y <= BALL_RADIUS || game.ball.y >= canvas.height - BALL_RADIUS) {
-          game.ball.speedY = -game.ball.speedY;
-          document.getElementById("bounceSound").play();
-        }
-        
-        // Paddle-Kollision
-        if (game.ball.x <= PADDLE_WIDTH + BALL_RADIUS && 
-            game.ball.y >= game.players[0].y && 
-            game.ball.y <= game.players[0].y + PADDLE_HEIGHT) {
-          game.ball.speedX = -game.ball.speedX * 1.05;
-          document.getElementById("pongSound").play();
-        } 
-        else if (game.ball.x >= canvas.width - PADDLE_WIDTH - BALL_RADIUS && 
-                 game.ball.y >= game.players[1].y && 
-                 game.ball.y <= game.players[1].y + PADDLE_HEIGHT) {
-          game.ball.speedX = -game.ball.speedX * 1.05;
-          document.getElementById("pongSound").play();
-        }
-
-        // Punkte
-        if (game.ball.x < 0) {
-          game.scores[1]++;
-          ui.player2Score.textContent = game.scores[1];
-          socket.send(JSON.stringify({
-            type: "scoreUpdate",
-            player: 2,
-            score: game.scores[1]
-          }));
-          resetBall();
-        } 
-        else if (game.ball.x > canvas.width) {
-          game.scores[0]++;
-          ui.player1Score.textContent = game.scores[0];
-          socket.send(JSON.stringify({
-            type: "scoreUpdate",
-            player: 1,
-            score: game.scores[0]
-          }));
-          resetBall();
-        }
-
-        // Spielzustand senden
-        if (now - game.lastPingTime >= BALL_UPDATE_RATE) {
-          socket.send(JSON.stringify({
-            type: "gameState",
-            ballX: game.ball.x,
-            ballY: game.ball.y,
-            ballSpeedX: game.ball.speedX,
-            ballSpeedY: game.ball.speedY,
-            player1Y: game.players[0].y,
-            player2Y: game.players[1].y,
-            timestamp: now
-          }));
-          game.lastPingTime = now;
-        }
+    // Event listener für Warteschlangen
+    ui.queueButton.addEventListener('click', () => {
+      if (!game.running) {
+        socket.send(JSON.stringify({
+          type: 'joinQueue',
+          playerId: game.playerId
+        }));
+        ui.queueStatus.textContent = "In Warteschlange...";
+      } else {
+        socket.send(JSON.stringify({ type: 'leaveQueue' }));
+        ui.queueStatus.textContent = "Nicht in Warteschlange";
       }
-    }
+    });
 
-    function gameLoop() {
-      if (!game.isHost) {
-        interpolateBall();
-      }
-      updateGame();
-      drawGame();
-      
-      if (game.running) {
-        requestAnimationFrame(gameLoop);
-      }
-    }
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      switch (data.type) {
+        case 'roomListUpdate':
+          // Räume anzeigen
+          updateRoomList(data.rooms);
+          break;
 
-    function startCountdown() {
-      ui.readyScreen.style.display = "flex";
-      let countdownTime = 3;
-      const countdownElement = document.getElementById("countdown");
-      const countdownInterval = setInterval(() => {
-        countdownElement.textContent = countdownTime > 0 ? countdownTime : "GO!";
-        countdownTime--;
-        if (countdownTime < -1) {
-          clearInterval(countdownInterval);
-          ui.readyScreen.style.display = "none";
+        case 'gameStart':
+          game.roomId = data.roomId;
           startGame();
-        }
-      }, 1000);
+          break;
+        
+        case 'gameState':
+          // Game state aktualisieren
+          updateGameState(data);
+          break;
+
+        case 'ping':
+          // Pong Response
+          socket.send(JSON.stringify({
+            type: 'pong',
+            timestamp: Date.now()
+          }));
+          break;
+
+        default:
+          break;
+      }
+    };
+
+    function updateRoomList(rooms) {
+      ui.roomList.innerHTML = '';
+      ui.playerCount.textContent = `${rooms.reduce((sum, room) => sum + room.playerCount, 0)} Spieler in Warteschlange`;
+      rooms.forEach(room => {
+        const roomElement = document.createElement('div');
+        roomElement.textContent = `Raum ${room.id} - ${room.playerCount} Spieler`;
+        roomElement.addEventListener('click', () => joinRoom(room.id));
+        ui.roomList.appendChild(roomElement);
+      });
+    }
+
+    function joinRoom(roomId) {
+      socket.send(JSON.stringify({ type: 'joinRoom', roomId, playerId: game.playerId }));
     }
 
     function startGame() {
       game.running = true;
-      ui.gameContainer.style.display = "block";
-      ui.waitingScreen.style.display = "none";
-      ui.scoreboard.style.display = "flex";
-      ui.totalPlayers.style.display = "block";
-      resetGameState();
+      ui.gameContainer.style.display = 'block';
+      ui.queueButton.style.display = 'none'; // Warteschlangen-Button ausblenden
+      ui.queueStatus.style.display = 'none';
       gameLoop();
     }
 
-    function resetGame() {
-      game.running = false;
-      ui.gameContainer.style.display = "none";
-      ui.scoreboard.style.display = "none";
-      ui.waitingScreen.style.display = "flex";
-      ui.totalPlayers.style.display = "none";
-      game.scores = [0, 0];
-      ui.player1Score.textContent = "0";
-      ui.player2Score.textContent = "0";
+    function updateGameState(data) {
+      // Synchronisieren des Spielzustandes
+      game.leftPaddleY = data.leftPaddleY;
+      game.rightPaddleY = data.rightPaddleY;
+      game.ballX = data.ballX;
+      game.ballY = data.ballY;
+      game.ballSpeedX = data.ballSpeedX;
+      game.ballSpeedY = data.ballSpeedY;
     }
 
-    // Event Listener
-    window.addEventListener('resize', initCanvas);
-    canvas.addEventListener('mousemove', (e) => {
-      if (!game.running || game.playerNumber === null) return;
-      
-      const rect = canvas.getBoundingClientRect();
-      const mouseY = e.clientY - rect.top;
-      const playerIndex = game.playerNumber - 1;
-      
-      game.players[playerIndex].y = Math.max(0, Math.min(mouseY - PADDLE_HEIGHT/2, canvas.height - PADDLE_HEIGHT));
-      
+    function gameLoop() {
+      if (!game.running) return;
+      drawGame();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function drawGame() {
+      // Hintergrund
+      game.context.fillStyle = 'black';
+      game.context.fillRect(0, 0, game.pongCanvas.width, game.pongCanvas.height);
+
+      // Linkes Paddle
+      game.context.fillStyle = 'white';
+      game.context.fillRect(0, game.leftPaddleY, game.paddleWidth, game.paddleHeight);
+
+      // Rechtes Paddle
+      game.context.fillRect(game.pongCanvas.width - game.paddleWidth, game.rightPaddleY, game.paddleWidth, game.paddleHeight);
+
+      // Ball
+      game.context.beginPath();
+      game.context.arc(game.ballX, game.ballY, game.ballRadius, 0, Math.PI * 2, false);
+      game.context.fill();
+    }
+
+    // WebSocket Ping-Antwort
+    setInterval(() => {
       socket.send(JSON.stringify({
-        type: "paddleMove",
-        player: game.playerNumber,
-        y: game.players[playerIndex].y
+        type: 'ping',
+        timestamp: Date.now()
       }));
-    });
-
-    // WebSocket Nachrichten
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      switch (data.type) {
-        case "queueUpdate":
-          ui.playerCount.textContent = `${data.queueCount} Spieler in Warteschlange`;
-          ui.totalPlayersCount.textContent = data.totalPlayers;
-          break;
-          
-        case "joinedQueue":
-          game.inQueue = true;
-          ui.queueButton.textContent = "Verlasse Warteschlange";
-          ui.queueStatus.textContent = "In Warteschlange...";
-          break;
-          
-        case "leftQueue":
-          game.inQueue = false;
-          ui.queueButton.textContent = "Warteschlange betreten";
-          ui.queueStatus.textContent = "Nicht in Warteschlange";
-          break;
-          
-        case "gameStart":
-          game.playerNumber = data.playerNumber;
-          game.isHost = data.playerNumber === 1;
-          if (data.initialBall) {
-            game.ball.x = data.initialBall.x;
-            game.ball.y = data.initialBall.y;
-            game.ball.speedX = data.initialBall.speedX;
-            game.ball.speedY = data.initialBall.speedY;
-            game.ball.renderX = data.initialBall.x;
-            game.ball.renderY = data.initialBall.y;
-          }
-          startCountdown();
-          break;
-          
-        case "gameState":
-          if (!game.isHost) {
-            updateBallFromNetwork(data);
-          }
-          game.players[0].y = data.player1Y;
-          game.players[1].y = data.player2Y;
-          break;
-          
-        case "scoreUpdate":
-          const playerIndex = data.player - 1;
-          game.scores[playerIndex] = data.score;
-          ui[`player${data.player}Score`].textContent = data.score;
-          
-          if (game.scores.some(score => score >= WINNING_SCORE)) {
-            document.getElementById("winnerSound").play();
-            setTimeout(resetGame, 3000);
-          }
-          break;
-          
-        case "paddleMove":
-          if (data.player === 1 || data.player === 2) {
-            game.players[data.player - 1].y = data.y;
-          }
-          break;
-          
-        case "pong":
-          game.latency = performance.now() - data.timestamp;
-          ui.latencyValue.textContent = Math.round(game.latency);
-          break;
-      }
-    };
-
-    socket.onopen = () => {
-      socket.send(JSON.stringify({
-        type: "playerConnect",
-        playerId: game.playerId
-      }));
-    };
-
-    ui.queueButton.addEventListener('click', () => {
-      if (!game.inQueue) {
-        socket.send(JSON.stringify({ 
-          type: 'joinQueue',
-          playerId: game.playerId
-        }));
-      } else {
-        socket.send(JSON.stringify({ type: 'leaveQueue' }));
-      }
-    });
-
-    // Initialisierung
-    initCanvas();
+    }, 1000); // alle 1 Sekunde ping senden
   </script>
 </body>
 </html>
