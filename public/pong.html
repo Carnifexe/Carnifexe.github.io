@@ -325,55 +325,81 @@
       const deltaTime = (timestamp - game.lastFrameTime) / 1000;
       game.lastFrameTime = timestamp;
 
-      // Zeit-Synchronisation
       if (timestamp - game.lastSyncTime > SYNC_INTERVAL && !game.localMode) {
         synchronizeClocks();
       }
 
-      if (game.isHost || game.localMode) {
-        updateHostGame(deltaTime);
+      if (game.isHost) {
+        // HOST-LOGIK: Vollständige Ballberechnung
+        game.ball.x += game.ball.speedX * deltaTime * 60;
+        game.ball.y += game.ball.speedY * deltaTime * 60;
+
+        // Kollisionen
+        if (game.ball.y <= 0 || game.ball.y >= canvas.height) {
+          game.ball.speedY = -game.ball.speedY;
+          document.getElementById("bounceSound").play();
+        }
+        
+        // Paddle-Kollision
+        if (game.ball.x <= PADDLE_WIDTH && 
+            game.ball.y >= game.players[0].y && 
+            game.ball.y <= game.players[0].y + PADDLE_HEIGHT) {
+          const hitPosition = (game.ball.y - (game.players[0].y + PADDLE_HEIGHT/2)) / (PADDLE_HEIGHT/2);
+          game.ball.speedX = Math.abs(game.ball.speedX) * Math.min(game.ball.multiplier, 1.2);
+          game.ball.speedY = hitPosition * BALL_BASE_SPEED * 1.2;
+          game.ball.multiplier *= 1.02;
+          document.getElementById("pongSound").play();
+        } 
+        else if (game.ball.x >= canvas.width - PADDLE_WIDTH && 
+                 game.ball.y >= game.players[1].y && 
+                 game.ball.y <= game.players[1].y + PADDLE_HEIGHT) {
+          const hitPosition = (game.ball.y - (game.players[1].y + PADDLE_HEIGHT/2)) / (PADDLE_HEIGHT/2);
+          game.ball.speedX = -Math.abs(game.ball.speedX) * Math.min(game.ball.multiplier, 1.2);
+          game.ball.speedY = hitPosition * BALL_BASE_SPEED * 1.2;
+          game.ball.multiplier *= 1.02;
+          document.getElementById("pongSound").play();
+        }
+
+        // Punkte
+        if (game.ball.x < 0 || game.ball.x > canvas.width) {
+          const scoringPlayer = game.ball.x < 0 ? 1 : 0;
+          game.players[scoringPlayer].score++;
+          
+          ui[`player${scoringPlayer+1}Score`].textContent = game.players[scoringPlayer].score;
+          
+          socket.send(JSON.stringify({
+            type: "scoreUpdate",
+            player: scoringPlayer + 1,
+            score: game.players[scoringPlayer].score
+          }));
+          
+          if (game.players[scoringPlayer].score >= WINNING_SCORE) {
+            document.getElementById("winnerSound").play();
+            setTimeout(resetGame, 3000);
+          } else {
+            resetBall();
+          }
+        }
+
+        // Netzwerk-Update
+        if (timestamp - game.lastNetworkUpdate > 1000 / NETWORK_UPDATE_RATE) {
+          socket.send(JSON.stringify({
+            type: "gameState",
+            ballX: game.ball.x,
+            ballY: game.ball.y,
+            ballSpeedX: game.ball.speedX,
+            ballSpeedY: game.ball.speedY,
+            player1Y: game.players[0].y,
+            player2Y: game.players[1].y,
+            playerNumber: game.playerNumber,
+            timestamp: Date.now()
+          }));
+          game.lastNetworkUpdate = timestamp;
+        }
       } else {
-        updateClientGame();
+        // CLIENT-LOGIK: Nur Interpolation
+        interpolateBall();
       }
-    }
-
-    function updateHostGame(deltaTime) {
-      // Ballbewegung
-      game.ball.x += game.ball.speedX * deltaTime * 60;
-      game.ball.y += game.ball.speedY * deltaTime * 60;
-
-      // Kollisionen
-      if (game.ball.y <= 0 || game.ball.y >= canvas.height) {
-        game.ball.speedY = -game.ball.speedY;
-        document.getElementById("bounceSound").play();
-      }
-      
-      // Paddle-Kollision
-      if (game.ball.x <= PADDLE_WIDTH && 
-          game.ball.y >= game.players[0].y && 
-          game.ball.y <= game.players[0].y + PADDLE_HEIGHT) {
-        handlePaddleHit(0);
-      } 
-      else if (game.ball.x >= canvas.width - PADDLE_WIDTH && 
-               game.ball.y >= game.players[1].y && 
-               game.ball.y <= game.players[1].y + PADDLE_HEIGHT) {
-        handlePaddleHit(1);
-      }
-
-      // Punkte
-      if (game.ball.x < 0 || game.ball.x > canvas.width) {
-        handleScore();
-      }
-
-      // Netzwerk-Updates
-      if (!game.localMode && timestamp - game.lastNetworkUpdate > 1000 / NETWORK_UPDATE_RATE) {
-        sendGameState();
-        game.lastNetworkUpdate = timestamp;
-      }
-    }
-
-    function updateClientGame() {
-      interpolateBall();
     }
 
     function interpolateBall() {
@@ -384,63 +410,18 @@
       
       if (latest.timestamp > game.lastUpdate) {
         const timeDiff = (now - latest.timestamp) / 1000;
-        const predictionFactor = Math.max(0, Math.min(timeDiff / 100, 1));
+        const predictionFactor = Math.min(timeDiff / 100, 1.5);
         
-        game.ball.x = latest.x + latest.speedX * predictionFactor;
-        game.ball.y = latest.y + latest.speedY * predictionFactor;
-        game.ball.speedX = latest.speedX;
-        game.ball.speedY = latest.speedY;
+        game.ball.x = latest.ballX + latest.ballSpeedX * predictionFactor;
+        game.ball.y = latest.ballY + latest.ballSpeedY * predictionFactor;
+        game.ball.speedX = latest.ballSpeedX;
+        game.ball.speedY = latest.ballSpeedY;
         game.lastUpdate = latest.timestamp;
       }
       
       if (game.ballStateBuffer.length > INTERPOLATION_BUFFER_SIZE) {
         game.ballStateBuffer.shift();
       }
-    }
-
-    function handlePaddleHit(playerIndex) {
-      const hitPosition = (game.ball.y - (game.players[playerIndex].y + PADDLE_HEIGHT/2)) / (PADDLE_HEIGHT/2);
-      const direction = playerIndex === 0 ? 1 : -1;
-      
-      game.ball.speedX = direction * Math.abs(game.ball.speedX) * Math.min(game.ball.multiplier, 1.2);
-      game.ball.speedY = hitPosition * BALL_BASE_SPEED * 1.2;
-      game.ball.multiplier *= 1.02;
-      document.getElementById("pongSound").play();
-    }
-
-    function handleScore() {
-      const scoringPlayer = game.ball.x < 0 ? 1 : 0;
-      game.players[scoringPlayer].score++;
-      
-      ui[`player${scoringPlayer+1}Score`].textContent = game.players[scoringPlayer].score;
-      
-      if (!game.localMode) {
-        socket.send(JSON.stringify({
-          type: "scoreUpdate",
-          player: scoringPlayer + 1,
-          score: game.players[scoringPlayer].score
-        }));
-      }
-      
-      if (game.players[scoringPlayer].score >= WINNING_SCORE) {
-        document.getElementById("winnerSound").play();
-        setTimeout(resetGame, 3000);
-      } else {
-        resetBall();
-      }
-    }
-
-    function sendGameState() {
-      socket.send(JSON.stringify({
-        type: "gameState",
-        ballX: game.ball.x,
-        ballY: game.ball.y,
-        ballSpeedX: game.ball.speedX,
-        ballSpeedY: game.ball.speedY,
-        player1Y: game.players[0].y,
-        player2Y: game.players[1].y,
-        timestamp: Date.now()
-      }));
     }
 
     // ============== SPIELSTEUERUNG ==============
@@ -536,13 +517,20 @@
             startGame(data);
             break;
           case "gameState":
-            game.ballStateBuffer.push({
-              x: data.ballX,
-              y: data.ballY,
-              speedX: data.ballSpeedX,
-              speedY: data.ballSpeedY,
-              timestamp: data.timestamp || Date.now()
-            });
+            // Nur Ball-Updates vom Host verarbeiten
+            if (data.isHost) {
+              game.ballStateBuffer.push({
+                ballX: data.ballX,
+                ballY: data.ballY,
+                ballSpeedX: data.ballSpeedX,
+                ballSpeedY: data.ballSpeedY,
+                timestamp: data.timestamp
+              });
+            }
+            
+            // Paddle-Positionen immer aktualisieren
+            game.players[0].y = data.player1Y;
+            game.players[1].y = data.player2Y;
             break;
           case "scoreUpdate":
             if (data.player === 1) {
@@ -552,9 +540,6 @@
               game.players[1].score = data.score;
               ui.player2Score.textContent = data.score;
             }
-            break;
-          case "paddleMove":
-            game.players[data.player-1].y = data.y;
             break;
         }
       } catch (error) {
