@@ -243,6 +243,26 @@
       ]
     };
 
+    // ============== VERBINDUNGSHANDLING ==============
+    socket.onopen = () => {
+      console.log('Verbindung hergestellt');
+      ui.queueButton.disabled = false;
+      ui.queueStatus.textContent = "Verbunden - Bereit";
+      synchronizeClocks();
+    };
+
+    socket.onerror = (error) => {
+      console.error('WebSocket Fehler:', error);
+      ui.queueStatus.textContent = "Verbindungsfehler";
+      ui.queueButton.disabled = true;
+    };
+
+    socket.onclose = () => {
+      console.log('Verbindung geschlossen');
+      ui.queueStatus.textContent = "Getrennt";
+      ui.queueButton.disabled = true;
+    };
+
     // ============== SPIELFUNKTIONEN ==============
     function initCanvas() {
       canvas.width = window.innerWidth;
@@ -491,53 +511,54 @@
     function handleMessage(event) {
       if (game.localMode) return;
 
-      const data = JSON.parse(event.data);
+      try {
+        const data = JSON.parse(event.data);
 
-      switch (data.type) {
-        case "syncResponse":
-          game.clockOffset = Date.now() - ((data.clientTime + data.serverTime) / 2);
-          break;
-        case "queueUpdate":
-          ui.playerCount.textContent = `${data.queueCount} Spieler in Warteschlange`;
-          document.getElementById("totalPlayersCount").textContent = data.totalCount;
-          break;
-        case "joinedQueue":
-          game.inQueue = true;
-          ui.queueButton.textContent = "Verlasse Warteschlange";
-          ui.queueStatus.textContent = `In Warteschlange (Position: ${data.position || 1})`;
-          break;
-        case "leftQueue":
-          game.inQueue = false;
-          ui.queueButton.textContent = "Warteschlange betreten";
-          ui.queueStatus.textContent = "Nicht in Warteschlange";
-          break;
-        case "gameStart":
-          startGame(data);
-          break;
-        case "gameState":
-          game.ballStateBuffer.push({
-            x: data.ballX,
-            y: data.ballY,
-            speedX: data.ballSpeedX,
-            speedY: data.ballSpeedY,
-            timestamp: data.timestamp || Date.now()
-          });
-          break;
-        case "scoreUpdate":
-          if (data.player === 1) {
-            game.players[0].score = data.score;
-            ui.player1Score.textContent = data.score;
-          } else {
-            game.players[1].score = data.score;
-            ui.player2Score.textContent = data.score;
-          }
-          break;
-        case "paddleMove":
-          game.players[data.player-1].y = data.y;
-          break;
-        case "canvasSizeUpdate":
-          game.canvasSize = { width: data.width, height: data.height };
-          break;
+        switch (data.type) {
+          case "syncResponse":
+            game.clockOffset = Date.now() - ((data.clientTime + data.serverTime) / 2);
+            break;
+          case "queueUpdate":
+            ui.playerCount.textContent = `${data.queueCount} Spieler in Warteschlange`;
+            ui.totalPlayersCount.textContent = data.totalCount;
+            break;
+          case "joinedQueue":
+            game.inQueue = true;
+            ui.queueButton.textContent = "Verlasse Warteschlange";
+            ui.queueStatus.textContent = `Position: ${data.position || 1}`;
+            break;
+          case "leftQueue":
+            game.inQueue = false;
+            ui.queueButton.textContent = "Warteschlange betreten";
+            ui.queueStatus.textContent = "Nicht in Warteschlange";
+            break;
+          case "gameStart":
+            startGame(data);
+            break;
+          case "gameState":
+            game.ballStateBuffer.push({
+              x: data.ballX,
+              y: data.ballY,
+              speedX: data.ballSpeedX,
+              speedY: data.ballSpeedY,
+              timestamp: data.timestamp || Date.now()
+            });
+            break;
+          case "scoreUpdate":
+            if (data.player === 1) {
+              game.players[0].score = data.score;
+              ui.player1Score.textContent = data.score;
+            } else {
+              game.players[1].score = data.score;
+              ui.player2Score.textContent = data.score;
+            }
+            break;
+          case "paddleMove":
+            game.players[data.player-1].y = data.y;
+            break;
+        }
+      } catch (error) {
+        console.error('Nachrichtenverarbeitungsfehler:', error);
       }
     }
 
@@ -585,12 +606,14 @@
 
     function toggleQueue() {
       if (!game.inQueue) {
+        console.log('Trete Warteschlange bei');
         socket.send(JSON.stringify({ 
           type: 'joinQueue',
           canvasWidth: canvas.width,
           canvasHeight: canvas.height
         }));
       } else {
+        console.log('Verlasse Warteschlange');
         socket.send(JSON.stringify({ type: 'leaveQueue' }));
         game.inQueue = false;
         ui.queueButton.textContent = "Warteschlange betreten";
@@ -616,8 +639,10 @@
     ui.localTestBtn.addEventListener('click', startTestMode);
     ui.queueButton.addEventListener('click', toggleQueue);
 
+    // WebSocket Nachrichtenhandler
+    socket.onmessage = handleMessage;
+
     initCanvas();
-    synchronizeClocks();
   </script>
 </body>
 </html>
