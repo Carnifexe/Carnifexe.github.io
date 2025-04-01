@@ -24,6 +24,8 @@
     canvas {
       display: block;
       background: #000;
+      width: 100%;
+      height: 100%;
     }
     #queueButton {
       position: fixed;
@@ -243,39 +245,6 @@
       ]
     };
 
-    // ============== VERBINDUNGSHANDLING ==============
-    socket.onopen = () => {
-      console.log('Verbindung hergestellt');
-      ui.queueButton.disabled = false;
-      ui.queueStatus.textContent = "Verbunden - Bereit";
-      
-      // Sende initiale Canvas-Größe
-      socket.send(JSON.stringify({
-        type: 'init',
-        width: window.innerWidth,
-        height: window.innerHeight
-      }));
-      
-      synchronizeClocks();
-    };
-
-    socket.onerror = (error) => {
-      console.error('WebSocket Fehler:', error);
-      ui.queueStatus.textContent = "Verbindungsfehler";
-      ui.queueButton.disabled = true;
-    };
-
-    socket.onclose = () => {
-      console.log('Verbindung geschlossen');
-      ui.queueStatus.textContent = "Getrennt";
-      ui.queueButton.disabled = true;
-      
-      // Versuche, die Verbindung nach 5 Sekunden wiederherzustellen
-      setTimeout(() => {
-        location.reload();
-      }, 5000);
-    };
-
     // ============== SPIELFUNKTIONEN ==============
     function initCanvas() {
       canvas.width = window.innerWidth;
@@ -284,6 +253,7 @@
       game.players[0].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
       game.players[1].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
       resetBall();
+      drawGame(); // Erste Zeichnung
     }
 
     function resetBall() {
@@ -299,21 +269,41 @@
     }
 
     function drawGame() {
-      // Hintergrund
+      // Sicherstellen dass Canvas korrekte Größe hat
+      if (canvas.width !== game.canvasSize.width || canvas.height !== game.canvasSize.height) {
+        canvas.width = game.canvasSize.width;
+        canvas.height = game.canvasSize.height;
+      }
+
+      // Hintergrund komplett löschen
       ctx.fillStyle = "black";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Paddles
+      // Paddles zeichnen mit neuer Position
       ctx.fillStyle = "white";
-      ctx.fillRect(0, game.players[0].y, PADDLE_WIDTH, PADDLE_HEIGHT);
-      ctx.fillRect(canvas.width - PADDLE_WIDTH, game.players[1].y, PADDLE_WIDTH, PADDLE_HEIGHT);
       
-      // Ball
+      // Spieler 1 Paddle (links)
+      ctx.fillRect(
+        0, 
+        game.players[0].y, 
+        PADDLE_WIDTH, 
+        PADDLE_HEIGHT
+      );
+      
+      // Spieler 2 Paddle (rechts)
+      ctx.fillRect(
+        canvas.width - PADDLE_WIDTH, 
+        game.players[1].y, 
+        PADDLE_WIDTH, 
+        PADDLE_HEIGHT
+      );
+      
+      // Ball zeichnen
       ctx.beginPath();
       ctx.arc(game.ball.x, game.ball.y, 10, 0, Math.PI * 2);
       ctx.fill();
       
-      // Mittellinie
+      // Mittellinie zeichnen
       ctx.beginPath();
       ctx.setLineDash([10, 10]);
       ctx.moveTo(canvas.width/2, 0);
@@ -459,8 +449,8 @@
       if (data.canvasWidth && data.canvasHeight) {
         canvas.width = data.canvasWidth;
         canvas.height = data.canvasHeight;
+        game.canvasSize = { width: canvas.width, height: canvas.height };
       }
-      game.canvasSize = { width: canvas.width, height: canvas.height };
       
       // Initialisiere Spielerpositionen
       game.players[0].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
@@ -655,7 +645,7 @@
         socket.send(JSON.stringify({ 
           type: 'joinQueue',
           canvasWidth: window.innerWidth,
-          canvasHeight: window.innerHeight
+          height: window.innerHeight
         }));
       } else {
         console.log('Verlasse Warteschlange');
