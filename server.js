@@ -79,7 +79,10 @@ wss.on('connection', (ws) => {
         if (room) {
           room.players.forEach(player => {
             if (player !== ws && player.readyState === WebSocket.OPEN) {
-              player.send(JSON.stringify(data));
+              player.send(JSON.stringify({
+                ...data,
+                timestamp: Date.now() // Zeitstempel hinzufügen
+              }));
             }
           });
         }
@@ -94,7 +97,7 @@ wss.on('connection', (ws) => {
           });
         }
       }
-      else if (data.type === 'paddleMove' || data.type === 'paddleUpdate') {
+      else if (data.type === 'paddleMove') {
         const room = rooms.find(r => r.players.includes(ws));
         if (room) {
           room.players.forEach(player => {
@@ -102,7 +105,8 @@ wss.on('connection', (ws) => {
               player.send(JSON.stringify({
                 type: "paddleMove",
                 player: data.player,
-                y: data.y
+                y: data.y,
+                timestamp: Date.now() // Zeitstempel hinzufügen
               }));
             }
           });
