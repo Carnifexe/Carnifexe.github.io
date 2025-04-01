@@ -143,7 +143,7 @@ wss.on('connection', (ws) => {
         case 'syncRequest': handleSyncRequest(ws, data); break;
         case 'joinQueue': handleJoinQueue(ws, data); break;
         case 'gameState': handleGameState(ws, data); break;
-        case 'paddleMove': break; // Implementierung nach Bedarf
+        case 'paddleMove': break;
       }
     } catch (error) {
       console.error('Nachrichtenfehler:', error);
