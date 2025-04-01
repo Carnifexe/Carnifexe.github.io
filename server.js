@@ -84,6 +84,7 @@ wss.on('connection', (ws) => {
       else if (data.type === 'gameState') {
         const room = rooms.find(r => r.players.includes(ws));
         if (room) {
+          // Sofortiges Senden des Spielzustands
           room.players.forEach(player => {
             if (player !== ws && player.readyState === WebSocket.OPEN) {
               player.send(JSON.stringify({
@@ -92,6 +93,22 @@ wss.on('connection', (ws) => {
               }));
             }
           });
+
+          // Zusätzliche Warnung wenn Ball sich der Mittellinie nähert
+          if (data.ballX > window.innerWidth * 0.4 && data.ballX < window.innerWidth * 0.6) {
+            room.players.forEach(player => {
+              if (player !== ws && player.readyState === WebSocket.OPEN) {
+                player.send(JSON.stringify({
+                  type: "ballWarning",
+                  ballX: data.ballX,
+                  ballY: data.ballY,
+                  ballSpeedX: data.ballSpeedX,
+                  ballSpeedY: data.ballSpeedY,
+                  timestamp: Date.now()
+                }));
+              }
+            });
+          }
         }
       }
       else if (data.type === 'scoreUpdate') {
