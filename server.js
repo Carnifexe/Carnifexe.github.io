@@ -12,6 +12,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 let players = [];
 let queue = [];
 let rooms = [];
+const DEFAULT_CANVAS_WIDTH = 800; // Standard-Canvasbreite
 
 // Ping alle 30 Sekunden
 setInterval(() => {
@@ -61,7 +62,10 @@ wss.on('connection', (ws) => {
           if (queue.length >= 2) {
             const player1 = queue.shift();
             const player2 = queue.shift();
-            const room = { players: [player1, player2] };
+            const room = { 
+              players: [player1, player2],
+              canvasWidth: DEFAULT_CANVAS_WIDTH // Standardwert
+            };
             rooms.push(room);
             
             player1.send(JSON.stringify({ 
@@ -95,7 +99,8 @@ wss.on('connection', (ws) => {
           });
 
           // Zusätzliche Warnung wenn Ball sich der Mittellinie nähert
-          if (data.ballX > window.innerWidth * 0.4 && data.ballX < window.innerWidth * 0.6) {
+          const centerThreshold = room.canvasWidth / 2;
+          if (Math.abs(data.ballX - centerThreshold) < centerThreshold * 0.2) {
             room.players.forEach(player => {
               if (player !== ws && player.readyState === WebSocket.OPEN) {
                 player.send(JSON.stringify({
@@ -134,6 +139,13 @@ wss.on('connection', (ws) => {
               }));
             }
           });
+        }
+      }
+      else if (data.type === 'init') {
+        // Client sendet seine Canvas-Größe
+        const room = rooms.find(r => r.players.includes(ws));
+        if (room && data.canvasWidth) {
+          room.canvasWidth = data.canvasWidth;
         }
       }
     } catch (error) {
