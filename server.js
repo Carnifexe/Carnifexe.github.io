@@ -9,168 +9,145 @@ const wss = new WebSocket.Server({ server });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-let players = [];
-let queue = [];
-let rooms = [];
-const DEFAULT_CANVAS_WIDTH = 800; // Standard-Canvasbreite
+// Spielzustand
+const gameState = {
+  players: [],
+  queue: [],
+  rooms: [],
+  defaultCanvas: { width: 800, height: 600 }
+};
 
-// Ping alle 30 Sekunden
-setInterval(() => {
-  wss.clients.forEach((ws) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.ping();
+// Verbindungsmanagement
+wss.on('connection', (ws) => {
+  gameState.players.push(ws);
+  updateQueueCount();
+
+  // Nachrichtenverarbeitung
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      handleMessage(ws, data);
+    } catch (error) {
+      console.error('Nachrichtenfehler:', error);
     }
   });
-}, 30000);
 
-function broadcastQueueCount() {
-  const queueCount = queue.length;
-  const totalCount = players.length;
+  // Verbindungsschließung
+  ws.on('close', () => {
+    cleanupConnection(ws);
+  });
+});
+
+// Nachrichtenhandler
+function handleMessage(ws, data) {
+  switch (data.type) {
+    case 'syncRequest':
+      handleSyncRequest(ws, data);
+      break;
+    case 'joinQueue':
+      handleJoinQueue(ws);
+      break;
+    case 'leaveQueue':
+      handleLeaveQueue(ws);
+      break;
+    case 'gameState':
+      handleGameState(ws, data);
+      break;
+    case 'scoreUpdate':
+      handleScoreUpdate(ws, data);
+      break;
+    case 'paddleMove':
+      handlePaddleMove(ws, data);
+      break;
+    case 'canvasSize':
+      handleCanvasSize(ws, data);
+      break;
+  }
+}
+
+// Hilfsfunktionen
+function updateQueueCount() {
+  const message = {
+    type: "queueUpdate",
+    queueCount: gameState.queue.length,
+    totalCount: gameState.players.length
+  };
   
+  broadcast(message);
+}
+
+function broadcast(message) {
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({
-        type: "queueUpdate",
-        queueCount,
-        totalCount
-      }));
+      client.send(JSON.stringify(message));
     }
   });
 }
 
-wss.on('connection', (ws) => {
-  players.push(ws);
-  broadcastQueueCount();
+function handleSyncRequest(ws, data) {
+  ws.send(JSON.stringify({
+    type: "syncResponse",
+    clientTime: data.clientTime,
+    serverTime: Date.now()
+  }));
+}
 
-  ws.on('message', (message) => {
-    try {
-      const data = JSON.parse(message);
-      
-      if (data.type === 'syncRequest') {
-        ws.send(JSON.stringify({
-          type: "syncResponse",
-          clientTime: data.clientTime,
-          serverTime: Date.now()
-        }));
-      }
-      else if (data.type === 'joinQueue') {
-        if (!queue.includes(ws)) {
-          queue.push(ws);
-          ws.send(JSON.stringify({ type: 'joinedQueue' }));
-          broadcastQueueCount();
-          
-          if (queue.length >= 2) {
-            const player1 = queue.shift();
-            const player2 = queue.shift();
-            const room = { 
-              players: [player1, player2],
-              canvasWidth: DEFAULT_CANVAS_WIDTH // Standardwert
-            };
-            rooms.push(room);
-            
-            player1.send(JSON.stringify({ 
-              type: 'gameStart', 
-              playerNumber: 1 
-            }));
-            player2.send(JSON.stringify({ 
-              type: 'gameStart', 
-              playerNumber: 2 
-            }));
-            broadcastQueueCount();
-          }
-        }
-      }
-      else if (data.type === 'leaveQueue') {
-        queue = queue.filter(p => p !== ws);
-        ws.send(JSON.stringify({ type: 'leftQueue' }));
-        broadcastQueueCount();
-      }
-      else if (data.type === 'gameState') {
-        const room = rooms.find(r => r.players.includes(ws));
-        if (room) {
-          // Sofortiges Senden des Spielzustands
-          room.players.forEach(player => {
-            if (player !== ws && player.readyState === WebSocket.OPEN) {
-              player.send(JSON.stringify({
-                ...data,
-                timestamp: Date.now()
-              }));
-            }
-          });
+function handleJoinQueue(ws) {
+  if (!gameState.queue.includes(ws)) {
+    gameState.queue.push(ws);
+    ws.send(JSON.stringify({ type: 'joinedQueue' }));
+    updateQueueCount();
+    
+    if (gameState.queue.length >= 2) {
+      startGame();
+    }
+  }
+}
 
-          // Zusätzliche Warnung wenn Ball sich der Mittellinie nähert
-          const centerThreshold = room.canvasWidth / 2;
-          if (Math.abs(data.ballX - centerThreshold) < centerThreshold * 0.2) {
-            room.players.forEach(player => {
-              if (player !== ws && player.readyState === WebSocket.OPEN) {
-                player.send(JSON.stringify({
-                  type: "ballWarning",
-                  ballX: data.ballX,
-                  ballY: data.ballY,
-                  ballSpeedX: data.ballSpeedX,
-                  ballSpeedY: data.ballSpeedY,
-                  timestamp: Date.now()
-                }));
-              }
-            });
-          }
-        }
-      }
-      else if (data.type === 'scoreUpdate') {
-        const room = rooms.find(r => r.players.includes(ws));
-        if (room) {
-          room.players.forEach(player => {
-            if (player.readyState === WebSocket.OPEN) {
-              player.send(JSON.stringify(data));
-            }
-          });
-        }
-      }
-      else if (data.type === 'paddleMove') {
-        const room = rooms.find(r => r.players.includes(ws));
-        if (room) {
-          room.players.forEach(player => {
-            if (player !== ws && player.readyState === WebSocket.OPEN) {
-              player.send(JSON.stringify({
-                type: "paddleMove",
-                player: data.player,
-                y: data.y,
-                timestamp: Date.now()
-              }));
-            }
-          });
-        }
-      }
-      else if (data.type === 'init') {
-        // Client sendet seine Canvas-Größe
-        const room = rooms.find(r => r.players.includes(ws));
-        if (room && data.canvasWidth) {
-          room.canvasWidth = data.canvasWidth;
-        }
-      }
-    } catch (error) {
-      console.error('Fehler bei Nachrichtenverarbeitung:', error);
+function startGame() {
+  const [player1, player2] = gameState.queue.splice(0, 2);
+  const room = {
+    players: [player1, player2],
+    canvas: { ...gameState.defaultCanvas }
+  };
+  
+  gameState.rooms.push(room);
+  
+  player1.send(JSON.stringify({ 
+    type: 'gameStart', 
+    playerNumber: 1 
+  }));
+  
+  player2.send(JSON.stringify({ 
+    type: 'gameStart', 
+    playerNumber: 2 
+  }));
+  
+  updateQueueCount();
+}
+
+function handleGameState(ws, data) {
+  const room = gameState.rooms.find(r => r.players.includes(ws));
+  if (!room) return;
+
+  // Normalisierte Position berechnen
+  const normalizedState = {
+    ...data,
+    ballX: data.ballX / data.canvasWidth * room.canvas.width,
+    ballY: data.ballY / data.canvasHeight * room.canvas.height,
+    timestamp: Date.now()
+  };
+
+  // An Gegenspieler senden
+  room.players.forEach(player => {
+    if (player !== ws && player.readyState === WebSocket.OPEN) {
+      player.send(JSON.stringify(normalizedState));
     }
   });
+}
 
-  ws.on('close', () => {
-    players = players.filter(p => p !== ws);
-    queue = queue.filter(p => p !== ws);
-    rooms = rooms.filter(room => {
-      if (room.players.includes(ws)) {
-        room.players.forEach(p => {
-          if (p !== ws && p.readyState === WebSocket.OPEN) {
-            p.send(JSON.stringify({ type: 'gameEnded' }));
-          }
-        });
-        return false;
-      }
-      return true;
-    });
-    broadcastQueueCount();
-  });
-});
+// Weitere Handler-Funktionen hier...
 
 server.listen(process.env.PORT || 8080, () => {
-  console.log('Server läuft auf Port ' + (process.env.PORT || 8080));
+  console.log(`Server läuft auf Port ${process.env.PORT || 8080}`);
 });
