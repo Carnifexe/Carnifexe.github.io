@@ -1,14 +1,14 @@
 {
-  "name": "multiplayer-pong",
+  "name": "pong-multiplayer",
   "version": "1.0.0",
-  "description": "Multiplayer Pong mit Websockets",
+  "description": "Pong Multiplayer mit WebSocket",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.17.1",
+    "ws": "^8.0.0"
     "socket.io": "^4.0.1"
-    "ws": "^8.7.0"
   }
 }
