@@ -12,9 +12,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Spielzustand
 const gameState = {
   players: new Map(),
-  queue: [],
   rooms: []
 };
+
+const MAX_ROOMS = 10;
+const TICK_RATE = 1000 / 30; // 30Hz Update
 
 // Verbindungsüberwachung
 setInterval(() => {
@@ -25,239 +27,137 @@ setInterval(() => {
   });
 }, 30000);
 
-function broadcastQueueInfo() {
-  const message = JSON.stringify({
-    type: "queueUpdate",
-    queueCount: gameState.queue.length,
-    totalPlayers: gameState.players.size
-  });
+function createRoom(playerId, ws) {
+  if (gameState.rooms.length >= MAX_ROOMS) {
+    ws.send(JSON.stringify({ type: "roomLimitReached" }));
+    return;
+  }
 
+  const room = {
+    id: `room-${Date.now()}`,
+    players: [{ id: playerId, ws, ready: false }],
+    ball: null,
+    scores: [0, 0],
+    paddles: [300, 300],
+    gameLoop: null
+  };
+  
+  gameState.rooms.push(room);
+  broadcastRoomList();
+}
+
+function joinRoom(roomId, playerId, ws) {
+  const room = gameState.rooms.find(r => r.id === roomId);
+  if (!room || room.players.length >= 2) return;
+
+  room.players.push({ id: playerId, ws, ready: false });
+  
+  if (room.players.length === 2) {
+    room.players.forEach(p => p.ws.send(JSON.stringify({ type: 'readyCheck' })));
+  }
+
+  broadcastRoomList();
+}
+
+function broadcastRoomList() {
+  const roomsInfo = gameState.rooms.map(r => ({ id: r.id, players: r.players.length }));
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
+      client.send(JSON.stringify({ type: 'roomList', rooms: roomsInfo }));
     }
   });
 }
 
-function createRoom(player1, player2) {
-  const initialBall = {
-    x: 500,
-    y: 300,
-    speedX: 5 * (Math.random() > 0.5 ? 1 : -1),
-    speedY: 5 * (Math.random() > 0.5 ? 1 : -1)
-  };
+function startGame(room) {
+  const initialBall = { x: 500, y: 300, speedX: 5, speedY: 5 };
+  room.ball = { ...initialBall };
+  room.gameLoop = setInterval(() => updateGame(room), TICK_RATE);
 
-  const room = {
-    players: [player1.ws, player2.ws],
-    playerIds: [player1.id, player2.id],
-    ball: {...initialBall},
-    scores: [0, 0],
-    paddles: [300, 300],
-    lastUpdate: Date.now(),
-    gameLoop: null
-  };
-
-  // Starte Spiel-Loop
-  room.gameLoop = setInterval(() => {
-    const now = Date.now();
-    const delta = (now - room.lastUpdate) / 1000;
-    room.lastUpdate = now;
-
-    // Ballbewegung
-    room.ball.x += room.ball.speedX * delta * 60;
-    room.ball.y += room.ball.speedY * delta * 60;
-
-    // Kollisionen
-    handleCollisions(room);
-
-    // Zustand an Spieler senden
-    broadcastGameState(room);
-  }, 16);
-
-  gameState.rooms.push(room);
-
-  // Sende Startnachrichten
-  player1.ws.send(JSON.stringify({
+  room.players.forEach((p, index) => p.ws.send(JSON.stringify({
     type: 'gameStart',
-    playerNumber: 1,
-    initialBall: initialBall
-  }));
-  
-  player2.ws.send(JSON.stringify({
-    type: 'gameStart',
-    playerNumber: 2,
-    initialBall: initialBall
-  }));
-
-  return room;
+    playerNumber: index + 1,
+    initialBall
+  })));
 }
 
-function handleCollisions(room) {
-  // Wandkollision
-  if (room.ball.y <= 10 || room.ball.y >= 590) {
-    room.ball.speedY = -room.ball.speedY;
-  }
-  
-  // Paddle-Kollision
-  if (room.ball.x <= 30 && room.ball.x >= 15 && 
-      room.ball.y >= room.paddles[0] && room.ball.y <= room.paddles[0] + 100) {
-    room.ball.speedX = -room.ball.speedX * 1.05;
-  } else if (room.ball.x >= 970 && room.ball.x <= 985 && 
-             room.ball.y >= room.paddles[1] && room.ball.y <= room.paddles[1] + 100) {
-    room.ball.speedX = -room.ball.speedX * 1.05;
-  }
-  
-  // Punkte
-  if (room.ball.x < 0) {
-    room.scores[1]++;
-    resetBall(room);
-    broadcastScoreUpdate(room);
-  } else if (room.ball.x > 1000) {
-    room.scores[0]++;
-    resetBall(room);
-    broadcastScoreUpdate(room);
-  }
-}
+function updateGame(room) {
+  room.ball.x += room.ball.speedX;
+  room.ball.y += room.ball.speedY;
 
-function resetBall(room) {
-  room.ball.x = 500;
-  room.ball.y = 300;
-  room.ball.speedX = 5 * (Math.random() > 0.5 ? 1 : -1);
-  room.ball.speedY = 5 * (Math.random() > 0.5 ? 1 : -1);
-}
+  handleCollisions(room);
 
-function broadcastGameState(room) {
-  const state = {
+  const gameState = {
     type: 'gameState',
     ballX: room.ball.x,
     ballY: room.ball.y,
-    ballSpeedX: room.ball.speedX,
-    ballSpeedY: room.ball.speedY,
-    player1Y: room.paddles[0],
-    player2Y: room.paddles[1],
-    timestamp: Date.now()
+    paddles: room.paddles
   };
-  
-  room.players.forEach(player => {
-    if (player.readyState === WebSocket.OPEN) {
-      player.send(JSON.stringify(state));
+
+  room.players.forEach(p => {
+    if (p.ws.readyState === WebSocket.OPEN) {
+      p.ws.send(JSON.stringify(gameState));
     }
   });
 }
 
-function broadcastScoreUpdate(room) {
-  room.players.forEach(player => {
-    if (player.readyState === WebSocket.OPEN) {
-      player.send(JSON.stringify({
-        type: 'scoreUpdate',
-        player: 1,
-        score: room.scores[0]
-      }));
-      player.send(JSON.stringify({
-        type: 'scoreUpdate',
-        player: 2,
-        score: room.scores[1]
-      }));
+function handleCollisions(room) {
+  if (room.ball.y <= 10 || room.ball.y >= 590) room.ball.speedY = -room.ball.speedY;
+
+  room.players.forEach((p, i) => {
+    if (room.ball.x <= 30 && i === 0 || room.ball.x >= 970 && i === 1) {
+      if (room.ball.y >= room.paddles[i] && room.ball.y <= room.paddles[i] + 100) {
+        room.ball.speedX = -room.ball.speedX * 1.05;
+      }
     }
   });
 }
 
 wss.on('connection', ws => {
   ws.isAlive = true;
-
   ws.on('pong', () => { ws.isAlive = true; });
-
+  
   ws.on('message', message => {
     try {
       const data = JSON.parse(message);
-      
       switch (data.type) {
-        case 'playerConnect':
-          gameState.players.set(data.playerId, { ws, id: data.playerId });
-          broadcastQueueInfo();
+        case 'createRoom':
+          createRoom(data.playerId, ws);
           break;
-          
-        case 'joinQueue':
-          if (!gameState.queue.some(p => p.id === data.playerId)) {
-            const player = gameState.players.get(data.playerId);
-            if (player) {
-              gameState.queue.push(player);
-              ws.send(JSON.stringify({ type: 'joinedQueue' }));
-              broadcastQueueInfo();
-              
-              if (gameState.queue.length >= 2) {
-                const player1 = gameState.queue.shift();
-                const player2 = gameState.queue.shift();
-                createRoom(player1, player2);
-                broadcastQueueInfo();
-              }
-            }
-          }
+        case 'joinRoom':
+          joinRoom(data.roomId, data.playerId, ws);
           break;
-          
-        case 'leaveQueue':
-          gameState.queue = gameState.queue.filter(p => p.id !== data.playerId);
-          ws.send(JSON.stringify({ type: 'leftQueue' }));
-          broadcastQueueInfo();
-          break;
-          
-        case 'paddleMove':
-          const room = gameState.rooms.find(r => r.players.includes(ws));
+        case 'ready':
+          const room = gameState.rooms.find(r => r.players.some(p => p.id === data.playerId));
           if (room) {
-            const playerIndex = room.players.indexOf(ws);
-            room.paddles[playerIndex] = data.y;
-            
-            const otherPlayer = room.players[1 - playerIndex];
-            if (otherPlayer.readyState === WebSocket.OPEN) {
-              otherPlayer.send(JSON.stringify({
-                type: 'paddleMove',
-                player: playerIndex + 1,
-                y: data.y
-              }));
+            const player = room.players.find(p => p.id === data.playerId);
+            player.ready = true;
+            if (room.players.length === 2 && room.players.every(p => p.ready)) {
+              startGame(room);
             }
           }
           break;
-          
-        case 'ping':
-          ws.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }));
+        case 'paddleMove':
+          const gameRoom = gameState.rooms.find(r => r.players.some(p => p.id === data.playerId));
+          if (gameRoom) {
+            const playerIndex = gameRoom.players.findIndex(p => p.id === data.playerId);
+            gameRoom.paddles[playerIndex] = data.y;
+          }
           break;
       }
     } catch (error) {
       console.error('Nachrichtenverarbeitungsfehler:', error);
     }
   });
-
+  
   ws.on('close', () => {
-    // Finde und entferne Spieler
-    let playerId;
-    gameState.players.forEach((player, id) => {
-      if (player.ws === ws) {
-        playerId = id;
+    gameState.rooms.forEach(room => {
+      room.players = room.players.filter(p => p.ws !== ws);
+      if (room.players.length === 0) {
+        clearInterval(room.gameLoop);
       }
     });
-    
-    if (playerId) {
-      gameState.players.delete(playerId);
-      
-      // Entferne aus Warteschlange
-      gameState.queue = gameState.queue.filter(p => p.id !== playerId);
-      
-      // Beende Räume
-      gameState.rooms = gameState.rooms.filter(room => {
-        if (room.playerIds.includes(playerId)) {
-          clearInterval(room.gameLoop);
-          room.players.forEach(p => {
-            if (p !== ws && p.readyState === WebSocket.OPEN) {
-              p.send(JSON.stringify({ type: 'gameEnded' }));
-            }
-          });
-          return false;
-        }
-        return true;
-      });
-      
-      broadcastQueueInfo();
-    }
+    gameState.rooms = gameState.rooms.filter(r => r.players.length > 0);
+    broadcastRoomList();
   });
 });
 
