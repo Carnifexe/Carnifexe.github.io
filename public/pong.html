@@ -5,43 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pong Multiplayer</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-    }
-
-    #waitingScreen {
-      margin-top: 50px;
-    }
-
-    #gameContainer {
-      display: none;
-      margin-top: 20px;
-    }
-
-    #pongCanvas {
-      border: 2px solid black;
-      background-color: black;
-      width: 800px;
-      height: 400px;
-    }
-
-    #roomList {
-      margin-top: 20px;
-      text-align: left;
-      max-width: 300px;
-      margin: 0 auto;
-    }
-
-    #roomList div {
-      margin: 10px 0;
-      cursor: pointer;
-    }
-
-    #queueStatus {
-      margin-top: 10px;
-      font-weight: bold;
-    }
+    /* Styles hier */
   </style>
 </head>
 <body>
@@ -52,7 +16,7 @@
     <div id="playerCount">0 Spieler in Warteschlange</div>
   </div>
 
-  <div id="gameContainer">
+  <div id="gameContainer" style="display:none;">
     <canvas id="pongCanvas"></canvas>
   </div>
 
@@ -65,34 +29,19 @@
   <audio id="winnerSound" src="winner.mp3" preload="auto"></audio>
 
   <script>
-    const socket = new WebSocket('ws://localhost:8080'); // Dein Server-URL hier einfügen
+    const socket = new WebSocket('wss://your-server-url');
 
     const ui = {
       gameContainer: document.getElementById("gameContainer"),
       queueButton: document.getElementById("queueButton"),
-      roomList: document.getElementById("roomList"),
-      queueStatus: document.getElementById("queueStatus"),
-      playerCount: document.getElementById("playerCount")
+      roomList: document.getElementById("roomList")
     };
 
     let game = {
       playerNumber: null,
       roomId: null,
       running: false,
-      playerId: 'player-' + Math.random().toString(36).substr(2, 9),
-      pongCanvas: document.getElementById("pongCanvas"),
-      context: document.getElementById("pongCanvas").getContext("2d"),
-      paddleWidth: 10,
-      paddleHeight: 100,
-      ballRadius: 10,
-      leftPaddleY: 0,
-      rightPaddleY: 0,
-      ballX: 400,
-      ballY: 200,
-      ballSpeedX: 2,
-      ballSpeedY: 2,
-      leftPaddleSpeed: 0,
-      rightPaddleSpeed: 0
+      playerId: 'player-' + Math.random().toString(36).substr(2, 9)
     };
 
     // Event listener für Warteschlangen
@@ -102,10 +51,8 @@
           type: 'joinQueue',
           playerId: game.playerId
         }));
-        ui.queueStatus.textContent = "In Warteschlange...";
       } else {
         socket.send(JSON.stringify({ type: 'leaveQueue' }));
-        ui.queueStatus.textContent = "Nicht in Warteschlange";
       }
     });
 
@@ -124,15 +71,6 @@
         
         case 'gameState':
           // Game state aktualisieren
-          updateGameState(data);
-          break;
-
-        case 'ping':
-          // Pong Response
-          socket.send(JSON.stringify({
-            type: 'pong',
-            timestamp: Date.now()
-          }));
           break;
 
         default:
@@ -142,7 +80,6 @@
 
     function updateRoomList(rooms) {
       ui.roomList.innerHTML = '';
-      ui.playerCount.textContent = `${rooms.reduce((sum, room) => sum + room.playerCount, 0)} Spieler in Warteschlange`;
       rooms.forEach(room => {
         const roomElement = document.createElement('div');
         roomElement.textContent = `Raum ${room.id} - ${room.playerCount} Spieler`;
@@ -158,52 +95,8 @@
     function startGame() {
       game.running = true;
       ui.gameContainer.style.display = 'block';
-      ui.queueButton.style.display = 'none'; // Warteschlangen-Button ausblenden
-      ui.queueStatus.style.display = 'none';
-      gameLoop();
+      // Start Game Logic
     }
-
-    function updateGameState(data) {
-      // Synchronisieren des Spielzustandes
-      game.leftPaddleY = data.leftPaddleY;
-      game.rightPaddleY = data.rightPaddleY;
-      game.ballX = data.ballX;
-      game.ballY = data.ballY;
-      game.ballSpeedX = data.ballSpeedX;
-      game.ballSpeedY = data.ballSpeedY;
-    }
-
-    function gameLoop() {
-      if (!game.running) return;
-      drawGame();
-      requestAnimationFrame(gameLoop);
-    }
-
-    function drawGame() {
-      // Hintergrund
-      game.context.fillStyle = 'black';
-      game.context.fillRect(0, 0, game.pongCanvas.width, game.pongCanvas.height);
-
-      // Linkes Paddle
-      game.context.fillStyle = 'white';
-      game.context.fillRect(0, game.leftPaddleY, game.paddleWidth, game.paddleHeight);
-
-      // Rechtes Paddle
-      game.context.fillRect(game.pongCanvas.width - game.paddleWidth, game.rightPaddleY, game.paddleWidth, game.paddleHeight);
-
-      // Ball
-      game.context.beginPath();
-      game.context.arc(game.ballX, game.ballY, game.ballRadius, 0, Math.PI * 2, false);
-      game.context.fill();
-    }
-
-    // WebSocket Ping-Antwort
-    setInterval(() => {
-      socket.send(JSON.stringify({
-        type: 'ping',
-        timestamp: Date.now()
-      }));
-    }, 1000); // alle 1 Sekunde ping senden
   </script>
 </body>
 </html>
