@@ -135,3 +135,13 @@ wss.on('connection', (ws) => {
           }
         });
         return false;
+      }
+      return true;
+    });
+    broadcastQueueCount();
+  });
+});
+
+server.listen(process.env.PORT || 8080, () => {
+  console.log('Server läuft auf Port ' + (process.env.PORT || 8080));
+});
