@@ -160,6 +160,8 @@
     const canvas = document.getElementById("pongCanvas");
     const ctx = canvas.getContext("2d");
     const WINNING_SCORE = 10;
+    const NETWORK_UPDATE_RATE = 15; // 15 updates per second
+    const INTERPOLATION_TIME = 100; // 100ms interpolation time
 
     // UI Elemente
     const gameContainer = document.getElementById("gameContainer");
@@ -177,11 +179,15 @@
     let playerNumber = null;
     let isHost = false;
     let inQueue = false;
+    let lastNetworkUpdate = 0;
+    let lastPaddleUpdate = 0;
     
     const paddleWidth = 15;
     const paddleHeight = 100;
     let player1Y = 0;
+    let player1TargetY = 0;
     let player2Y = 0;
+    let player2TargetY = 0;
     let ballX = 0;
     let ballY = 0;
     let ballSpeedX = 5;
@@ -189,12 +195,19 @@
     let player1Score = 0;
     let player2Score = 0;
 
+    // Client-side prediction buffers
+    let localPaddleY = 0;
+    let paddleUpdates = [];
+    let ballStates = [];
+
     // Canvas initialisieren
     function initCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       player1Y = canvas.height / 2 - paddleHeight / 2;
+      player1TargetY = player1Y;
       player2Y = canvas.height / 2 - paddleHeight / 2;
+      player2TargetY = player2Y;
       ballX = canvas.width / 2;
       ballY = canvas.height / 2;
     }
@@ -205,6 +218,7 @@
       ballY = canvas.height / 2;
       ballSpeedX = 5 * (Math.random() > 0.5 ? 1 : -1);
       ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
+      ballStates = [];
     }
 
     // Spiel zeichnen
@@ -213,7 +227,7 @@
       ctx.fillStyle = "black";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Paddles
+      // Paddles mit Interpolation
       ctx.fillStyle = "white";
       ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
       ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
@@ -234,12 +248,84 @@
       ctx.setLineDash([]);
     }
 
+    // Interpolation für flüssigere Bewegungen
+    function interpolatePaddles() {
+      const now = Date.now();
+      const interpTime = now - INTERPOLATION_TIME;
+      
+      // Finde den neuesten Zustand vor der Interpolationszeit
+      let latestBefore = null;
+      for (let i = paddleUpdates.length - 1; i >= 0; i--) {
+        if (paddleUpdates[i].timestamp <= interpTime) {
+          latestBefore = paddleUpdates[i];
+          break;
+        }
+      }
+      
+      if (latestBefore) {
+        if (latestBefore.player === 1) {
+          player1TargetY = latestBefore.y;
+        } else if (latestBefore.player === 2) {
+          player2TargetY = latestBefore.y;
+        }
+        
+        // Entferne alte Updates
+        paddleUpdates = paddleUpdates.filter(update => update.timestamp > interpTime - 500);
+      }
+      
+      // Glatte Interpolation der Paddles
+      player1Y += (player1TargetY - player1Y) * 0.2;
+      player2Y += (player2TargetY - player2Y) * 0.2;
+    }
+
+    // Ballzustand interpolieren
+    function interpolateBall() {
+      const now = Date.now();
+      const renderTime = now - INTERPOLATION_TIME;
+      
+      // Finde die zwei neuesten Zustände um die Renderzeit herum
+      let before = null, after = null;
+      for (let i = ballStates.length - 1; i >= 0; i--) {
+        if (ballStates[i].timestamp <= renderTime) {
+          before = ballStates[i];
+          if (i < ballStates.length - 1) {
+            after = ballStates[i + 1];
+          }
+          break;
+        }
+      }
+      
+      if (before && after) {
+        const t = (renderTime - before.timestamp) / (after.timestamp - before.timestamp);
+        ballX = before.ballX + (after.ballX - before.ballX) * t;
+        ballY = before.ballY + (after.ballY - before.ballY) * t;
+        ballSpeedX = before.ballSpeedX + (after.ballSpeedX - before.ballSpeedX) * t;
+        ballSpeedY = before.ballSpeedY + (after.ballSpeedY - before.ballSpeedY) * t;
+      } else if (before) {
+        ballX = before.ballX;
+        ballY = before.ballY;
+        ballSpeedX = before.ballSpeedX;
+        ballSpeedY = before.ballSpeedY;
+      }
+      
+      // Entferne alte Ballzustände
+      ballStates = ballStates.filter(state => state.timestamp > now - 500);
+    }
+
     // Spiel aktualisieren
     function updateGame() {
       if (!gameRunning) return;
 
-      if (isHost) {
-        // Ballbewegung
+      const now = Date.now();
+      
+      // Interpolation für flüssigere Darstellung
+      interpolatePaddles();
+      if (!isHost) {
+        interpolateBall();
+      }
+
+      if (isHost && now - lastNetworkUpdate > 1000 / NETWORK_UPDATE_RATE) {
+        // Ballbewegung nur auf dem Host
         ballX += ballSpeedX;
         ballY += ballSpeedY;
 
@@ -289,8 +375,11 @@
           ballSpeedX,
           ballSpeedY,
           player1Y,
-          player2Y
+          player2Y,
+          timestamp: now
         }));
+        
+        lastNetworkUpdate = now;
       }
     }
 
@@ -342,6 +431,8 @@
       player2Score = 0;
       document.getElementById("player1Score").textContent = "0";
       document.getElementById("player2Score").textContent = "0";
+      paddleUpdates = [];
+      ballStates = [];
     }
 
     // Event Listener
@@ -353,17 +444,25 @@
       const mouseY = e.clientY - rect.top;
       
       if (playerNumber === 1) {
-        player1Y = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
+        localPaddleY = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
+        player1Y = localPaddleY;
       } 
       else if (playerNumber === 2) {
-        player2Y = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
+        localPaddleY = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
+        player2Y = localPaddleY;
       }
 
-      socket.send(JSON.stringify({
-        type: "paddleMove",
-        player: playerNumber,
-        y: playerNumber === 1 ? player1Y : player2Y
-      }));
+      // Sende Paddle-Position mit Client-Side Prediction
+      const now = Date.now();
+      if (now - lastPaddleUpdate > 1000 / NETWORK_UPDATE_RATE) {
+        socket.send(JSON.stringify({
+          type: "paddleMove",
+          player: playerNumber,
+          y: localPaddleY,
+          timestamp: now
+        }));
+        lastPaddleUpdate = now;
+      }
     });
 
     // Initialisierung
@@ -393,12 +492,30 @@
         startCountdown();
       }
       else if (data.type === "gameState") {
-        ballX = data.ballX;
-        ballY = data.ballY;
-        ballSpeedX = data.ballSpeedX;
-        ballSpeedY = data.ballSpeedY;
-        player1Y = data.player1Y;
-        player2Y = data.player2Y;
+        // Füge Ballzustand zur Interpolation hinzu
+        ballStates.push({
+          ballX: data.ballX,
+          ballY: data.ballY,
+          ballSpeedX: data.ballSpeedX,
+          ballSpeedY: data.ballSpeedY,
+          timestamp: data.timestamp || Date.now()
+        });
+        
+        // Aktualisiere Paddle-Positionen für Interpolation
+        if (data.player1Y !== undefined) {
+          paddleUpdates.push({
+            player: 1,
+            y: data.player1Y,
+            timestamp: data.timestamp || Date.now()
+          });
+        }
+        if (data.player2Y !== undefined) {
+          paddleUpdates.push({
+            player: 2,
+            y: data.player2Y,
+            timestamp: data.timestamp || Date.now()
+          });
+        }
       }
       else if (data.type === "scoreUpdate") {
         if (data.player === 1) {
@@ -415,11 +532,12 @@
         }
       }
       else if (data.type === "paddleMove") {
-        if (data.player === 1) {
-          player1Y = data.y;
-        } else if (data.player === 2) {
-          player2Y = data.y;
-        }
+        // Füge Paddle-Update zur Interpolation hinzu
+        paddleUpdates.push({
+          player: data.player,
+          y: data.y,
+          timestamp: data.timestamp || Date.now()
+        });
       }
     };
 
