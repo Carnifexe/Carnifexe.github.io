@@ -504,7 +504,7 @@
         case "joinedQueue":
           game.inQueue = true;
           ui.queueButton.textContent = "Verlasse Warteschlange";
-          ui.queueStatus.textContent = "In Warteschlange...";
+          ui.queueStatus.textContent = `In Warteschlange (Position: ${data.position || 1})`;
           break;
         case "leftQueue":
           game.inQueue = false;
@@ -585,9 +585,16 @@
 
     function toggleQueue() {
       if (!game.inQueue) {
-        socket.send(JSON.stringify({ type: 'joinQueue' }));
+        socket.send(JSON.stringify({ 
+          type: 'joinQueue',
+          canvasWidth: canvas.width,
+          canvasHeight: canvas.height
+        }));
       } else {
         socket.send(JSON.stringify({ type: 'leaveQueue' }));
+        game.inQueue = false;
+        ui.queueButton.textContent = "Warteschlange betreten";
+        ui.queueStatus.textContent = "Nicht in Warteschlange";
       }
     }
 
