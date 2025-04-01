@@ -5,11 +5,189 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pong Multiplayer</title>
   <style>
-    /* [Behalten Sie alle vorhandenen Stile bei] */
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+    #gameContainer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: none;
+    }
+    canvas {
+      display: block;
+      background: #000;
+    }
+    #queueButton {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 15px 30px;
+      font-size: 20px;
+      cursor: pointer;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      z-index: 20;
+    }
+    #waitingScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 15;
+    }
+    #readyScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.9);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 72px;
+      font-weight: bold;
+      z-index: 25;
+    }
+    #scoreboard {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 24px;
+      display: none;
+      background: rgba(0,0,0,0.5);
+      padding: 10px 20px;
+      border-radius: 5px;
+      z-index: 30;
+    }
+    #totalPlayers {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      font-size: 18px;
+      background: rgba(0,0,0,0.5);
+      padding: 10px 15px;
+      border-radius: 5px;
+      z-index: 30;
+    }
+    #localTestBtn {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 20px;
+      background: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #testControls {
+      position: fixed;
+      bottom: 150px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      gap: 10px;
+      z-index: 40;
+    }
+    #testControls button {
+      padding: 8px 15px;
+      background: #555;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .teams-container {
+      display: flex;
+      gap: 40px;
+    }
+    .team {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .team-name {
+      font-size: 18px;
+      color: #aaa;
+    }
+    .team-score {
+      font-size: 32px;
+      font-weight: bold;
+    }
+    #queueStatus {
+      font-size: 24px;
+      margin-top: 20px;
+    }
+    #playerCount {
+      font-size: 18px;
+      margin-top: 10px;
+      color: #aaa;
+    }
   </style>
 </head>
 <body>
-  <!-- [Behalten Sie die gesamte HTML-Struktur bei] -->
+  <div id="waitingScreen">
+    <h1>Pong Multiplayer</h1>
+    <button id="queueButton">Warteschlange betreten</button>
+    <button id="localTestBtn">Lokaler Testmodus</button>
+    <div id="queueStatus">Nicht in Warteschlange</div>
+    <div id="playerCount">0 Spieler in Warteschlange</div>
+  </div>
+
+  <div id="readyScreen">
+    <div id="countdown">Ready...</div>
+  </div>
+
+  <div id="scoreboard">
+    <div class="teams-container">
+      <div class="team">
+        <div class="team-name">Spieler 1</div>
+        <div class="team-score" id="player1Score">0</div>
+      </div>
+      <div class="team">
+        <div class="team-name">Spieler 2</div>
+        <div class="team-score" id="player2Score">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="totalPlayers">
+    Spieler online: <span id="totalPlayersCount">0</span>
+  </div>
+
+  <div id="gameContainer">
+    <canvas id="pongCanvas"></canvas>
+  </div>
+
+  <div id="testControls">
+    <button id="controlPlayer1">Steuere Spieler 1</button>
+    <button id="controlPlayer2">Steuere Spieler 2</button>
+  </div>
+
+  <audio id="bounceSound" src="bounce.mp3" preload="auto"></audio>
+  <audio id="pongSound" src="pong.mp3" preload="auto"></audio>
+  <audio id="winnerSound" src="winner.mp3" preload="auto"></audio>
 
   <script>
     // ============== INITIALISIERUNG ==============
@@ -70,6 +248,14 @@
       console.log('Verbindung hergestellt');
       ui.queueButton.disabled = false;
       ui.queueStatus.textContent = "Verbunden - Bereit";
+      
+      // Sende initiale Canvas-Größe
+      socket.send(JSON.stringify({
+        type: 'init',
+        width: window.innerWidth,
+        height: window.innerHeight
+      }));
+      
       synchronizeClocks();
     };
 
@@ -83,7 +269,11 @@
       console.log('Verbindung geschlossen');
       ui.queueStatus.textContent = "Getrennt";
       ui.queueButton.disabled = true;
-      setTimeout(() => location.reload(), 5000);
+      
+      // Versuche, die Verbindung nach 5 Sekunden wiederherzustellen
+      setTimeout(() => {
+        location.reload();
+      }, 5000);
     };
 
     // ============== SPIELFUNKTIONEN ==============
@@ -109,15 +299,134 @@
     }
 
     function drawGame() {
-      // [Behalten Sie die vorhandene drawGame Funktion bei]
+      // Hintergrund
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Paddles
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, game.players[0].y, PADDLE_WIDTH, PADDLE_HEIGHT);
+      ctx.fillRect(canvas.width - PADDLE_WIDTH, game.players[1].y, PADDLE_WIDTH, PADDLE_HEIGHT);
+      
+      // Ball
+      ctx.beginPath();
+      ctx.arc(game.ball.x, game.ball.y, 10, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Mittellinie
+      ctx.beginPath();
+      ctx.setLineDash([10, 10]);
+      ctx.moveTo(canvas.width/2, 0);
+      ctx.lineTo(canvas.width/2, canvas.height);
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
 
     function updateGame(timestamp) {
-      // [Behalten Sie die vorhandene updateGame Funktion bei]
+      if (!game.running) return;
+
+      const deltaTime = (timestamp - game.lastFrameTime) / 1000;
+      game.lastFrameTime = timestamp;
+
+      if (timestamp - game.lastSyncTime > SYNC_INTERVAL && !game.localMode) {
+        synchronizeClocks();
+      }
+
+      if (game.isHost) {
+        // HOST-LOGIK: Vollständige Ballberechnung
+        game.ball.x += game.ball.speedX * deltaTime * 60;
+        game.ball.y += game.ball.speedY * deltaTime * 60;
+
+        // Kollisionen
+        if (game.ball.y <= 0 || game.ball.y >= canvas.height) {
+          game.ball.speedY = -game.ball.speedY;
+          document.getElementById("bounceSound").play();
+        }
+        
+        // Paddle-Kollision
+        if (game.ball.x <= PADDLE_WIDTH && 
+            game.ball.y >= game.players[0].y && 
+            game.ball.y <= game.players[0].y + PADDLE_HEIGHT) {
+          const hitPosition = (game.ball.y - (game.players[0].y + PADDLE_HEIGHT/2)) / (PADDLE_HEIGHT/2);
+          game.ball.speedX = Math.abs(game.ball.speedX) * Math.min(game.ball.multiplier, 1.2);
+          game.ball.speedY = hitPosition * BALL_BASE_SPEED * 1.2;
+          game.ball.multiplier *= 1.02;
+          document.getElementById("pongSound").play();
+        } 
+        else if (game.ball.x >= canvas.width - PADDLE_WIDTH && 
+                 game.ball.y >= game.players[1].y && 
+                 game.ball.y <= game.players[1].y + PADDLE_HEIGHT) {
+          const hitPosition = (game.ball.y - (game.players[1].y + PADDLE_HEIGHT/2)) / (PADDLE_HEIGHT/2);
+          game.ball.speedX = -Math.abs(game.ball.speedX) * Math.min(game.ball.multiplier, 1.2);
+          game.ball.speedY = hitPosition * BALL_BASE_SPEED * 1.2;
+          game.ball.multiplier *= 1.02;
+          document.getElementById("pongSound").play();
+        }
+
+        // Punkte
+        if (game.ball.x < 0 || game.ball.x > canvas.width) {
+          const scoringPlayer = game.ball.x < 0 ? 1 : 0;
+          game.players[scoringPlayer].score++;
+          
+          ui[`player${scoringPlayer+1}Score`].textContent = game.players[scoringPlayer].score;
+          
+          socket.send(JSON.stringify({
+            type: "scoreUpdate",
+            player: scoringPlayer + 1,
+            score: game.players[scoringPlayer].score
+          }));
+          
+          if (game.players[scoringPlayer].score >= WINNING_SCORE) {
+            document.getElementById("winnerSound").play();
+            setTimeout(resetGame, 3000);
+          } else {
+            resetBall();
+          }
+        }
+
+        // Netzwerk-Update
+        if (timestamp - game.lastNetworkUpdate > 1000 / NETWORK_UPDATE_RATE) {
+          socket.send(JSON.stringify({
+            type: "gameState",
+            ballX: game.ball.x,
+            ballY: game.ball.y,
+            ballSpeedX: game.ball.speedX,
+            ballSpeedY: game.ball.speedY,
+            player1Y: game.players[0].y,
+            player2Y: game.players[1].y,
+            isHost: true,
+            timestamp: Date.now()
+          }));
+          game.lastNetworkUpdate = timestamp;
+        }
+      } else {
+        // CLIENT-LOGIK: Nur Interpolation
+        interpolateBall();
+      }
     }
 
     function interpolateBall() {
-      // [Behalten Sie die vorhandene interpolateBall Funktion bei]
+      if (game.ballStateBuffer.length === 0) return;
+      
+      const now = Date.now() - game.clockOffset;
+      const latest = game.ballStateBuffer[game.ballStateBuffer.length - 1];
+      
+      if (latest.timestamp > game.lastUpdate) {
+        const timeDiff = (now - latest.timestamp) / 1000;
+        const predictionFactor = Math.min(timeDiff / 100, 1.5);
+        
+        game.ball.x = latest.ballX + latest.ballSpeedX * predictionFactor;
+        game.ball.y = latest.ballY + latest.ballSpeedY * predictionFactor;
+        game.ball.speedX = latest.ballSpeedX;
+        game.ball.speedY = latest.ballSpeedY;
+        game.lastUpdate = latest.timestamp;
+      }
+      
+      if (game.ballStateBuffer.length > INTERPOLATION_BUFFER_SIZE) {
+        game.ballStateBuffer.shift();
+      }
     }
 
     // ============== SPIELSTEUERUNG ==============
@@ -146,12 +455,14 @@
       game.playerNumber = data.playerNumber;
       game.isHost = (data.playerNumber === 1);
       
+      // Setze Canvas-Größe
       if (data.canvasWidth && data.canvasHeight) {
         canvas.width = data.canvasWidth;
         canvas.height = data.canvasHeight;
       }
       game.canvasSize = { width: canvas.width, height: canvas.height };
       
+      // Initialisiere Spielerpositionen
       game.players[0].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
       game.players[1].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
       
@@ -167,9 +478,11 @@
       ui.scoreboard.style.display = "flex";
       ui.totalPlayers.style.display = "block";
       
+      // Countdown nur für Host
       if (game.isHost) {
         startCountdown();
       } else {
+        // Client zeigt "GO!" für 1 Sekunde an
         ui.readyScreen.style.display = "flex";
         document.getElementById("countdown").textContent = "GO!";
         setTimeout(() => {
@@ -287,28 +600,6 @@
       }
     }
 
-    function toggleQueue() {
-      if (!game.inQueue) {
-        console.log('Trete Warteschlange bei');
-        game.inQueue = true;
-        ui.queueButton.textContent = "Verlasse Warteschlange";
-        ui.queueStatus.textContent = "Suche nach Gegner...";
-        
-        socket.send(JSON.stringify({ 
-          type: 'joinQueue',
-          canvasWidth: window.innerWidth,
-          canvasHeight: window.innerHeight
-        }));
-      } else {
-        console.log('Verlasse Warteschlange');
-        game.inQueue = false;
-        ui.queueButton.textContent = "Warteschlange betreten";
-        ui.queueStatus.textContent = "Nicht in Warteschlange";
-        
-        socket.send(JSON.stringify({ type: 'leaveQueue' }));
-      }
-    }
-
     // ============== EVENT HANDLER ==============
     function handlePaddleMove(e) {
       if (!game.running) return;
@@ -351,6 +642,28 @@
       else if (game.controlledPlayer === 2) {
         if (e.key === 'ArrowUp') game.players[player].y = Math.max(0, game.players[player].y - moveAmount);
         if (e.key === 'ArrowDown') game.players[player].y = Math.min(canvas.height - PADDLE_HEIGHT, game.players[player].y + moveAmount);
+      }
+    }
+
+    function toggleQueue() {
+      if (!game.inQueue) {
+        console.log('Trete Warteschlange bei');
+        game.inQueue = true;
+        ui.queueButton.textContent = "Verlasse Warteschlange";
+        ui.queueStatus.textContent = "Suche nach Gegner...";
+        
+        socket.send(JSON.stringify({ 
+          type: 'joinQueue',
+          canvasWidth: window.innerWidth,
+          canvasHeight: window.innerHeight
+        }));
+      } else {
+        console.log('Verlasse Warteschlange');
+        game.inQueue = false;
+        ui.queueButton.textContent = "Warteschlange betreten";
+        ui.queueStatus.textContent = "Nicht in Warteschlange";
+        
+        socket.send(JSON.stringify({ type: 'leaveQueue' }));
       }
     }
 
