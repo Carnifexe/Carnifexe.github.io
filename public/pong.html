@@ -101,6 +101,23 @@
       border-radius: 5px;
       cursor: pointer;
     }
+    #testControls {
+      position: fixed;
+      bottom: 150px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      gap: 10px;
+      z-index: 40;
+    }
+    #testControls button {
+      padding: 8px 15px;
+      background: #555;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
     .teams-container {
       display: flex;
       gap: 40px;
@@ -163,6 +180,11 @@
     <canvas id="pongCanvas"></canvas>
   </div>
 
+  <div id="testControls">
+    <button id="controlPlayer1">Steuere Spieler 1</button>
+    <button id="controlPlayer2">Steuere Spieler 2</button>
+  </div>
+
   <audio id="bounceSound" src="bounce.mp3" preload="auto"></audio>
   <audio id="pongSound" src="pong.mp3" preload="auto"></audio>
   <audio id="winnerSound" src="winner.mp3" preload="auto"></audio>
@@ -174,7 +196,9 @@
     const ctx = canvas.getContext("2d");
     const WINNING_SCORE = 10;
     const BALL_BASE_SPEED = 12;
-    const LOCAL_MODE = false;
+    const NETWORK_UPDATE_RATE = 60;
+    const INTERPOLATION_BUFFER_SIZE = 10;
+    const SYNC_INTERVAL = 5000;
 
     // UI Elemente
     const gameContainer = document.getElementById("gameContainer");
@@ -187,6 +211,9 @@
     const playerCount = document.getElementById("playerCount");
     const queueStatus = document.getElementById("queueStatus");
     const localTestBtn = document.getElementById("localTestBtn");
+    const testControls = document.getElementById("testControls");
+    const controlPlayer1 = document.getElementById("controlPlayer1");
+    const controlPlayer2 = document.getElementById("controlPlayer2");
 
     // Spielvariablen
     let gameRunning = false;
@@ -194,6 +221,9 @@
     let isHost = false;
     let inQueue = false;
     let localMode = false;
+    let testMode = false;
+    let controlledPlayer = 0;
+    let testPaddleSpeed = 15;
     
     const paddleWidth = 15;
     const paddleHeight = 100;
@@ -206,10 +236,46 @@
     let player1Score = 0;
     let player2Score = 0;
 
-    // Lokale Testvariablen
-    let localPlayer2Y = 0;
-    let aiPaddleSpeed = 8;
-    let lastUpdateTime = 0;
+    // Netzwerk-Optimierungen
+    let lastNetworkUpdate = 0;
+    let ballStateBuffer = [];
+    let clientClockOffset = 0;
+    let lastSyncTime = 0;
+    let gameStartTime = 0;
+
+    // Zeit-Synchronisation
+    function synchronizeClocks() {
+      const start = Date.now();
+      socket.send(JSON.stringify({
+        type: "syncRequest",
+        clientTime: start
+      }));
+      lastSyncTime = start;
+    }
+
+    // Ball-Interpolation mit Server-Zeit
+    function interpolateBall() {
+      if (ballStateBuffer.length < 2) return;
+
+      const now = Date.now() - clientClockOffset;
+      let before = null, after = null;
+
+      for (let i = 0; i < ballStateBuffer.length - 1; i++) {
+        if (ballStateBuffer[i].timestamp <= now && ballStateBuffer[i+1].timestamp >= now) {
+          before = ballStateBuffer[i];
+          after = ballStateBuffer[i+1];
+          break;
+        }
+      }
+
+      if (before && after) {
+        const t = (now - before.timestamp) / (after.timestamp - before.timestamp);
+        ballX = before.ballX + (after.ballX - before.ballX) * t;
+        ballY = before.ballY + (after.ballY - before.ballY) * t;
+        ballSpeedX = before.ballSpeedX + (after.ballSpeedX - before.ballSpeedX) * t;
+        ballSpeedY = before.ballSpeedY + (after.ballSpeedY - before.ballSpeedY) * t;
+      }
+    }
 
     // Canvas initialisieren
     function initCanvas() {
@@ -227,6 +293,7 @@
       ballY = canvas.height / 2;
       ballSpeedX = BALL_BASE_SPEED * (Math.random() > 0.5 ? 1 : -1);
       ballSpeedY = BALL_BASE_SPEED * (Math.random() * 2 - 1);
+      ballStateBuffer = [];
     }
 
     // Spiel zeichnen
@@ -256,101 +323,78 @@
       ctx.setLineDash([]);
     }
 
-    // KI für lokalen Testmodus
-    function updateAIPaddle() {
-      if (localMode) {
-        // Einfache KI die dem Ball folgt
-        const paddleCenter = localPlayer2Y + paddleHeight / 2;
-        if (paddleCenter < ballY - 10) {
-          localPlayer2Y += aiPaddleSpeed;
-        } else if (paddleCenter > ballY + 10) {
-          localPlayer2Y -= aiPaddleSpeed;
-        }
-        player2Y = localPlayer2Y;
-      }
-    }
-
     // Spiel aktualisieren
     function updateGame(timestamp) {
       if (!gameRunning) return;
 
-      // Delta Time für konsistente Geschwindigkeit
-      const deltaTime = timestamp - lastUpdateTime;
-      lastUpdateTime = timestamp;
-      const speedFactor = deltaTime / 16; // Normalisierung auf 60fps
-
-      // KI aktualisieren im lokalen Modus
-      if (localMode) {
-        updateAIPaddle();
+      // Zeit-Synchronisation regelmäßig aktualisieren
+      if (timestamp - lastSyncTime > SYNC_INTERVAL && !localMode) {
+        synchronizeClocks();
       }
 
-      // Ballbewegung
-      ballX += ballSpeedX * speedFactor;
-      ballY += ballSpeedY * speedFactor;
+      if (isHost || localMode) {
+        // Host-Logik: Berechne Ballphysik
+        const deltaTime = (timestamp - lastNetworkUpdate) / 1000;
+        
+        ballX += ballSpeedX * deltaTime;
+        ballY += ballSpeedY * deltaTime;
 
-      // Wände
-      if (ballY <= 0 || ballY >= canvas.height) {
-        ballSpeedY = -ballSpeedY;
-        document.getElementById("bounceSound").play();
-      }
-      
-      // Paddle-Kollision mit verbessertem Abprall
-      if (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
-        const hitPosition = (ballY - (player1Y + paddleHeight/2)) / (paddleHeight/2);
-        ballSpeedX = Math.abs(ballSpeedX) * 1.05;
-        ballSpeedY = hitPosition * BALL_BASE_SPEED * 1.5;
-        document.getElementById("pongSound").play();
-      } 
-      else if (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight) {
-        const hitPosition = (ballY - (player2Y + paddleHeight/2)) / (paddleHeight/2);
-        ballSpeedX = -Math.abs(ballSpeedX) * 1.05;
-        ballSpeedY = hitPosition * BALL_BASE_SPEED * 1.5;
-        document.getElementById("pongSound").play();
-      }
-
-      // Punkte
-      if (ballX < 0) {
-        player2Score++;
-        document.getElementById("player2Score").textContent = player2Score;
-        if (!localMode) {
-          socket.send(JSON.stringify({
-            type: "scoreUpdate",
-            player: 2,
-            score: player2Score
-          }));
+        // Kollisionslogik
+        if (ballY <= 0 || ballY >= canvas.height) {
+          ballSpeedY = -ballSpeedY;
+          document.getElementById("bounceSound").play();
         }
-        resetBall();
-      } 
-      else if (ballX > canvas.width) {
-        player1Score++;
-        document.getElementById("player1Score").textContent = player1Score;
-        if (!localMode) {
-          socket.send(JSON.stringify({
-            type: "scoreUpdate",
-            player: 1,
-            score: player1Score
-          }));
+        
+        if (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
+          const hitPosition = (ballY - (player1Y + paddleHeight/2)) / (paddleHeight/2);
+          ballSpeedX = Math.abs(ballSpeedX) * 1.05;
+          ballSpeedY = hitPosition * BALL_BASE_SPEED * 1.5;
+          document.getElementById("pongSound").play();
+        } 
+        else if (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight) {
+          const hitPosition = (ballY - (player2Y + paddleHeight/2)) / (paddleHeight/2);
+          ballSpeedX = -Math.abs(ballSpeedX) * 1.05;
+          ballSpeedY = hitPosition * BALL_BASE_SPEED * 1.5;
+          document.getElementById("pongSound").play();
         }
-        resetBall();
-      }
 
-      // Spielende prüfen
-      if (player1Score >= WINNING_SCORE || player2Score >= WINNING_SCORE) {
-        document.getElementById("winnerSound").play();
-        setTimeout(resetGame, 3000);
-      }
+        // Punkte
+        if (ballX < 0 || ballX > canvas.width) {
+          if (ballX < 0) player2Score++;
+          else player1Score++;
+          
+          document.getElementById("player1Score").textContent = player1Score;
+          document.getElementById("player2Score").textContent = player2Score;
+          
+          if (!localMode) {
+            socket.send(JSON.stringify({
+              type: "scoreUpdate",
+              player: ballX < 0 ? 2 : 1,
+              score: ballX < 0 ? player2Score : player1Score
+            }));
+          }
+          
+          resetBall();
+        }
 
-      // Spielzustand senden (nur im Netzwerkmodus)
-      if (!localMode && isHost) {
-        socket.send(JSON.stringify({
-          type: "gameState",
-          ballX,
-          ballY,
-          ballSpeedX,
-          ballSpeedY,
-          player1Y,
-          player2Y
-        }));
+        // Sende regelmäßige Updates (nur im Netzwerkmodus)
+        if (!localMode && timestamp - lastNetworkUpdate > 1000 / NETWORK_UPDATE_RATE) {
+          const state = {
+            type: "gameState",
+            ballX,
+            ballY,
+            ballSpeedX,
+            ballSpeedY,
+            player1Y,
+            player2Y,
+            timestamp: Date.now()
+          };
+          socket.send(JSON.stringify(state));
+          lastNetworkUpdate = timestamp;
+        }
+      } else if (!localMode) {
+        // Client-Logik: Interpoliere Ball
+        interpolateBall();
       }
     }
 
@@ -388,7 +432,8 @@
       totalPlayersElement.style.display = "block";
       initCanvas();
       resetBall();
-      lastUpdateTime = performance.now();
+      gameStartTime = Date.now();
+      lastNetworkUpdate = performance.now();
       requestAnimationFrame(gameLoop);
     }
 
@@ -403,42 +448,75 @@
       player2Score = 0;
       document.getElementById("player1Score").textContent = "0";
       document.getElementById("player2Score").textContent = "0";
+      ballStateBuffer = [];
     }
 
-    // Lokalen Testmodus starten
-    function startLocalTest() {
+    // Testmodus starten
+    function startTestMode() {
       localMode = true;
+      testMode = true;
+      testControls.style.display = "flex";
       playerNumber = 1;
       isHost = true;
+      controlledPlayer = 1;
       startCountdown();
+    }
+
+    // Tastatursteuerung für Testmodus
+    function handleTestKeyDown(e) {
+      if (!testMode || !gameRunning) return;
+      
+      const moveAmount = testPaddleSpeed;
+      
+      if (controlledPlayer === 1) {
+        if (e.key === 'w') player1Y = Math.max(0, player1Y - moveAmount);
+        if (e.key === 's') player1Y = Math.min(canvas.height - paddleHeight, player1Y + moveAmount);
+      } 
+      else if (controlledPlayer === 2) {
+        if (e.key === 'ArrowUp') player2Y = Math.max(0, player2Y - moveAmount);
+        if (e.key === 'ArrowDown') player2Y = Math.min(canvas.height - paddleHeight, player2Y + moveAmount);
+      }
     }
 
     // Event Listener
     window.addEventListener('resize', initCanvas);
+    document.addEventListener('keydown', handleTestKeyDown);
+    
     canvas.addEventListener('mousemove', (e) => {
       if (!gameRunning) return;
       
       const rect = canvas.getBoundingClientRect();
       const mouseY = e.clientY - rect.top;
       
-      if (playerNumber === 1) {
-        player1Y = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
-      } 
-      else if (playerNumber === 2 && !localMode) {
-        player2Y = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
-      }
+      if (testMode) {
+        if (controlledPlayer === 1) {
+          player1Y = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
+        } 
+        else if (controlledPlayer === 2) {
+          player2Y = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
+        }
+      } else {
+        if (playerNumber === 1) {
+          player1Y = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
+        } 
+        else if (playerNumber === 2) {
+          player2Y = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
+        }
 
-      if (!localMode) {
-        socket.send(JSON.stringify({
-          type: "paddleMove",
-          player: playerNumber,
-          y: playerNumber === 1 ? player1Y : player2Y
-        }));
+        if (!localMode) {
+          socket.send(JSON.stringify({
+            type: "paddleMove",
+            player: playerNumber,
+            y: playerNumber === 1 ? player1Y : player2Y,
+            timestamp: Date.now()
+          }));
+        }
       }
     });
 
-    // Initialisierung
-    initCanvas();
+    controlPlayer1.addEventListener('click', () => controlledPlayer = 1);
+    controlPlayer2.addEventListener('click', () => controlledPlayer = 2);
+    localTestBtn.addEventListener('click', startTestMode);
 
     // WebSocket Nachrichten
     socket.onmessage = (event) => {
@@ -446,7 +524,10 @@
 
       const data = JSON.parse(event.data);
 
-      if (data.type === "queueUpdate") {
+      if (data.type === "syncResponse") {
+        clientClockOffset = Date.now() - ((data.clientTime + data.serverTime) / 2);
+      }
+      else if (data.type === "queueUpdate") {
         playerCount.textContent = `${data.queueCount} Spieler in Warteschlange`;
         totalPlayersCount.textContent = data.totalCount;
       }
@@ -466,12 +547,10 @@
         startCountdown();
       }
       else if (data.type === "gameState") {
-        ballX = data.ballX;
-        ballY = data.ballY;
-        ballSpeedX = data.ballSpeedX;
-        ballSpeedY = data.ballSpeedY;
-        player1Y = data.player1Y;
-        player2Y = data.player2Y;
+        ballStateBuffer.push(data);
+        if (ballStateBuffer.length > INTERPOLATION_BUFFER_SIZE) {
+          ballStateBuffer.shift();
+        }
       }
       else if (data.type === "scoreUpdate") {
         if (data.player === 1) {
@@ -480,6 +559,11 @@
         } else if (data.player === 2) {
           player2Score = data.score;
           document.getElementById("player2Score").textContent = player2Score;
+        }
+        
+        if (player1Score >= WINNING_SCORE || player2Score >= WINNING_SCORE) {
+          document.getElementById("winnerSound").play();
+          setTimeout(resetGame, 3000);
         }
       }
       else if (data.type === "paddleMove") {
@@ -499,7 +583,9 @@
       }
     });
 
-    localTestBtn.addEventListener('click', startLocalTest);
+    // Initialisierung
+    initCanvas();
+    synchronizeClocks();
   </script>
 </body>
 </html>
