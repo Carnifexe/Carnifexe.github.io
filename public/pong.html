@@ -5,98 +5,380 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pong Multiplayer</title>
   <style>
-    /* Styles hier */
+    /* (Behalte deine vorhandenen Styles bei und füge diese hinzu) */
+    .room-list {
+      margin: 20px 0;
+      width: 80%;
+      max-width: 500px;
+    }
+    .room-item {
+      background: rgba(255,255,255,0.1);
+      padding: 10px 15px;
+      margin: 5px 0;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+    .room-item:hover {
+      background: rgba(255,255,255,0.2);
+    }
+    .ready-button {
+      padding: 10px 20px;
+      font-size: 18px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    .ready-button.ready {
+      background: #f44336;
+    }
+    .create-room-container {
+      margin-top: 20px;
+    }
+    .create-room-input {
+      padding: 10px;
+      font-size: 16px;
+      width: 200px;
+      margin-right: 10px;
+    }
+    .create-room-button {
+      padding: 10px 15px;
+      font-size: 16px;
+      background: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <div id="waitingScreen">
-    <h1>Pong Multiplayer</h1>
-    <button id="queueButton">Warteschlange betreten</button>
-    <div id="queueStatus">Nicht in Warteschlange</div>
-    <div id="playerCount">0 Spieler in Warteschlange</div>
+  <!-- (Behalte deine vorhandenen HTML-Elemente bei und füge diese hinzu) -->
+  <div id="roomSelection" style="display:none;">
+    <h2>Wähle einen Raum</h2>
+    <div class="room-list" id="roomListContainer"></div>
+    <div class="create-room-container">
+      <input type="text" id="roomNameInput" class="create-room-input" placeholder="Raumname">
+      <button id="createRoomButton" class="create-room-button">Raum erstellen</button>
+    </div>
   </div>
 
-  <div id="gameContainer" style="display:none;">
-    <canvas id="pongCanvas"></canvas>
+  <div id="roomLobby" style="display:none;">
+    <h2 id="roomNameDisplay">Raum: </h2>
+    <p>Spieler: <span id="player1Name">Wartend...</span> vs <span id="player2Name">Wartend...</span></p>
+    <button id="readyButton" class="ready-button">Bereit</button>
+    <div id="readyStatus">
+      <p>Spieler 1 bereit: <span id="player1Ready">Nein</span></p>
+      <p>Spieler 2 bereit: <span id="player2Ready">Nein</span></p>
+    </div>
   </div>
-
-  <div id="roomList">
-    <!-- Räume anzeigen -->
-  </div>
-
-  <audio id="bounceSound" src="bounce.mp3" preload="auto"></audio>
-  <audio id="pongSound" src="pong.mp3" preload="auto"></audio>
-  <audio id="winnerSound" src="winner.mp3" preload="auto"></audio>
 
   <script>
-    const socket = new WebSocket('wss://your-server-url');
+    // Initialisierung
+    const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
+    const canvas = document.getElementById("pongCanvas");
+    const ctx = canvas.getContext("2d");
+    const WINNING_SCORE = 10;
 
-    const ui = {
-      gameContainer: document.getElementById("gameContainer"),
-      queueButton: document.getElementById("queueButton"),
-      roomList: document.getElementById("roomList")
-    };
+    // UI Elemente
+    const roomSelection = document.getElementById("roomSelection");
+    const roomListContainer = document.getElementById("roomListContainer");
+    const roomLobby = document.getElementById("roomLobby");
+    const roomNameDisplay = document.getElementById("roomNameDisplay");
+    const player1Name = document.getElementById("player1Name");
+    const player2Name = document.getElementById("player2Name");
+    const readyButton = document.getElementById("readyButton");
+    const player1Ready = document.getElementById("player1Ready");
+    const player2Ready = document.getElementById("player2Ready");
+    const roomNameInput = document.getElementById("roomNameInput");
+    const createRoomButton = document.getElementById("createRoomButton");
 
-    let game = {
-      playerNumber: null,
-      roomId: null,
-      running: false,
-      playerId: 'player-' + Math.random().toString(36).substr(2, 9)
-    };
+    // Spielvariablen
+    let gameRunning = false;
+    let playerNumber = null;
+    let playerId = null;
+    let playerName = "Player_" + Math.floor(Math.random() * 1000);
+    let currentRoomId = null;
+    let isReady = false;
+    let lastServerUpdate = 0;
+    let serverTimeOffset = 0;
+    
+    // Client-Side Prediction Variablen
+    let predictedPaddles = [0, 0];
+    let pendingInputs = [];
+    let lastProcessedInput = 0;
+    let lastPaddleUpdateTime = 0;
 
-    // Event listener für Warteschlangen
-    ui.queueButton.addEventListener('click', () => {
-      if (!game.running) {
-        socket.send(JSON.stringify({
-          type: 'joinQueue',
-          playerId: game.playerId
-        }));
+    // Canvas initialisieren
+    function initCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      predictedPaddles[0] = canvas.height / 2 - 50;
+      predictedPaddles[1] = canvas.height / 2 - 50;
+      ballX = canvas.width / 2;
+      ballY = canvas.height / 2;
+    }
+
+    // Ball zurücksetzen
+    function resetBall() {
+      ballX = canvas.width / 2;
+      ballY = canvas.height / 2;
+      ballSpeedX = 5 * (Math.random() > 0.5 ? 1 : -1);
+      ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
+    }
+
+    // Client-Side Prediction für Paddles
+    function predictPaddles() {
+      const now = Date.now();
+      const timeSinceLastUpdate = now - lastPaddleUpdateTime;
+      
+      // Einfache lineare Extrapolation
+      if (timeSinceLastUpdate < 100) { // Nur vorhersagen, wenn Update nicht zu alt
+        predictedPaddles[0] += (predictedPaddles[0] - predictedPaddles[0]) * (timeSinceLastUpdate / 16);
+        predictedPaddles[1] += (predictedPaddles[1] - predictedPaddles[1]) * (timeSinceLastUpdate / 16);
+      }
+    }
+
+    // Spiel zeichnen mit Prediction
+    function drawGame() {
+      // Hintergrund
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Paddles mit Prediction
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, predictedPaddles[0], 15, 100);
+      ctx.fillRect(canvas.width - 15, predictedPaddles[1], 15, 100);
+      
+      // Ball
+      ctx.beginPath();
+      ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Mittellinie
+      ctx.beginPath();
+      ctx.setLineDash([10, 10]);
+      ctx.moveTo(canvas.width/2, 0);
+      ctx.lineTo(canvas.width/2, canvas.height);
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Interpoliere Ballposition für flüssigere Darstellung
+    function interpolateBall(serverState) {
+      const now = Date.now();
+      const serverTime = serverState.serverTime + serverTimeOffset;
+      const latency = now - serverTime;
+      
+      // Wenn die Serverzeit zu alt ist, verwende die aktuelle Position
+      if (latency > 100) {
+        ballX = serverState.ballX;
+        ballY = serverState.ballY;
       } else {
-        socket.send(JSON.stringify({ type: 'leaveQueue' }));
+        // Interpoliere basierend auf der Geschwindigkeit und Latenz
+        ballX = serverState.ballX + serverState.ballSpeedX * (latency / 1000);
+        ballY = serverState.ballY + serverState.ballSpeedY * (latency / 1000);
       }
-    });
+      
+      ballSpeedX = serverState.ballSpeedX;
+      ballSpeedY = serverState.ballSpeedY;
+    }
 
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      switch (data.type) {
-        case 'roomListUpdate':
-          // Räume anzeigen
-          updateRoomList(data.rooms);
-          break;
-
-        case 'gameStart':
-          game.roomId = data.roomId;
-          startGame();
-          break;
-        
-        case 'gameState':
-          // Game state aktualisieren
-          break;
-
-        default:
-          break;
+    // Spiel aktualisieren mit Server Reconciliation
+    function updateGame() {
+      if (!gameRunning) return;
+      
+      // Wende alle ausstehenden Eingaben an
+      const now = Date.now();
+      while (pendingInputs.length > 0 && pendingInputs[0].timestamp <= lastServerUpdate) {
+        const input = pendingInputs.shift();
+        // Hier könnten wir die Eingabe verarbeiten, aber für Pong ist es einfacher
       }
-    };
+      
+      // Vorhersage für flüssigere Bewegung
+      predictPaddles();
+      
+      // Zeichne das Spiel
+      drawGame();
+    }
 
+    // Spielschleife
+    function gameLoop() {
+      updateGame();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Raumliste aktualisieren
     function updateRoomList(rooms) {
-      ui.roomList.innerHTML = '';
-      rooms.forEach(room => {
-        const roomElement = document.createElement('div');
-        roomElement.textContent = `Raum ${room.id} - ${room.playerCount} Spieler`;
-        roomElement.addEventListener('click', () => joinRoom(room.id));
-        ui.roomList.appendChild(roomElement);
+      roomListContainer.innerHTML = '';
+      rooms.slice(0, 10).forEach(room => {
+        const roomItem = document.createElement('div');
+        roomItem.className = 'room-item';
+        roomItem.innerHTML = `
+          <span>${room.name}</span>
+          <span>${room.playerCount}/2 Spieler</span>
+        `;
+        roomItem.addEventListener('click', () => {
+          if (room.playerCount < 2) {
+            socket.send(JSON.stringify({
+              type: 'joinRoom',
+              roomId: room.id
+            }));
+          }
+        });
+        roomListContainer.appendChild(roomItem);
       });
     }
 
-    function joinRoom(roomId) {
-      socket.send(JSON.stringify({ type: 'joinRoom', roomId, playerId: game.playerId }));
+    // Spiel starten
+    function startGame() {
+      gameRunning = true;
+      gameContainer.style.display = "block";
+      waitingScreen.style.display = "none";
+      roomLobby.style.display = "none";
+      scoreboard.style.display = "flex";
+      totalPlayersElement.style.display = "block";
+      initCanvas();
+      resetBall();
+      gameLoop();
     }
 
-    function startGame() {
-      game.running = true;
-      ui.gameContainer.style.display = 'block';
-      // Start Game Logic
-    }
+    // Verbindung hergestellt
+    socket.onopen = () => {
+      socket.send(JSON.stringify({
+        type: 'playerConnect',
+        playerName: playerName
+      }));
+      
+      // Zeige Raumauswahl
+      waitingScreen.style.display = "none";
+      roomSelection.style.display = "block";
+    };
+
+    // Nachrichten verarbeiten
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "playerConnected") {
+        playerId = data.playerId;
+      }
+      else if (data.type === "roomList") {
+        updateRoomList(data.rooms);
+      }
+      else if (data.type === "roomCreated") {
+        currentRoomId = data.roomId;
+        playerNumber = data.playerNumber;
+        roomSelection.style.display = "none";
+        roomLobby.style.display = "block";
+        roomNameDisplay.textContent = `Raum: ${data.roomName}`;
+        
+        if (playerNumber === 1) {
+          player1Name.textContent = playerName;
+          player2Name.textContent = "Wartend...";
+        } else {
+          player1Name.textContent = data.opponentName;
+          player2Name.textContent = playerName;
+        }
+      }
+      else if (data.type === "readyUpdate") {
+        player1Ready.textContent = data.player1Ready ? "Ja" : "Nein";
+        player2Ready.textContent = data.player2Ready ? "Ja" : "Nein";
+      }
+      else if (data.type === "gameStart") {
+        startCountdown();
+      }
+      else if (data.type === "gameState") {
+        lastServerUpdate = data.timestamp;
+        interpolateBall(data);
+        predictedPaddles[0] = data.player1Y;
+        predictedPaddles[1] = data.player2Y;
+        lastPaddleUpdateTime = Date.now();
+      }
+      else if (data.type === "paddleUpdate") {
+        if (data.player === 1) {
+          predictedPaddles[0] = data.y;
+        } else {
+          predictedPaddles[1] = data.y;
+        }
+        lastPaddleUpdateTime = data.timestamp;
+      }
+      else if (data.type === "scoreUpdate") {
+        player1Score = data.player1Score;
+        player2Score = data.player2Score;
+        document.getElementById("player1Score").textContent = player1Score;
+        document.getElementById("player2Score").textContent = player2Score;
+        
+        if (player1Score >= WINNING_SCORE || player2Score >= WINNING_SCORE) {
+          document.getElementById("winnerSound").play();
+          setTimeout(resetGame, 3000);
+        }
+      }
+      else if (data.type === "pong") {
+        // Berechne Zeitunterschied zwischen Client und Server
+        const now = Date.now();
+        const roundTripTime = now - data.timestamp;
+        serverTimeOffset = data.serverTime - now + (roundTripTime / 2);
+      }
+    };
+
+    // Ready-Button
+    readyButton.addEventListener('click', () => {
+      isReady = !isReady;
+      readyButton.textContent = isReady ? "Nicht bereit" : "Bereit";
+      readyButton.classList.toggle('ready', isReady);
+      socket.send(JSON.stringify({
+        type: 'setReady',
+        isReady: isReady
+      }));
+    });
+
+    // Raum erstellen
+    createRoomButton.addEventListener('click', () => {
+      const roomName = roomNameInput.value.trim() || `Pong Raum ${Math.floor(Math.random() * 100)}`;
+      socket.send(JSON.stringify({
+        type: 'createRoom',
+        roomName: roomName
+      }));
+    });
+
+    // Paddle-Bewegung mit Client-Side Prediction
+    canvas.addEventListener('mousemove', (e) => {
+      if (!gameRunning || !playerNumber) return;
+      
+      const rect = canvas.getBoundingClientRect();
+      const mouseY = e.clientY - rect.top;
+      const paddleY = Math.max(0, Math.min(mouseY - 50, canvas.height - 100));
+      
+      // Aktualisiere lokale Vorhersage
+      predictedPaddles[playerNumber - 1] = paddleY;
+      
+      // Sende Bewegung an Server
+      const input = {
+        type: "paddleMove",
+        y: paddleY,
+        timestamp: Date.now()
+      };
+      
+      pendingInputs.push(input);
+      socket.send(JSON.stringify(input));
+    });
+
+    // Ping den Server regelmäßig für Latenzmessung
+    setInterval(() => {
+      socket.send(JSON.stringify({
+        type: 'ping',
+        timestamp: Date.now()
+      }));
+    }, 1000);
+
+    // Initialisierung
+    initCanvas();
   </script>
 </body>
 </html>
