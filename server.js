@@ -45,7 +45,14 @@ wss.on('connection', (ws) => {
     try {
       const data = JSON.parse(message);
       
-      if (data.type === 'joinQueue') {
+      if (data.type === 'syncRequest') {
+        ws.send(JSON.stringify({
+          type: "syncResponse",
+          clientTime: data.clientTime,
+          serverTime: Date.now()
+        }));
+      }
+      else if (data.type === 'joinQueue') {
         if (!queue.includes(ws)) {
           queue.push(ws);
           ws.send(JSON.stringify({ type: 'joinedQueue' }));
@@ -81,7 +88,7 @@ wss.on('connection', (ws) => {
             if (player !== ws && player.readyState === WebSocket.OPEN) {
               player.send(JSON.stringify({
                 ...data,
-                timestamp: Date.now() // Zeitstempel hinzufügen
+                timestamp: Date.now()
               }));
             }
           });
@@ -106,7 +113,7 @@ wss.on('connection', (ws) => {
                 type: "paddleMove",
                 player: data.player,
                 y: data.y,
-                timestamp: Date.now() // Zeitstempel hinzufügen
+                timestamp: data.timestamp || Date.now()
               }));
             }
           });
