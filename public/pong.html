@@ -195,8 +195,9 @@
     const canvas = document.getElementById("pongCanvas");
     const ctx = canvas.getContext("2d");
     const WINNING_SCORE = 10;
-    const BALL_BASE_SPEED = 12;
-    const NETWORK_UPDATE_RATE = 60;
+    const BALL_BASE_SPEED = 8;
+    const LOCAL_BALL_SPEED = BALL_BASE_SPEED * 0.8;
+    const NETWORK_UPDATE_RATE = 30;
     const INTERPOLATION_BUFFER_SIZE = 10;
     const SYNC_INTERVAL = 5000;
 
@@ -242,6 +243,8 @@
     let clientClockOffset = 0;
     let lastSyncTime = 0;
     let gameStartTime = 0;
+    let lastFrameTime = 0;
+    let ballSpeedMultiplier = 1.0;
 
     // Zeit-Synchronisation
     function synchronizeClocks() {
@@ -272,8 +275,8 @@
         const t = (now - before.timestamp) / (after.timestamp - before.timestamp);
         ballX = before.ballX + (after.ballX - before.ballX) * t;
         ballY = before.ballY + (after.ballY - before.ballY) * t;
-        ballSpeedX = before.ballSpeedX + (after.ballSpeedX - before.ballSpeedX) * t;
-        ballSpeedY = before.ballSpeedY + (after.ballSpeedY - before.ballSpeedY) * t;
+        ballSpeedX = before.ballSpeedX;
+        ballSpeedY = before.ballSpeedY;
       }
     }
 
@@ -291,9 +294,10 @@
     function resetBall() {
       ballX = canvas.width / 2;
       ballY = canvas.height / 2;
-      ballSpeedX = BALL_BASE_SPEED * (Math.random() > 0.5 ? 1 : -1);
-      ballSpeedY = BALL_BASE_SPEED * (Math.random() * 2 - 1);
-      ballStateBuffer = [];
+      const speed = localMode ? LOCAL_BALL_SPEED : BALL_BASE_SPEED;
+      ballSpeedX = speed * (Math.random() > 0.5 ? 1 : -1);
+      ballSpeedY = speed * (Math.random() * 2 - 1);
+      ballSpeedMultiplier = 1.0;
     }
 
     // Spiel zeichnen
@@ -327,34 +331,33 @@
     function updateGame(timestamp) {
       if (!gameRunning) return;
 
-      // Zeit-Synchronisation regelmäßig aktualisieren
-      if (timestamp - lastSyncTime > SYNC_INTERVAL && !localMode) {
-        synchronizeClocks();
-      }
+      const deltaTime = (timestamp - lastFrameTime) / 1000;
+      lastFrameTime = timestamp;
 
       if (isHost || localMode) {
-        // Host-Logik: Berechne Ballphysik
-        const deltaTime = (timestamp - lastNetworkUpdate) / 1000;
-        
-        ballX += ballSpeedX * deltaTime;
-        ballY += ballSpeedY * deltaTime;
+        // Ballbewegung mit deltaTime
+        ballX += ballSpeedX * deltaTime * 60;
+        ballY += ballSpeedY * deltaTime * 60;
 
-        // Kollisionslogik
+        // Kollisionen
         if (ballY <= 0 || ballY >= canvas.height) {
           ballSpeedY = -ballSpeedY;
           document.getElementById("bounceSound").play();
         }
         
+        // Paddle-Kollision
         if (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
           const hitPosition = (ballY - (player1Y + paddleHeight/2)) / (paddleHeight/2);
-          ballSpeedX = Math.abs(ballSpeedX) * 1.05;
-          ballSpeedY = hitPosition * BALL_BASE_SPEED * 1.5;
+          ballSpeedX = Math.abs(ballSpeedX) * Math.min(ballSpeedMultiplier, 1.2);
+          ballSpeedY = hitPosition * BALL_BASE_SPEED * 1.2;
+          ballSpeedMultiplier *= 1.02;
           document.getElementById("pongSound").play();
         } 
         else if (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight) {
           const hitPosition = (ballY - (player2Y + paddleHeight/2)) / (paddleHeight/2);
-          ballSpeedX = -Math.abs(ballSpeedX) * 1.05;
-          ballSpeedY = hitPosition * BALL_BASE_SPEED * 1.5;
+          ballSpeedX = -Math.abs(ballSpeedX) * Math.min(ballSpeedMultiplier, 1.2);
+          ballSpeedY = hitPosition * BALL_BASE_SPEED * 1.2;
+          ballSpeedMultiplier *= 1.02;
           document.getElementById("pongSound").play();
         }
 
@@ -377,9 +380,9 @@
           resetBall();
         }
 
-        // Sende regelmäßige Updates (nur im Netzwerkmodus)
+        // Netzwerk-Updates
         if (!localMode && timestamp - lastNetworkUpdate > 1000 / NETWORK_UPDATE_RATE) {
-          const state = {
+          socket.send(JSON.stringify({
             type: "gameState",
             ballX,
             ballY,
@@ -388,12 +391,11 @@
             player1Y,
             player2Y,
             timestamp: Date.now()
-          };
-          socket.send(JSON.stringify(state));
+          }));
           lastNetworkUpdate = timestamp;
         }
       } else if (!localMode) {
-        // Client-Logik: Interpoliere Ball
+        // Client-Logik
         interpolateBall();
       }
     }
@@ -433,7 +435,7 @@
       initCanvas();
       resetBall();
       gameStartTime = Date.now();
-      lastNetworkUpdate = performance.now();
+      lastFrameTime = performance.now();
       requestAnimationFrame(gameLoop);
     }
 
