@@ -12,6 +12,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Spielkonstanten
 const BALL_BASE_SPEED = 8;
 const PADDLE_HEIGHT = 100;
+const PADDLE_WIDTH = 10; // Korrigierte Schlägerbreite
 
 const gameState = {
   players: [],
@@ -20,7 +21,6 @@ const gameState = {
   defaultCanvas: { width: 800, height: 600 }
 };
 
-// Hilfsfunktionen
 function sendToClient(ws, message) {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(message));
@@ -39,7 +39,6 @@ function updatePlayerCounts() {
   });
 }
 
-// Nachrichtenhandler
 function handleSyncRequest(ws, data) {
   sendToClient(ws, {
     type: "syncResponse",
@@ -57,7 +56,6 @@ function handleJoinQueue(ws, data) {
     });
     
     updatePlayerCounts();
-    console.log(`Neuer Spieler in Warteschlange (${gameState.queue.length} Spieler)`);
     
     if (gameState.queue.length >= 2) {
       startGame();
@@ -97,40 +95,41 @@ function handleGameState(ws, data) {
   });
 }
 
-// Spielstart
 function startGame() {
   if (gameState.queue.length < 2) return;
 
   const [player1, player2] = gameState.queue.splice(0, 2);
+  const now = Date.now();
+  const startTime = now + 3000; // 3 Sekunden Countdown
+
   const room = {
     players: [player1, player2],
     ballState: {
       x: gameState.defaultCanvas.width / 2,
       y: gameState.defaultCanvas.height / 2,
-      speedX: BALL_BASE_SPEED * (Math.random() > 0.5 ? 1 : -1),
-      speedY: BALL_BASE_SPEED * (Math.random() * 2 - 1),
-      timestamp: Date.now()
+      speedX: 0, // Startet erst nach Countdown
+      speedY: 0,
+      timestamp: now
     },
     player1Y: gameState.defaultCanvas.height / 2 - PADDLE_HEIGHT / 2,
-    player2Y: gameState.defaultCanvas.height / 2 - PADDLE_HEIGHT / 2
+    player2Y: gameState.defaultCanvas.height / 2 - PADDLE_HEIGHT / 2,
+    gameStartTime: startTime
   };
   gameState.rooms.push(room);
 
-  // Spielstartnachrichten
   [player1, player2].forEach((player, index) => {
     sendToClient(player, {
       type: 'gameStart',
       playerNumber: index + 1,
       canvasWidth: gameState.defaultCanvas.width,
-      canvasHeight: gameState.defaultCanvas.height
+      canvasHeight: gameState.defaultCanvas.height,
+      startTime: startTime
     });
   });
 
   updatePlayerCounts();
-  console.log('Neues Spiel gestartet');
 }
 
-// Websocket-Handler
 wss.on('connection', (ws) => {
   console.log('Neue Verbindung');
   gameState.players.push(ws);
@@ -161,7 +160,6 @@ wss.on('connection', (ws) => {
       return !shouldRemove;
     });
     updatePlayerCounts();
-    console.log('Verbindung geschlossen');
   });
 });
 
