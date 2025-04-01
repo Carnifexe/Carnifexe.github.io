@@ -84,17 +84,15 @@ wss.on('connection', (ws) => {
       else if (data.type === 'gameState') {
         const room = rooms.find(r => r.players.includes(ws));
         if (room) {
-          // Füge 50ms Verzögerung für bessere Interpolation hinzu
-          setTimeout(() => {
-            room.players.forEach(player => {
-              if (player !== ws && player.readyState === WebSocket.OPEN) {
-                player.send(JSON.stringify({
-                  ...data,
-                  timestamp: Date.now() + 50
-                }));
-              }
-            });
-          }, 10);
+          // NEU: Sofortiges Senden ohne Verzögerung
+          room.players.forEach(player => {
+            if (player !== ws && player.readyState === WebSocket.OPEN) {
+              player.send(JSON.stringify({
+                ...data,
+                timestamp: Date.now() // NEU: Aktueller Zeitstempel
+              }));
+            }
+          });
         }
       }
       else if (data.type === 'scoreUpdate') {
@@ -116,7 +114,7 @@ wss.on('connection', (ws) => {
                 type: "paddleMove",
                 player: data.player,
                 y: data.y,
-                timestamp: data.timestamp || Date.now()
+                timestamp: Date.now() // NEU: Aktueller Zeitstempel
               }));
             }
           });
