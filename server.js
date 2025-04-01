@@ -30,7 +30,7 @@ wss.on('connection', (ws) => {
         break;
         
       case 'joinRoom':
-        joinRoom(data.roomId, playerId);
+        joinRoom(data.roomId, playerId, ws);
         break;
 
       case 'playerReady':
@@ -40,14 +40,6 @@ wss.on('connection', (ws) => {
       case 'gameState':
         // Broadcast the game state to both players
         broadcastGameState(data);
-        break;
-
-      case 'ping':
-        // Ping response with latency
-        ws.send(JSON.stringify({
-          type: 'pong',
-          timestamp: Date.now()
-        }));
         break;
 
       default:
@@ -66,15 +58,19 @@ wss.on('connection', (ws) => {
 
 function createRoom(playerId) {
   const roomId = `room-${Math.random().toString(36).substr(2, 9)}`;
-  const newRoom = { id: roomId, players: [playerId], ready: [false, false], ping: [] };
+  const newRoom = { id: roomId, players: [playerId], ready: [false, false] };
   rooms.push(newRoom);
   return newRoom;
 }
 
-function joinRoom(roomId, playerId) {
+function joinRoom(roomId, playerId, ws) {
   const room = rooms.find(r => r.id === roomId);
   if (room && room.players.length < 2) {
     room.players.push(playerId);
+    ws.send(JSON.stringify({
+      type: 'gameStart',
+      roomId: roomId
+    }));
     broadcastRoomList();
   }
 }
@@ -136,22 +132,3 @@ function broadcastRoomList() {
     });
   });
 }
-
-// Handle the pinging process (used for lag compensation and prediction)
-setInterval(() => {
-  rooms.forEach(room => {
-    if (room.players.length === 2) {
-      room.players.forEach((playerId, index) => {
-        const playerWs = players[playerId].ws;
-        if (playerWs.readyState === WebSocket.OPEN) {
-          playerWs.send(JSON.stringify({
-            type: 'ping',
-            timestamp: Date.now(),
-            playerIndex: index
-          }));
-        }
-      });
-    }
-  });
-}, 1000); // Send ping every second
-
