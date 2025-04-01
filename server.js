@@ -84,12 +84,11 @@ wss.on('connection', (ws) => {
       else if (data.type === 'gameState') {
         const room = rooms.find(r => r.players.includes(ws));
         if (room) {
-          // NEU: Sofortiges Senden ohne Verzögerung
           room.players.forEach(player => {
             if (player !== ws && player.readyState === WebSocket.OPEN) {
               player.send(JSON.stringify({
                 ...data,
-                timestamp: Date.now() // NEU: Aktueller Zeitstempel
+                timestamp: Date.now()
               }));
             }
           });
@@ -114,7 +113,7 @@ wss.on('connection', (ws) => {
                 type: "paddleMove",
                 player: data.player,
                 y: data.y,
-                timestamp: Date.now() // NEU: Aktueller Zeitstempel
+                timestamp: Date.now()
               }));
             }
           });
@@ -136,13 +135,3 @@ wss.on('connection', (ws) => {
           }
         });
         return false;
-      }
-      return true;
-    });
-    broadcastQueueCount();
-  });
-});
-
-server.listen(process.env.PORT || 8080, () => {
-  console.log('Server läuft auf Port ' + (process.env.PORT || 8080));
-});
