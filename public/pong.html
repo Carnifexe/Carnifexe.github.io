@@ -198,7 +198,7 @@
     const ctx = canvas.getContext("2d");
     const WINNING_SCORE = 10;
     const BALL_BASE_SPEED = 8;
-    const PADDLE_WIDTH = 15;
+    const PADDLE_WIDTH = 10; // Korrigierte Schlägerbreite
     const PADDLE_HEIGHT = 100;
     const NETWORK_UPDATE_RATE = 30;
     const INTERPOLATION_BUFFER_SIZE = 10;
@@ -245,6 +245,9 @@
       ]
     };
 
+    let gameStartTime = 0;
+    let countdownActive = false;
+
     // ============== SPIELFUNKTIONEN ==============
     function initCanvas() {
       canvas.width = window.innerWidth;
@@ -253,15 +256,15 @@
       game.players[0].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
       game.players[1].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
       resetBall();
-      drawGame(); // Erste Zeichnung
+      drawGame();
     }
 
     function resetBall() {
       game.ball = {
         x: canvas.width / 2,
         y: canvas.height / 2,
-        speedX: BALL_BASE_SPEED * (Math.random() > 0.5 ? 1 : -1),
-        speedY: BALL_BASE_SPEED * (Math.random() * 2 - 1),
+        speedX: 0,
+        speedY: 0,
         multiplier: 1.0
       };
       game.ballStateBuffer = [];
@@ -275,35 +278,21 @@
         canvas.height = game.canvasSize.height;
       }
 
-      // Hintergrund komplett löschen
+      // Hintergrund
       ctx.fillStyle = "black";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Paddles zeichnen mit neuer Position
+      // Paddles mit korrekter Größe
       ctx.fillStyle = "white";
+      ctx.fillRect(0, game.players[0].y, PADDLE_WIDTH, PADDLE_HEIGHT);
+      ctx.fillRect(canvas.width - PADDLE_WIDTH, game.players[1].y, PADDLE_WIDTH, PADDLE_HEIGHT);
       
-      // Spieler 1 Paddle (links)
-      ctx.fillRect(
-        0, 
-        game.players[0].y, 
-        PADDLE_WIDTH, 
-        PADDLE_HEIGHT
-      );
-      
-      // Spieler 2 Paddle (rechts)
-      ctx.fillRect(
-        canvas.width - PADDLE_WIDTH, 
-        game.players[1].y, 
-        PADDLE_WIDTH, 
-        PADDLE_HEIGHT
-      );
-      
-      // Ball zeichnen
+      // Ball
       ctx.beginPath();
       ctx.arc(game.ball.x, game.ball.y, 10, 0, Math.PI * 2);
       ctx.fill();
       
-      // Mittellinie zeichnen
+      // Mittellinie
       ctx.beginPath();
       ctx.setLineDash([10, 10]);
       ctx.moveTo(canvas.width/2, 0);
@@ -315,17 +304,14 @@
     }
 
     function updateGame(timestamp) {
-      if (!game.running) return;
+      if (!game.running || Date.now() < gameStartTime) return;
 
       const deltaTime = (timestamp - game.lastFrameTime) / 1000;
       game.lastFrameTime = timestamp;
 
-      if (timestamp - game.lastSyncTime > SYNC_INTERVAL && !game.localMode) {
-        synchronizeClocks();
-      }
+      if (countdownActive) return;
 
       if (game.isHost) {
-        // HOST-LOGIK: Vollständige Ballberechnung
         game.ball.x += game.ball.speedX * deltaTime * 60;
         game.ball.y += game.ball.speedY * deltaTime * 60;
 
@@ -392,7 +378,6 @@
           game.lastNetworkUpdate = timestamp;
         }
       } else {
-        // CLIENT-LOGIK: Nur Interpolation
         interpolateBall();
       }
     }
@@ -419,40 +404,41 @@
       }
     }
 
-    // ============== SPIELSTEUERUNG ==============
     function startCountdown() {
+      countdownActive = true;
       ui.readyScreen.style.display = "flex";
       let countdownTime = 3;
       const countdownElement = document.getElementById("countdown");
+      
       const countdownInterval = setInterval(() => {
         countdownElement.textContent = countdownTime > 0 ? countdownTime : "GO!";
+        
+        if (countdownTime === 0) {
+          if (game.isHost) {
+            game.ball.speedX = BALL_BASE_SPEED * (Math.random() > 0.5 ? 1 : -1);
+            game.ball.speedY = BALL_BASE_SPEED * (Math.random() * 2 - 1);
+          }
+        }
+        
         countdownTime--;
+        
         if (countdownTime < -1) {
           clearInterval(countdownInterval);
           ui.readyScreen.style.display = "none";
+          countdownActive = false;
         }
       }, 1000);
     }
 
     function startGame(data) {
-      console.log("Spielstart mit Daten:", data);
-      
-      if (!data || !data.playerNumber) {
-        console.error("Ungültige Startdaten:", data);
-        return;
-      }
-
       game.playerNumber = data.playerNumber;
       game.isHost = (data.playerNumber === 1);
+      gameStartTime = data.startTime;
       
-      // Setze Canvas-Größe
-      if (data.canvasWidth && data.canvasHeight) {
-        canvas.width = data.canvasWidth;
-        canvas.height = data.canvasHeight;
-        game.canvasSize = { width: canvas.width, height: canvas.height };
-      }
+      canvas.width = data.canvasWidth;
+      canvas.height = data.canvasHeight;
+      game.canvasSize = { width: canvas.width, height: canvas.height };
       
-      // Initialisiere Spielerpositionen
       game.players[0].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
       game.players[1].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
       
@@ -468,24 +454,13 @@
       ui.scoreboard.style.display = "flex";
       ui.totalPlayers.style.display = "block";
       
-      // Countdown nur für Host
-      if (game.isHost) {
-        startCountdown();
-      } else {
-        // Client zeigt "GO!" für 1 Sekunde an
-        ui.readyScreen.style.display = "flex";
-        document.getElementById("countdown").textContent = "GO!";
-        setTimeout(() => {
-          ui.readyScreen.style.display = "none";
-        }, 1000);
-      }
+      startCountdown();
       
       game.lastFrameTime = performance.now();
       requestAnimationFrame(gameLoop);
     }
 
     function resetGame() {
-      console.log("Spiel wird zurückgesetzt");
       game.running = false;
       ui.gameContainer.style.display = "none";
       ui.scoreboard.style.display = "none";
@@ -502,7 +477,6 @@
     }
 
     function startTestMode() {
-      console.log("Starte Testmodus");
       game.localMode = true;
       game.testMode = true;
       ui.testControls.style.display = "flex";
@@ -512,11 +486,11 @@
       startGame({
         playerNumber: 1,
         canvasWidth: window.innerWidth,
-        canvasHeight: window.innerHeight
+        canvasHeight: window.innerHeight,
+        startTime: Date.now() + 3000
       });
     }
 
-    // ============== NETZWERKFUNKTIONEN ==============
     function synchronizeClocks() {
       const start = Date.now();
       socket.send(JSON.stringify({
@@ -531,29 +505,23 @@
 
       try {
         const data = JSON.parse(event.data);
-        console.log("Empfangene Nachricht:", data);
 
         switch (data.type) {
           case "syncResponse":
             game.clockOffset = Date.now() - ((data.clientTime + data.serverTime) / 2);
             break;
-            
           case "playerCountUpdate":
             ui.playerCount.textContent = `${data.inQueue} Spieler in Warteschlange`;
             ui.totalPlayersCount.textContent = data.totalPlayers;
             break;
-            
           case "joinedQueue":
             game.inQueue = true;
             ui.queueButton.textContent = "Verlasse Warteschlange";
             ui.queueStatus.textContent = `Position: ${data.position || 1}`;
             break;
-            
           case "gameStart":
-            console.log("Spielstart-Nachricht erhalten");
             startGame(data);
             break;
-            
           case "gameState":
             if (data.isHost) {
               game.ballStateBuffer.push({
@@ -571,7 +539,6 @@
               game.players[1].y = data.player2Y;
             }
             break;
-            
           case "scoreUpdate":
             if (data.player === 1) {
               game.players[0].score = data.score;
@@ -581,18 +548,14 @@
               ui.player2Score.textContent = data.score;
             }
             break;
-            
-          default:
-            console.log("Unbekannter Nachrichtentyp:", data.type);
         }
       } catch (error) {
         console.error('Nachrichtenverarbeitungsfehler:', error);
       }
     }
 
-    // ============== EVENT HANDLER ==============
     function handlePaddleMove(e) {
-      if (!game.running) return;
+      if (!game.running || countdownActive) return;
       
       const rect = canvas.getBoundingClientRect();
       const mouseY = e.clientY - rect.top;
@@ -620,7 +583,7 @@
     }
 
     function handleTestKeys(e) {
-      if (!game.testMode || !game.running) return;
+      if (!game.testMode || !game.running || countdownActive) return;
       
       const moveAmount = 15;
       const player = game.controlledPlayer - 1;
@@ -637,27 +600,16 @@
 
     function toggleQueue() {
       if (!game.inQueue) {
-        console.log('Trete Warteschlange bei');
-        game.inQueue = true;
-        ui.queueButton.textContent = "Verlasse Warteschlange";
-        ui.queueStatus.textContent = "Suche nach Gegner...";
-        
         socket.send(JSON.stringify({ 
           type: 'joinQueue',
           canvasWidth: window.innerWidth,
           height: window.innerHeight
         }));
       } else {
-        console.log('Verlasse Warteschlange');
-        game.inQueue = false;
-        ui.queueButton.textContent = "Warteschlange betreten";
-        ui.queueStatus.textContent = "Nicht in Warteschlange";
-        
         socket.send(JSON.stringify({ type: 'leaveQueue' }));
       }
     }
 
-    // ============== SPIELSCHLEIFE ==============
     function gameLoop(timestamp) {
       updateGame(timestamp);
       drawGame();
@@ -666,25 +618,20 @@
       }
     }
 
-    // ============== INITIALISIERUNG ==============
     window.addEventListener('resize', initCanvas);
     document.addEventListener('keydown', handleTestKeys);
     canvas.addEventListener('mousemove', handlePaddleMove);
     ui.controlPlayer1.addEventListener('click', () => {
       game.controlledPlayer = 1;
-      console.log('Steuere nun Spieler 1');
     });
     ui.controlPlayer2.addEventListener('click', () => {
       game.controlledPlayer = 2;
-      console.log('Steuere nun Spieler 2');
     });
     ui.localTestBtn.addEventListener('click', startTestMode);
     ui.queueButton.addEventListener('click', toggleQueue);
 
-    // WebSocket Nachrichtenhandler
     socket.onmessage = handleMessage;
 
-    // Initialisiere Canvas beim Laden
     window.addEventListener('load', initCanvas);
   </script>
 </body>
