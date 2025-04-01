@@ -5,76 +5,431 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pong Multiplayer</title>
   <style>
-    /* (Behalte deine vorhandenen Styles bei und füge diese hinzu) */
-    .room-list {
-      margin: 20px 0;
-      width: 80%;
-      max-width: 500px;
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
     }
-    .room-item {
-      background: rgba(255,255,255,0.1);
-      padding: 10px 15px;
-      margin: 5px 0;
-      border-radius: 5px;
-      display: flex;
-      justify-content: space-between;
+    #gameContainer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: none;
+    }
+    canvas {
+      display: block;
+      background: #000;
+    }
+    #queueButton {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 15px 30px;
+      font-size: 20px;
       cursor: pointer;
-    }
-    .room-item:hover {
-      background: rgba(255,255,255,0.2);
-    }
-    .ready-button {
-      padding: 10px 20px;
-      font-size: 18px;
       background: #4CAF50;
       color: white;
       border: none;
       border-radius: 5px;
-      cursor: pointer;
-      margin-top: 20px;
+      z-index: 20;
     }
-    .ready-button.ready {
-      background: #f44336;
+    #waitingScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 15;
     }
-    .create-room-container {
-      margin-top: 20px;
+    #readyScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.9);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 72px;
+      font-weight: bold;
+      z-index: 25;
     }
-    .create-room-input {
-      padding: 10px;
-      font-size: 16px;
-      width: 200px;
-      margin-right: 10px;
-    }
-    .create-room-button {
-      padding: 10px 15px;
-      font-size: 16px;
-      background: #2196F3;
-      color: white;
-      border: none;
+    #scoreboard {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 24px;
+      display: none;
+      background: rgba(0,0,0,0.5);
+      padding: 10px 20px;
       border-radius: 5px;
-      cursor: pointer;
+      z-index: 30;
+    }
+    #totalPlayers {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      font-size: 18px;
+      background: rgba(0,0,0,0.5);
+      padding: 10px 15px;
+      border-radius: 5px;
+      z-index: 30;
+    }
+    .teams-container {
+      display: flex;
+      gap: 40px;
+    }
+    .team {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .team-name {
+      font-size: 18px;
+      color: #aaa;
+    }
+    .team-score {
+      font-size: 32px;
+      font-weight: bold;
+    }
+    #queueStatus {
+      font-size: 24px;
+      margin-top: 20px;
+    }
+    #playerCount {
+      font-size: 18px;
+      margin-top: 10px;
+      color: #aaa;
     }
   </style>
 </head>
 <body>
-<body>
-  <h1 style="color:red;">Pong Multiplayer</h1>
-  <div id="debugOutput"></div>
-  
+  <div id="waitingScreen">
+    <h1>Pong Multiplayer</h1>
+    <button id="queueButton">Warteschlange betreten</button>
+    <div id="queueStatus">Nicht in Warteschlange</div>
+    <div id="playerCount">0 Spieler in Warteschlange</div>
+  </div>
+
+  <div id="readyScreen">
+    <div id="countdown">Ready...</div>
+  </div>
+
+  <div id="scoreboard">
+    <div class="teams-container">
+      <div class="team">
+        <div class="team-name">Spieler 1</div>
+        <div class="team-score" id="player1Score">0</div>
+      </div>
+      <div class="team">
+        <div class="team-name">Spieler 2</div>
+        <div class="team-score" id="player2Score">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="totalPlayers">
+    Spieler online: <span id="totalPlayersCount">0</span>
+  </div>
+
+  <div id="gameContainer">
+    <canvas id="pongCanvas"></canvas>
+  </div>
+
+  <audio id="bounceSound" src="bounce.mp3" preload="auto"></audio>
+  <audio id="pongSound" src="pong.mp3" preload="auto"></audio>
+  <audio id="winnerSound" src="winner.mp3" preload="auto"></audio>
+
   <script>
-    document.getElementById('debugOutput').innerHTML = `
-      <p>Canvas geladen: ${!!document.getElementById('pongCanvas')}</p>
-      <p>WebSocket unterstützt: ${!!window.WebSocket}</p>
-    `;
+    // Initialisierung
+    const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
+    const canvas = document.getElementById("pongCanvas");
+    const ctx = canvas.getContext("2d");
+    const WINNING_SCORE = 10;
+
+    // UI Elemente
+    const gameContainer = document.getElementById("gameContainer");
+    const queueButton = document.getElementById("queueButton");
+    const waitingScreen = document.getElementById("waitingScreen");
+    const readyScreen = document.getElementById("readyScreen");
+    const scoreboard = document.getElementById("scoreboard");
+    const totalPlayersElement = document.getElementById("totalPlayers");
+    const totalPlayersCount = document.getElementById("totalPlayersCount");
+    const playerCount = document.getElementById("playerCount");
+    const queueStatus = document.getElementById("queueStatus");
+
+    // Spielvariablen
+    let gameRunning = false;
+    let playerNumber = null;
+    let isHost = false;
+    let inQueue = false;
     
-    // Minimaler Socket-Test
-    const ws = new WebSocket('ws://localhost:8080');
-    ws.onmessage = (e) => {
-      document.getElementById('debugOutput').innerHTML += 
-        `<p>Server: ${e.data}</p>`;
+    const paddleWidth = 15;
+    const paddleHeight = 100;
+    let player1Y = 0;
+    let player2Y = 0;
+    let ballX = 0;
+    let ballY = 0;
+    let ballSpeedX = 5;
+    let ballSpeedY = 5;
+    let player1Score = 0;
+    let player2Score = 0;
+
+    // Canvas initialisieren
+    function initCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      player1Y = canvas.height / 2 - paddleHeight / 2;
+      player2Y = canvas.height / 2 - paddleHeight / 2;
+      ballX = canvas.width / 2;
+      ballY = canvas.height / 2;
+    }
+
+    // Ball zurücksetzen
+    function resetBall() {
+      ballX = canvas.width / 2;
+      ballY = canvas.height / 2;
+      ballSpeedX = 5 * (Math.random() > 0.5 ? 1 : -1);
+      ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
+    }
+
+    // Spiel zeichnen
+    function drawGame() {
+      // Hintergrund
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Paddles
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
+      ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
+      
+      // Ball
+      ctx.beginPath();
+      ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Mittellinie
+      ctx.beginPath();
+      ctx.setLineDash([10, 10]);
+      ctx.moveTo(canvas.width/2, 0);
+      ctx.lineTo(canvas.width/2, canvas.height);
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Spiel aktualisieren
+    function updateGame() {
+      if (!gameRunning) return;
+
+      if (isHost) {
+        // Ballbewegung
+        ballX += ballSpeedX;
+        ballY += ballSpeedY;
+
+        // Wände
+        if (ballY <= 0 || ballY >= canvas.height) {
+          ballSpeedY = -ballSpeedY;
+          document.getElementById("bounceSound").play();
+        }
+        
+        // Paddle-Kollision
+        if (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
+          ballSpeedX = -ballSpeedX * 1.05;
+          document.getElementById("pongSound").play();
+        } 
+        else if (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight) {
+          ballSpeedX = -ballSpeedX * 1.05;
+          document.getElementById("pongSound").play();
+        }
+
+        // Punkte
+        if (ballX < 0) {
+          player2Score++;
+          document.getElementById("player2Score").textContent = player2Score;
+          socket.send(JSON.stringify({
+            type: "scoreUpdate",
+            player: 2,
+            score: player2Score
+          }));
+          resetBall();
+        } 
+        else if (ballX > canvas.width) {
+          player1Score++;
+          document.getElementById("player1Score").textContent = player1Score;
+          socket.send(JSON.stringify({
+            type: "scoreUpdate",
+            player: 1,
+            score: player1Score
+          }));
+          resetBall();
+        }
+
+        // Spielzustand senden
+        socket.send(JSON.stringify({
+          type: "gameState",
+          ballX,
+          ballY,
+          ballSpeedX,
+          ballSpeedY,
+          player1Y,
+          player2Y
+        }));
+      }
+    }
+
+    // Spielschleife
+    function gameLoop() {
+      updateGame();
+      drawGame();
+      if (gameRunning) {
+        requestAnimationFrame(gameLoop);
+      }
+    }
+
+    // Countdown
+    function startCountdown() {
+      readyScreen.style.display = "flex";
+      let countdownTime = 3;
+      const countdownElement = document.getElementById("countdown");
+      const countdownInterval = setInterval(() => {
+        countdownElement.textContent = countdownTime > 0 ? countdownTime : "GO!";
+        countdownTime--;
+        if (countdownTime < -1) {
+          clearInterval(countdownInterval);
+          readyScreen.style.display = "none";
+          startGame();
+        }
+      }, 1000);
+    }
+
+    // Spiel starten
+    function startGame() {
+      gameRunning = true;
+      gameContainer.style.display = "block";
+      waitingScreen.style.display = "none";
+      scoreboard.style.display = "flex";
+      totalPlayersElement.style.display = "block";
+      initCanvas();
+      resetBall();
+      gameLoop();
+    }
+
+    // Spiel zurücksetzen
+    function resetGame() {
+      gameRunning = false;
+      gameContainer.style.display = "none";
+      scoreboard.style.display = "none";
+      waitingScreen.style.display = "flex";
+      totalPlayersElement.style.display = "none";
+      player1Score = 0;
+      player2Score = 0;
+      document.getElementById("player1Score").textContent = "0";
+      document.getElementById("player2Score").textContent = "0";
+    }
+
+    // Event Listener
+    window.addEventListener('resize', initCanvas);
+    canvas.addEventListener('mousemove', (e) => {
+      if (!gameRunning) return;
+      
+      const rect = canvas.getBoundingClientRect();
+      const mouseY = e.clientY - rect.top;
+      
+      if (playerNumber === 1) {
+        player1Y = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
+      } 
+      else if (playerNumber === 2) {
+        player2Y = Math.max(0, Math.min(mouseY - paddleHeight/2, canvas.height - paddleHeight));
+      }
+
+      socket.send(JSON.stringify({
+        type: "paddleMove",
+        player: playerNumber,
+        y: playerNumber === 1 ? player1Y : player2Y
+      }));
+    });
+
+    // Initialisierung
+    initCanvas();
+
+    // WebSocket Nachrichten
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "queueUpdate") {
+        playerCount.textContent = `${data.queueCount} Spieler in Warteschlange`;
+        totalPlayersCount.textContent = data.totalCount;
+      }
+      else if (data.type === "joinedQueue") {
+        inQueue = true;
+        queueButton.textContent = "Verlasse Warteschlange";
+        queueStatus.textContent = "In Warteschlange...";
+      }
+      else if (data.type === "leftQueue") {
+        inQueue = false;
+        queueButton.textContent = "Warteschlange betreten";
+        queueStatus.textContent = "Nicht in Warteschlange";
+      }
+      else if (data.type === "gameStart") {
+        playerNumber = data.playerNumber;
+        isHost = data.playerNumber === 1;
+        startCountdown();
+      }
+      else if (data.type === "gameState") {
+        ballX = data.ballX;
+        ballY = data.ballY;
+        ballSpeedX = data.ballSpeedX;
+        ballSpeedY = data.ballSpeedY;
+        player1Y = data.player1Y;
+        player2Y = data.player2Y;
+      }
+      else if (data.type === "scoreUpdate") {
+        if (data.player === 1) {
+          player1Score = data.score;
+          document.getElementById("player1Score").textContent = player1Score;
+        } else if (data.player === 2) {
+          player2Score = data.score;
+          document.getElementById("player2Score").textContent = player2Score;
+        }
+        
+        if (player1Score >= WINNING_SCORE || player2Score >= WINNING_SCORE) {
+          document.getElementById("winnerSound").play();
+          setTimeout(resetGame, 3000);
+        }
+      }
+      else if (data.type === "paddleMove") {
+        if (data.player === 1) {
+          player1Y = data.y;
+        } else if (data.player === 2) {
+          player2Y = data.y;
+        }
+      }
     };
-    ws.onopen = () => ws.send("Testnachricht");
+
+    queueButton.addEventListener('click', () => {
+      if (!inQueue) {
+        socket.send(JSON.stringify({ type: 'joinQueue' }));
+      } else {
+        socket.send(JSON.stringify({ type: 'leaveQueue' }));
+      }
+    });
   </script>
-</body>
 </body>
 </html>
