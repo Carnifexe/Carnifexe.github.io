@@ -249,6 +249,13 @@
       ui.queueButton.disabled = false;
       ui.queueStatus.textContent = "Verbunden - Bereit";
       synchronizeClocks();
+      
+      // Informiere Server über aktuelle Canvas-Größe
+      socket.send(JSON.stringify({
+        type: 'canvasSize',
+        width: window.innerWidth,
+        height: window.innerHeight
+      }));
     };
 
     socket.onerror = (error) => {
@@ -271,14 +278,6 @@
       game.players[0].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
       game.players[1].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
       resetBall();
-      
-      if (!game.localMode && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({
-          type: 'canvasSize',
-          width: canvas.width,
-          height: canvas.height
-        }));
-      }
     }
 
     function resetBall() {
@@ -435,25 +434,52 @@
         if (countdownTime < -1) {
           clearInterval(countdownInterval);
           ui.readyScreen.style.display = "none";
-          startGame();
         }
       }, 1000);
     }
 
     function startGame(data) {
-      if (data) {
-        game.playerNumber = data.playerNumber;
-        game.isHost = data.playerNumber === 1;
+      if (!data) {
+        console.error('Keine Startdaten erhalten');
+        return;
       }
+      
+      console.log('Spiel startet mit Daten:', data);
+      game.playerNumber = data.playerNumber;
+      game.isHost = data.playerNumber === 1;
+      
+      // Setze Canvas-Größe basierend auf Host oder eigenen Maßen
+      if (data.canvasWidth && data.canvasHeight) {
+        canvas.width = data.canvasWidth;
+        canvas.height = data.canvasHeight;
+      }
+      game.canvasSize = { width: canvas.width, height: canvas.height };
+      
+      // Initialisiere Spielerpositionen
+      game.players[0].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
+      game.players[1].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
+      
+      resetBall();
       
       game.running = true;
       ui.gameContainer.style.display = "block";
       ui.waitingScreen.style.display = "none";
       ui.scoreboard.style.display = "flex";
       ui.totalPlayers.style.display = "block";
-      initCanvas();
+      
+      // Reset Scores
+      game.players[0].score = 0;
+      game.players[1].score = 0;
+      ui.player1Score.textContent = "0";
+      ui.player2Score.textContent = "0";
+      
       game.lastFrameTime = performance.now();
       requestAnimationFrame(gameLoop);
+      
+      // Starte Countdown nur für Host
+      if (game.isHost) {
+        startCountdown();
+      }
     }
 
     function resetGame() {
@@ -467,6 +493,9 @@
       ui.player1Score.textContent = "0";
       ui.player2Score.textContent = "0";
       game.ballStateBuffer = [];
+      game.inQueue = false;
+      ui.queueButton.textContent = "Warteschlange betreten";
+      ui.queueStatus.textContent = "Nicht in Warteschlange";
     }
 
     function startTestMode() {
@@ -476,7 +505,11 @@
       game.playerNumber = 1;
       game.isHost = true;
       game.controlledPlayer = 1;
-      startCountdown();
+      startGame({
+        playerNumber: 1,
+        canvasWidth: window.innerWidth,
+        canvasHeight: window.innerHeight
+      });
     }
 
     // ============== NETZWERKFUNKTIONEN ==============
@@ -494,6 +527,7 @@
 
       try {
         const data = JSON.parse(event.data);
+        console.log('Empfangene Nachricht:', data);
 
         switch (data.type) {
           case "syncResponse":
@@ -514,7 +548,11 @@
             ui.queueStatus.textContent = "Nicht in Warteschlange";
             break;
           case "gameStart":
-            startGame(data);
+            if (data.playerNumber) {
+              startGame(data);
+            } else {
+              console.error('Fehlende Spielernummer in Startnachricht');
+            }
             break;
           case "gameState":
             // Nur Ball-Updates vom Host verarbeiten
@@ -564,7 +602,7 @@
         const playerIndex = game.playerNumber - 1;
         const newY = Math.max(0, Math.min(mouseY - PADDLE_HEIGHT/2, canvas.height - PADDLE_HEIGHT));
         
-        // Nur aktualisieren, wenn sich die Position tatsächlich geändert hat
+        // Nur aktualisieren, wenn sich die Position geändert hat
         if (Math.abs(game.players[playerIndex].y - newY) > 1) {
           game.players[playerIndex].y = newY;
 
@@ -601,8 +639,8 @@
         console.log('Trete Warteschlange bei');
         socket.send(JSON.stringify({ 
           type: 'joinQueue',
-          canvasWidth: canvas.width,
-          canvasHeight: canvas.height
+          canvasWidth: window.innerWidth,
+          canvasHeight: window.innerHeight
         }));
       } else {
         console.log('Verlasse Warteschlange');
@@ -626,15 +664,22 @@
     window.addEventListener('resize', initCanvas);
     document.addEventListener('keydown', handleTestKeys);
     canvas.addEventListener('mousemove', handlePaddleMove);
-    ui.controlPlayer1.addEventListener('click', () => game.controlledPlayer = 1);
-    ui.controlPlayer2.addEventListener('click', () => game.controlledPlayer = 2);
+    ui.controlPlayer1.addEventListener('click', () => {
+      game.controlledPlayer = 1;
+      console.log('Steuere nun Spieler 1');
+    });
+    ui.controlPlayer2.addEventListener('click', () => {
+      game.controlledPlayer = 2;
+      console.log('Steuere nun Spieler 2');
+    });
     ui.localTestBtn.addEventListener('click', startTestMode);
     ui.queueButton.addEventListener('click', toggleQueue);
 
     // WebSocket Nachrichtenhandler
     socket.onmessage = handleMessage;
 
-    initCanvas();
+    // Initialisiere Canvas beim Laden
+    window.addEventListener('load', initCanvas);
   </script>
 </body>
 </html>
