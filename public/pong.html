@@ -160,8 +160,9 @@
     const canvas = document.getElementById("pongCanvas");
     const ctx = canvas.getContext("2d");
     const WINNING_SCORE = 10;
-    const NETWORK_UPDATE_RATE = 15; // 15 updates per second
-    const INTERPOLATION_TIME = 100; // 100ms interpolation time
+    const NETWORK_UPDATE_RATE = 20; // 20 updates pro Sekunde
+    const INTERPOLATION_TIME = 50; // 50ms interpolation time
+    const BALL_BASE_SPEED = 9; // Höhere Basisgeschwindigkeit
 
     // UI Elemente
     const gameContainer = document.getElementById("gameContainer");
@@ -190,8 +191,8 @@
     let player2TargetY = 0;
     let ballX = 0;
     let ballY = 0;
-    let ballSpeedX = 5;
-    let ballSpeedY = 5;
+    let ballSpeedX = BALL_BASE_SPEED;
+    let ballSpeedY = BALL_BASE_SPEED;
     let player1Score = 0;
     let player2Score = 0;
 
@@ -212,12 +213,12 @@
       ballY = canvas.height / 2;
     }
 
-    // Ball zurücksetzen
+    // Ball zurücksetzen mit höherer Geschwindigkeit
     function resetBall() {
       ballX = canvas.width / 2;
       ballY = canvas.height / 2;
-      ballSpeedX = 5 * (Math.random() > 0.5 ? 1 : -1);
-      ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
+      ballSpeedX = BALL_BASE_SPEED * (Math.random() > 0.5 ? 1 : -1);
+      ballSpeedY = BALL_BASE_SPEED * (Math.random() * 2 - 1); // Zufälligerer Winkel
       ballStates = [];
     }
 
@@ -270,46 +271,32 @@
         }
         
         // Entferne alte Updates
-        paddleUpdates = paddleUpdates.filter(update => update.timestamp > interpTime - 500);
+        paddleUpdates = paddleUpdates.filter(update => update.timestamp > now - 300);
       }
       
-      // Glatte Interpolation der Paddles
-      player1Y += (player1TargetY - player1Y) * 0.2;
-      player2Y += (player2TargetY - player2Y) * 0.2;
+      // Direkte Positionierung ohne Glättung für weniger Zittern
+      player1Y = player1TargetY;
+      player2Y = player2TargetY;
     }
 
     // Ballzustand interpolieren
     function interpolateBall() {
       const now = Date.now();
-      const renderTime = now - INTERPOLATION_TIME;
+      const renderTime = now - INTERPOLATION_TIME / 2; // Halber Delay für Ball
       
-      // Finde die zwei neuesten Zustände um die Renderzeit herum
-      let before = null, after = null;
-      for (let i = ballStates.length - 1; i >= 0; i--) {
-        if (ballStates[i].timestamp <= renderTime) {
-          before = ballStates[i];
-          if (i < ballStates.length - 1) {
-            after = ballStates[i + 1];
-          }
-          break;
+      if (ballStates.length > 0) {
+        // Nehme einfach den neuesten Zustand mit kleinem Delay
+        const latest = ballStates[ballStates.length - 1];
+        if (latest.timestamp <= renderTime) {
+          ballX = latest.ballX;
+          ballY = latest.ballY;
+          ballSpeedX = latest.ballSpeedX;
+          ballSpeedY = latest.ballSpeedY;
         }
+        
+        // Entferne alte Ballzustände
+        ballStates = ballStates.filter(state => state.timestamp > now - 300);
       }
-      
-      if (before && after) {
-        const t = (renderTime - before.timestamp) / (after.timestamp - before.timestamp);
-        ballX = before.ballX + (after.ballX - before.ballX) * t;
-        ballY = before.ballY + (after.ballY - before.ballY) * t;
-        ballSpeedX = before.ballSpeedX + (after.ballSpeedX - before.ballSpeedX) * t;
-        ballSpeedY = before.ballSpeedY + (after.ballSpeedY - before.ballSpeedY) * t;
-      } else if (before) {
-        ballX = before.ballX;
-        ballY = before.ballY;
-        ballSpeedX = before.ballSpeedX;
-        ballSpeedY = before.ballSpeedY;
-      }
-      
-      // Entferne alte Ballzustände
-      ballStates = ballStates.filter(state => state.timestamp > now - 500);
     }
 
     // Spiel aktualisieren
@@ -337,11 +324,16 @@
         
         // Paddle-Kollision
         if (ballX <= paddleWidth && ballY >= player1Y && ballY <= player1Y + paddleHeight) {
-          ballSpeedX = -ballSpeedX * 1.05;
+          // Berechne Abprallwinkel basierend auf Trefferposition
+          const hitPosition = (ballY - (player1Y + paddleHeight/2)) / (paddleHeight/2);
+          ballSpeedX = Math.abs(ballSpeedX) * 1.05;
+          ballSpeedY = hitPosition * BALL_BASE_SPEED * 1.2;
           document.getElementById("pongSound").play();
         } 
         else if (ballX >= canvas.width - paddleWidth && ballY >= player2Y && ballY <= player2Y + paddleHeight) {
-          ballSpeedX = -ballSpeedX * 1.05;
+          const hitPosition = (ballY - (player2Y + paddleHeight/2)) / (paddleHeight/2);
+          ballSpeedX = -Math.abs(ballSpeedX) * 1.05;
+          ballSpeedY = hitPosition * BALL_BASE_SPEED * 1.2;
           document.getElementById("pongSound").play();
         }
 
