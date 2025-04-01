@@ -248,11 +248,10 @@
       console.log('Verbindung hergestellt');
       ui.queueButton.disabled = false;
       ui.queueStatus.textContent = "Verbunden - Bereit";
-      synchronizeClocks();
       
-      // Informiere Server über aktuelle Canvas-Größe
+      // Sende initiale Canvas-Größe
       socket.send(JSON.stringify({
-        type: 'canvasSize',
+        type: 'init',
         width: window.innerWidth,
         height: window.innerHeight
       }));
@@ -268,6 +267,10 @@
       console.log('Verbindung geschlossen');
       ui.queueStatus.textContent = "Getrennt";
       ui.queueButton.disabled = true;
+      // Versuche, die Verbindung nach 5 Sekunden wiederherzustellen
+      setTimeout(() => {
+        location.reload();
+      }, 5000);
     };
 
     // ============== SPIELFUNKTIONEN ==============
@@ -439,16 +442,17 @@
     }
 
     function startGame(data) {
-      if (!data) {
-        console.error('Keine Startdaten erhalten');
+      console.log("Spielstart mit Daten:", data);
+      
+      if (!data || !data.playerNumber) {
+        console.error("Ungültige Startdaten:", data);
         return;
       }
-      
-      console.log('Spiel startet mit Daten:', data);
+
       game.playerNumber = data.playerNumber;
-      game.isHost = data.playerNumber === 1;
+      game.isHost = (data.playerNumber === 1);
       
-      // Setze Canvas-Größe basierend auf Host oder eigenen Maßen
+      // Setze Canvas-Größe
       if (data.canvasWidth && data.canvasHeight) {
         canvas.width = data.canvasWidth;
         canvas.height = data.canvasHeight;
@@ -460,6 +464,10 @@
       game.players[1].y = canvas.height / 2 - PADDLE_HEIGHT / 2;
       
       resetBall();
+      game.players[0].score = 0;
+      game.players[1].score = 0;
+      ui.player1Score.textContent = "0";
+      ui.player2Score.textContent = "0";
       
       game.running = true;
       ui.gameContainer.style.display = "block";
@@ -467,22 +475,24 @@
       ui.scoreboard.style.display = "flex";
       ui.totalPlayers.style.display = "block";
       
-      // Reset Scores
-      game.players[0].score = 0;
-      game.players[1].score = 0;
-      ui.player1Score.textContent = "0";
-      ui.player2Score.textContent = "0";
+      // Countdown nur für Host
+      if (game.isHost) {
+        startCountdown();
+      } else {
+        // Client zeigt "GO!" für 1 Sekunde an
+        ui.readyScreen.style.display = "flex";
+        document.getElementById("countdown").textContent = "GO!";
+        setTimeout(() => {
+          ui.readyScreen.style.display = "none";
+        }, 1000);
+      }
       
       game.lastFrameTime = performance.now();
       requestAnimationFrame(gameLoop);
-      
-      // Starte Countdown nur für Host
-      if (game.isHost) {
-        startCountdown();
-      }
     }
 
     function resetGame() {
+      console.log("Spiel wird zurückgesetzt");
       game.running = false;
       ui.gameContainer.style.display = "none";
       ui.scoreboard.style.display = "none";
@@ -499,6 +509,7 @@
     }
 
     function startTestMode() {
+      console.log("Starte Testmodus");
       game.localMode = true;
       game.testMode = true;
       ui.testControls.style.display = "flex";
@@ -527,35 +538,36 @@
 
       try {
         const data = JSON.parse(event.data);
-        console.log('Empfangene Nachricht:', data);
+        console.log("Empfangene Nachricht:", data);
 
         switch (data.type) {
           case "syncResponse":
             game.clockOffset = Date.now() - ((data.clientTime + data.serverTime) / 2);
             break;
+            
           case "queueUpdate":
             ui.playerCount.textContent = `${data.queueCount} Spieler in Warteschlange`;
-            ui.totalPlayersCount.textContent = data.totalCount;
+            ui.totalPlayersCount.textContent = data.totalPlayers || 0;
             break;
+            
           case "joinedQueue":
             game.inQueue = true;
             ui.queueButton.textContent = "Verlasse Warteschlange";
             ui.queueStatus.textContent = `Position: ${data.position || 1}`;
             break;
+            
           case "leftQueue":
             game.inQueue = false;
             ui.queueButton.textContent = "Warteschlange betreten";
             ui.queueStatus.textContent = "Nicht in Warteschlange";
             break;
+            
           case "gameStart":
-            if (data.playerNumber) {
-              startGame(data);
-            } else {
-              console.error('Fehlende Spielernummer in Startnachricht');
-            }
+            console.log("Spielstart-Nachricht erhalten");
+            startGame(data);
             break;
+            
           case "gameState":
-            // Nur Ball-Updates vom Host verarbeiten
             if (data.isHost) {
               game.ballStateBuffer.push({
                 ballX: data.ballX,
@@ -566,13 +578,13 @@
               });
             }
             
-            // Paddle-Positionen nur für den eigenen Spieler aktualisieren
             if (game.playerNumber === 1) {
               game.players[0].y = data.player1Y;
             } else if (game.playerNumber === 2) {
               game.players[1].y = data.player2Y;
             }
             break;
+            
           case "scoreUpdate":
             if (data.player === 1) {
               game.players[0].score = data.score;
@@ -582,6 +594,9 @@
               ui.player2Score.textContent = data.score;
             }
             break;
+            
+          default:
+            console.log("Unbekannter Nachrichtentyp:", data.type);
         }
       } catch (error) {
         console.error('Nachrichtenverarbeitungsfehler:', error);
@@ -602,7 +617,6 @@
         const playerIndex = game.playerNumber - 1;
         const newY = Math.max(0, Math.min(mouseY - PADDLE_HEIGHT/2, canvas.height - PADDLE_HEIGHT));
         
-        // Nur aktualisieren, wenn sich die Position geändert hat
         if (Math.abs(game.players[playerIndex].y - newY) > 1) {
           game.players[playerIndex].y = newY;
 
@@ -637,6 +651,10 @@
     function toggleQueue() {
       if (!game.inQueue) {
         console.log('Trete Warteschlange bei');
+        game.inQueue = true;
+        ui.queueButton.textContent = "Verlasse Warteschlange";
+        ui.queueStatus.textContent = "Suche nach Gegner...";
+        
         socket.send(JSON.stringify({ 
           type: 'joinQueue',
           canvasWidth: window.innerWidth,
@@ -644,10 +662,11 @@
         }));
       } else {
         console.log('Verlasse Warteschlange');
-        socket.send(JSON.stringify({ type: 'leaveQueue' }));
         game.inQueue = false;
         ui.queueButton.textContent = "Warteschlange betreten";
         ui.queueStatus.textContent = "Nicht in Warteschlange";
+        
+        socket.send(JSON.stringify({ type: 'leaveQueue' }));
       }
     }
 
