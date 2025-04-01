@@ -247,6 +247,43 @@
     let ballSpeedMultiplier = 1.0;
     let lastBallUpdate = 0;
 
+    // Client-seitige Ballvorhersage
+    let clientSideBallPrediction = {
+      x: 0,
+      y: 0,
+      speedX: 0,
+      speedY: 0,
+      lastUpdate: 0
+    };
+
+    function updateClientSideBallPrediction(state) {
+      clientSideBallPrediction = {
+        x: state.ballX,
+        y: state.ballY,
+        speedX: state.ballSpeedX,
+        speedY: state.ballSpeedY,
+        lastUpdate: Date.now()
+      };
+    }
+
+    function predictBallPosition() {
+      if (!gameRunning || isHost || localMode) return;
+      
+      const now = Date.now();
+      const timeDiff = (now - clientSideBallPrediction.lastUpdate) / 1000;
+      
+      if (timeDiff > 0) {
+        ballX = clientSideBallPrediction.x + clientSideBallPrediction.speedX * timeDiff * 60;
+        ballY = clientSideBallPrediction.y + clientSideBallPrediction.speedY * timeDiff * 60;
+        
+        // Grenzkollisionen für Vorhersage
+        if (ballY <= 0 || ballY >= canvas.height) {
+          ballY = Math.max(0, Math.min(ballY, canvas.height));
+          ballSpeedY = -ballSpeedY;
+        }
+      }
+    }
+
     // Zeit-Synchronisation
     function synchronizeClocks() {
       const start = Date.now();
@@ -315,10 +352,23 @@
       ctx.fillRect(0, player1Y, paddleWidth, paddleHeight);
       ctx.fillRect(canvas.width - paddleWidth, player2Y, paddleWidth, paddleHeight);
       
-      // Ball
-      ctx.beginPath();
-      ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
-      ctx.fill();
+      // Ball - Nur auf relevanter Spielfeldhälfte zeichnen
+      if (!isHost && ballX > canvas.width / 2 && playerNumber === 2) {
+        ctx.beginPath();
+        ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
+        ctx.fill();
+      } 
+      else if (!isHost && ballX < canvas.width / 2 && playerNumber === 1) {
+        ctx.beginPath();
+        ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      else {
+        // Immer zeichnen für Host und lokalen Modus
+        ctx.beginPath();
+        ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
       
       // Mittellinie
       ctx.beginPath();
@@ -403,15 +453,15 @@
         }
       } else {
         // Client-Logik
+        predictBallPosition();
         interpolateBall();
         
-        // Bewege Ball basierend auf aktueller Geschwindigkeit
-        ballX += ballSpeedX * deltaTime * 60;
-        ballY += ballSpeedY * deltaTime * 60;
-        
-        // Grenzkollisionen (nur visuell)
-        if (ballY <= 0 || ballY >= canvas.height) {
-          ballSpeedY = -ballSpeedY;
+        // Kollisionen nur auf der eigenen Seite
+        if ((playerNumber === 1 && ballX < canvas.width / 2) ||
+            (playerNumber === 2 && ballX > canvas.width / 2)) {
+          if (ballY <= 0 || ballY >= canvas.height) {
+            ballSpeedY = -ballSpeedY;
+          }
         }
       }
     }
@@ -565,22 +615,30 @@
         startCountdown();
       }
       else if (data.type === "gameState") {
-        if (ballStateBuffer.length === 0 || data.timestamp > ballStateBuffer[ballStateBuffer.length-1].timestamp) {
-          ballStateBuffer.push({
-            ballX: data.ballX,
-            ballY: data.ballY,
-            ballSpeedX: data.ballSpeedX,
-            ballSpeedY: data.ballSpeedY,
-            timestamp: data.timestamp
-          });
-          
-          if (!isHost) {
-            ballX = data.ballX;
-            ballY = data.ballY;
-            ballSpeedX = data.ballSpeedX;
-            ballSpeedY = data.ballSpeedY;
-          }
+        updateClientSideBallPrediction(data);
+        
+        if ((playerNumber === 1 && data.ballX < canvas.width / 2) ||
+            (playerNumber === 2 && data.ballX > canvas.width / 2)) {
+          ballX = data.ballX;
+          ballY = data.ballY;
+          ballSpeedX = data.ballSpeedX;
+          ballSpeedY = data.ballSpeedY;
         }
+        
+        ballStateBuffer.push({
+          ballX: data.ballX,
+          ballY: data.ballY,
+          ballSpeedX: data.ballSpeedX,
+          ballSpeedY: data.ballSpeedY,
+          timestamp: data.timestamp || Date.now()
+        });
+        
+        if (ballStateBuffer.length > INTERPOLATION_BUFFER_SIZE) {
+          ballStateBuffer.shift();
+        }
+      }
+      else if (data.type === "ballWarning") {
+        updateClientSideBallPrediction(data);
       }
       else if (data.type === "scoreUpdate") {
         if (data.player === 1) {
