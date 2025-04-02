@@ -3,71 +3,58 @@ const { createServer } = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 
-// ======================
 // 1. Server-Initialisierung
-// ======================
 const app = express();
 const httpServer = createServer(app);
 
-// ======================
-// 2. WebSocket-Konfiguration
-// ======================
-// In server.js (vor dem server.listen)
+// 2. WebSocket-Konfiguration mit Render-spezifischen Einstellungen
 const io = new Server(httpServer, {
   cors: {
     origin: [
       'https://carnifexe-github-io.onrender.com',
       'http://localhost:10000'
     ],
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST"],
+    credentials: false
   },
-  // RENDER-SPEZIFISCHE EINSTELLUNGEN:
   transports: ['websocket'],
   allowEIO3: true,
-  pingInterval: 25000,  // 25s für Render Keep-Alive
-  pingTimeout: 60000,   // 60s Timeout
-  cookie: false         // Cookies können Probleme verursachen
+  pingInterval: 25000,
+  pingTimeout: 60000,
+  cookie: false
 });
 
-// ======================
 // 3. Middleware
-// ======================
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ======================
-// 4. Wichtige Endpoints
-// ======================
-// Health Check Route (bereits vorhanden)
+// 4. Health Check Route (für Render notwendig)
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'online',
     websocket: io.engine.clientsCount,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    server: 'carnifexe-github-io.onrender.com'
   });
 });
 
+// 5. Debug-Endpoint
 app.get('/debug', (req, res) => {
   res.json({
-    server: 'carnifexe-github-io.onrender.com',
     clients: Array.from(io.sockets.sockets.keys()),
     games: Object.keys(games).length,
     memory: process.memoryUsage()
   });
 });
 
-// ======================
-// 5. Spiel-Logik
-// ======================
+// 6. Spiel-Logik
 const players = {};
 const games = {};
 let playerCount = 0;
 
-// ======================
-// 6. WebSocket-Handler
-// ======================
+// 7. WebSocket-Verbindungsmanagement
 io.on('connection', (socket) => {
-  console.log(`🎮 Neue Verbindung: ${socket.id}`);
-
+  console.log(`🔗 Neue Verbindung: ${socket.id}`);
+  
   // Spieler registrieren
   playerCount++;
   const playerName = `Spieler ${playerCount}`;
@@ -77,25 +64,23 @@ io.on('connection', (socket) => {
     lastActive: Date.now()
   };
 
-  // Initiale Daten senden
+  // Initiale Bestätigung senden
   socket.emit('welcome', {
     message: `Willkommen ${playerName}`,
-    id: socket.id
+    id: socket.id,
+    server: 'carnifexe-github-io.onrender.com'
   });
 
-  updatePlayerList();
-
-  // ======================
-  // 7. Ereignis-Handler
-  // ======================
-  
-  // Ping-Pong für Verbindungsüberwachung
+  // Ping-Pong für Verbindungsstabilität
   socket.on('ping', (timestamp, callback) => {
     players[socket.id].lastActive = Date.now();
-    callback(timestamp);
+    callback({ 
+      timestamp,
+      serverTime: Date.now() 
+    });
   });
 
-  // Spielereignisse
+  // Spielmanagement
   socket.on('invite', (targetId) => {
     if (players[targetId]?.status === 'waiting') {
       io.to(targetId).emit('invitation', {
@@ -110,11 +95,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('move_paddle', ({ gameId, y, side }) => {
-    const game = games[gameId];
-    if (game) {
-      game[side === 'left' ? 'leftPaddleY' : 'rightPaddleY'] = y;
-      updateGameState(gameId);
-    }
+    updatePaddlePosition(gameId, side, y);
   });
 
   // Verbindungstrennung
@@ -123,18 +104,14 @@ io.on('connection', (socket) => {
     cleanupPlayer(socket.id);
   });
 
-  // ======================
-  // 8. Test-Events
-  // ======================
-  socket.emit('connection_test', {
+  // Debug-Event
+  socket.emit('connection_established', {
     server: 'carnifexe-github-io.onrender.com',
     timestamp: Date.now()
   });
 });
 
-// ======================
-// 9. Spiel-Funktionen
-// ======================
+// 8. Spiel-Funktionen
 function startGame(gameId, player1, player2) {
   games[gameId] = {
     leftPlayer: player1,
@@ -170,55 +147,38 @@ function startGame(gameId, player1, player2) {
   updatePlayerList();
 }
 
-function updateGameState(gameId) {
+function updatePaddlePosition(gameId, side, y) {
+  const game = games[gameId];
+  if (game) {
+    game[`${side}PaddleY`] = y;
+    game.lastUpdate = Date.now();
+    broadcastGameState(gameId);
+  }
+}
+
+function broadcastGameState(gameId) {
   const game = games[gameId];
   if (!game) return;
 
-  // Ballbewegung
-  game.ballX += game.ballSpeedX;
-  game.ballY += game.ballSpeedY;
-
-  // Kollisionen
-  if (game.ballY <= 0 || game.ballY >= 100) game.ballSpeedY *= -1;
-  if (game.ballX <= 5 && Math.abs(game.ballY - game.leftPaddleY) < 10) game.ballSpeedX *= -1.05;
-  if (game.ballX >= 95 && Math.abs(game.ballY - game.rightPaddleY) < 10) game.ballSpeedX *= -1.05;
-
-  // Punkte
-  if (game.ballX < 0) {
-    game.rightScore++;
-    resetBall(game);
-  } else if (game.ballX > 100) {
-    game.leftScore++;
-    resetBall(game);
-  }
-
-  // Spielzustand an Clients senden
-  io.to(game.leftPlayer).emit('game_update', {
+  const gameState = {
     leftPaddleY: game.leftPaddleY,
     rightPaddleY: game.rightPaddleY,
     ballX: game.ballX,
     ballY: game.ballY,
     leftScore: game.leftScore,
     rightScore: game.rightScore
-  });
+  };
 
-  io.to(game.rightPlayer).emit('game_update', {
-    leftPaddleY: game.leftPaddleY,
-    rightPaddleY: game.rightPaddleY,
-    ballX: game.ballX,
-    ballY: game.ballY,
-    leftScore: game.leftScore,
-    rightScore: game.rightScore
-  });
-
-  game.lastUpdate = Date.now();
+  io.to(game.leftPlayer).emit('game_update', gameState);
+  io.to(game.rightPlayer).emit('game_update', gameState);
 }
 
-function resetBall(game) {
-  game.ballX = 50;
-  game.ballY = 50;
-  game.ballSpeedX = (Math.random() > 0.5 ? 1 : -1) * 5;
-  game.ballSpeedY = (Math.random() > 0.5 ? 1 : -1) * 5;
+function updatePlayerList() {
+  io.emit('player_list', Object.values(players).map(p => ({
+    id: p.socketId,
+    name: p.name,
+    status: p.status
+  })));
 }
 
 function cleanupPlayer(playerId) {
@@ -246,30 +206,45 @@ function endGame(gameId) {
   }
 }
 
-function updatePlayerList() {
-  const playerList = Object.values(players).map(player => ({
-    id: player.socketId,
-    name: player.name,
-    status: player.status
-  }));
-
-  // Sende die Liste an alle verbundenen Clients
-  io.emit('player_list_update', playerList);
-}
-
-// ======================
-// 10. Spiel-Loop (60 FPS)
-// ======================
+// 9. Spiel-Loop (60 FPS)
 setInterval(() => {
   for (const gameId in games) {
-    updateGameState(gameId);
+    updateGamePhysics(gameId);
   }
 }, 1000 / 60);
 
-// ======================
-// 11. Serverstart
-// ======================
-const PORT = process.env.PORT;
+function updateGamePhysics(gameId) {
+  const game = games[gameId];
+  if (!game) return;
+
+  // Ballbewegung
+  game.ballX += game.ballSpeedX;
+  game.ballY += game.ballSpeedY;
+
+  // Kollisionen
+  if (game.ballY <= 0 || game.ballY >= 100) game.ballSpeedY *= -1;
+  if (game.ballX <= 5 && Math.abs(game.ballY - game.leftPaddleY) < 10) game.ballSpeedX *= -1.05;
+  if (game.ballX >= 95 && Math.abs(game.ballY - game.rightPaddleY) < 10) game.ballSpeedX *= -1.05;
+
+  // Punkte
+  if (game.ballX < 0 || game.ballX > 100) {
+    if (game.ballX < 0) game.rightScore++;
+    else game.leftScore++;
+    resetBall(game);
+  }
+
+  broadcastGameState(gameId);
+}
+
+function resetBall(game) {
+  game.ballX = 50;
+  game.ballY = 50;
+  game.ballSpeedX = (Math.random() > 0.5 ? 1 : -1) * 5;
+  game.ballSpeedY = (Math.random() > 0.5 ? 1 : -1) * 5;
+}
+
+// 10. Serverstart
+const PORT = process.env.PORT || 10000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`
   ===============================
