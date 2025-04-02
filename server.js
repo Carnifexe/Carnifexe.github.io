@@ -6,7 +6,7 @@ const path = require('path');
 const app = express();
 const server = createServer(app);
 
-// Render-spezifische WebSocket-Konfiguration
+// WebSocket-Server für Render.com
 const io = new Server(server, {
   cors: {
     origin: 'https://carnifexe-github-io.onrender.com',
@@ -15,42 +15,39 @@ const io = new Server(server, {
   transports: ['websocket']
 });
 
-// Statische Dateien aus /public
+// Statische Dateien
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Health Check für Render
+// Health Check (für Render notwendig)
 app.get('/health', (req, res) => {
-  res.status(200).json({
+  res.status(200).json({ 
     status: 'online',
-    websocket: 'wss://carnifexe-github-io.onrender.com'
+    websocket: 'wss://carnifexe-github-io.onrender.com' 
   });
 });
 
-// WebSocket-Verbindung
-io.on('connection', (socket) => {
-  console.log('🔗 Verbindung:', socket.id);
+// Spiel-Logik
+const players = {};
+let playerCount = 0;
 
-  // Ping-Pong für Render Keep-Alive
+io.on('connection', (socket) => {
+  console.log('🔗 Neue Verbindung:', socket.id);
+
+  // Spieler registrieren
+  playerCount++;
+  const playerName = `Spieler ${playerCount}`;
+  players[socket.id] = { name: playerName, score: 0 };
+
+  // Debug-Ping
   socket.on('ping', (cb) => cb('pong'));
 
-  // Spieler-Management
-  const players = {};
-  const games = {};
-  let playerCount = 0;
-
-  playerCount++;
-  players[socket.id] = {
-    name: `Spieler ${playerCount}`,
-    status: 'waiting'
-  };
-
-  // Spiel-Logik (Beispiel-Event)
-  socket.on('playerMove', (data) => {
-    io.emit('gameUpdate', data);
+  // Beispiel: Spielerbewegung
+  socket.on('movePaddle', (y) => {
+    io.emit('paddleMoved', { playerId: socket.id, y });
   });
 
   socket.on('disconnect', () => {
-    console.log('❌ Trennung:', socket.id);
+    console.log('❌ Spieler getrennt:', players[socket.id]?.name);
     delete players[socket.id];
   });
 });
@@ -62,7 +59,7 @@ server.headersTimeout = 65000;
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`
-  🚀 Server gestartet auf Port ${PORT}
+  🚀 Server gestartet
   📡 WebSocket: wss://carnifexe-github-io.onrender.com
   `);
 });
