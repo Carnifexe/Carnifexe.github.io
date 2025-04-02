@@ -87,7 +87,6 @@
 
         socket.onopen = () => {
             console.log("Mit Server verbunden");
-            socket.send(JSON.stringify({ type: "joinQueue" }));
         };
 
         socket.onmessage = (event) => {
@@ -126,12 +125,12 @@
             socket.send(JSON.stringify({ type: "joinQueue" }));
         });
 
-        document.addEventListener('keydown', (e) => {
+        canvas.addEventListener("mousemove", (e) => {
             if (!gameRunning) return;
             
-            const paddleSpeed = 20;
-            if (e.key === 'w' || e.key === 'ArrowUp') playerY = Math.max(0, playerY - paddleSpeed);
-            if (e.key === 's' || e.key === 'ArrowDown') playerY = Math.min(canvas.height - 100, playerY + paddleSpeed);
+            const rect = canvas.getBoundingClientRect();
+            playerY = e.clientY - rect.top - 50;
+            playerY = Math.max(0, Math.min(canvas.height - 100, playerY));
 
             socket.send(JSON.stringify({ type: "paddleMove", player: playerNumber, y: playerY }));
         });
