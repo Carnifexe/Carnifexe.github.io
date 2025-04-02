@@ -71,12 +71,10 @@
         const connectedClients = document.getElementById("connectedClients");
 
         let playerNumber = null;
-        let opponent = null;
-        let gameRunning = false;
         let playerY = canvas.height / 2 - 50;
         let opponentY = canvas.height / 2 - 50;
         let ballX = canvas.width / 2, ballY = canvas.height / 2;
-        let ballSpeedX = 5, ballSpeedY = 5;
+        let gameRunning = false;
 
         function resizeCanvas() {
             canvas.width = window.innerWidth;
@@ -91,32 +89,27 @@
 
         socket.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            
+
             if (data.type === "queueUpdate") {
                 connectedClients.textContent = `Warteschlange: ${data.count} Spieler`;
             }
 
             if (data.type === "gameStart") {
                 playerNumber = data.playerNumber;
-                opponent = data.opponent;
                 console.log(`Spiel gestartet als Spieler ${playerNumber}`);
                 queueButton.style.display = "none";
                 waitingText.style.display = "none";
                 canvas.style.display = "block";
                 gameRunning = true;
-                gameLoop();
+            }
+
+            if (data.type === "ballUpdate") {
+                ballX = data.x;
+                ballY = data.y;
             }
 
             if (data.type === "paddleMove" && data.player !== playerNumber) {
                 opponentY = data.y;
-            }
-
-            if (data.type === "ballUpdate") {
-                // Korrigiere die Ballposition, falls der Ball nicht richtig angezeigt wird.
-                ballX = data.x;
-                ballY = data.y;
-                ballSpeedX = data.speedX;
-                ballSpeedY = data.speedY;
             }
         };
 
@@ -128,54 +121,13 @@
 
         canvas.addEventListener("mousemove", (e) => {
             if (!gameRunning) return;
-            
+
             const rect = canvas.getBoundingClientRect();
             playerY = e.clientY - rect.top - 50;
             playerY = Math.max(0, Math.min(canvas.height - 100, playerY));
 
             socket.send(JSON.stringify({ type: "paddleMove", player: playerNumber, y: playerY }));
         });
-
-        function gameLoop() {
-            if (!gameRunning) return;
-
-            // Berechnungen des Balls
-            ballX += ballSpeedX;
-            ballY += ballSpeedY;
-
-            // Ball stößt an die obere oder untere Wand
-            if (ballY <= 0 || ballY >= canvas.height) ballSpeedY *= -1;
-
-            // Ball kollidiert mit den Schlägern
-            if ((ballX <= 15 && ballY >= playerY && ballY <= playerY + 100) ||
-                (ballX >= canvas.width - 15 && ballY >= opponentY && ballY <= opponentY + 100)) {
-                ballSpeedX *= -1;
-            }
-
-            // Ball außerhalb des Spielfelds (Punkte)
-            if (ballX < 0 || ballX > canvas.width) {
-                ballX = canvas.width / 2;
-                ballY = canvas.height / 2;
-                ballSpeedX = 5 * (Math.random() > 0.5 ? 1 : -1);
-                ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
-            }
-
-            // Zeichne das Spielfeld
-            draw();
-
-            // Nur als Spieler 1 die Ballposition weiter an den Server senden
-            if (playerNumber === 1) {
-                socket.send(JSON.stringify({
-                    type: "ballUpdate",
-                    x: ballX,
-                    y: ballY,
-                    speedX: ballSpeedX,
-                    speedY: ballSpeedY
-                }));
-            }
-
-            requestAnimationFrame(gameLoop);
-        }
 
         function draw() {
             ctx.fillStyle = "#000";
@@ -195,6 +147,15 @@
             ctx.arc(ballX, ballY, 10, 0, Math.PI * 2); // Ball zeichnen
             ctx.fill();
         }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
     </script>
 </body>
 </html>
