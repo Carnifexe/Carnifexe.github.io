@@ -12,18 +12,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const invitationText = document.getElementById('invitationText');
   const acceptBtn = document.getElementById('acceptInvite');
   const declineBtn = document.getElementById('declineInvite');
+  const gameInfo = document.getElementById('gameInfo');
 
   // ================
   // 2. Spielzustand
   // ================
   const gameState = {
-    leftPaddle: { y: 50, width: 20, height: 100 },
-    rightPaddle: { y: 50, width: 20, height: 100 },
-    ball: { x: 50, y: 50, radius: 10 },
+    leftPaddle: { y: 50, width: 15, height: 100 },
+    rightPaddle: { y: 50, width: 15, height: 100 },
+    ball: { x: 50, y: 50, radius: 8 },
     scores: { left: 0, right: 0 },
     currentGame: null,
     playerSide: null,
-    socketId: null
+    playerId: null,
+    socketId: null,
+    lastUpdate: 0,
+    ping: 0
   };
 
   // ================
@@ -32,125 +36,225 @@ document.addEventListener('DOMContentLoaded', () => {
   const socket = io('wss://carnifexe-github-io.onrender.com', {
     transports: ['websocket'],
     upgrade: false,
-    reconnectionAttempts: 5,
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 3000,
-    timeout: 10000,
+    reconnectionDelayMax: 10000,
+    randomizationFactor: 0.5,
+    timeout: 20000,
     withCredentials: false
   });
 
   // ================
   // 4. Verbindungsmanagement
   // ================
+  let connectionTimeout;
+  let reconnectAttempts = 0;
+
   function updateConnectionStatus(connected, message = '') {
-    connectionStatus.textContent = connected ? '🟢 ONLINE' : `🔴 OFFLINE: ${message}`;
-    connectionStatus.className = connected ? 'online' : 'offline';
+    const statusEl = document.getElementById('connectionStatus');
+    
+    if (connected) {
+      statusEl.innerHTML = '🟢 ONLINE';
+      statusEl.className = 'online';
+      statusEl.title = `Latenz: ${gameState.ping}ms`;
+      reconnectAttempts = 0;
+    } else {
+      statusEl.innerHTML = `🔴 OFFLINE: ${message}`;
+      statusEl.className = 'offline';
+      
+      if (message.includes('Verbindung verloren')) {
+        scheduleReconnect();
+      }
+    }
+  }
+
+  function scheduleReconnect() {
+    if (!connectionTimeout && reconnectAttempts < 5) {
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 15000);
+      connectionTimeout = setTimeout(() => {
+        socket.connect();
+        reconnectAttempts++;
+        connectionTimeout = null;
+      }, delay);
+    }
   }
 
   socket.on('connect', () => {
     console.log('✅ Verbunden mit Socket-ID:', socket.id);
     gameState.socketId = socket.id;
     updateConnectionStatus(true);
+    updateEmptyPlayerList();
   });
 
   socket.on('connect_error', (err) => {
     console.error('❌ Verbindungsfehler:', err.message);
-    updateConnectionStatus(false, err.message);
-    
-    // Automatischer Neuversuch
-    setTimeout(() => socket.connect(), 5000);
+    updateConnectionStatus(false, err.message || 'Verbindungsfehler');
   });
 
   socket.on('disconnect', (reason) => {
     console.log('Verbindung getrennt:', reason);
     updateConnectionStatus(false, 'Verbindung verloren');
+    
+    if (reason === 'io server disconnect') {
+      // Server-seitige Trennung, neu verbinden
+      socket.connect();
+    }
   });
 
   socket.on('welcome', (data) => {
     console.log('Server begrüßt:', data.message);
-    connectionStatus.textContent = `🟢 ${data.message}`;
+    gameState.playerId = data.id;
+    updateConnectionStatus(true, `${data.message} (${data.playerCount} Spieler online)`);
   });
 
   // ================
-  // 5. Spielereignisse
+  // 5. Spielerliste & Einladungen
   // ================
-  socket.on('player_list', (players) => {
-    playerList.innerHTML = players
-      .filter(player => player.id !== socket.id) // Filtere den eigenen Spieler
-      .map(player => `
-        <li class="${player.status === 'playing' ? 'playing' : 'available'}" 
-            data-id="${player.id}">
-          ${player.name} 
-          <span class="status">(${player.status === 'waiting' ? 'Wartend' : 'Spielt'})</span>
+  function updateEmptyPlayerList() {
+    playerList.innerHTML = '<li class="empty">Suche nach Spielern...</li>';
+    gameInfo.textContent = 'Verbinde mit Server...';
+  }
+
+  function renderPlayerList(players) {
+    const availablePlayers = players.filter(p => 
+      p.id !== gameState.playerId && p.status === 'waiting'
+    );
+
+    if (availablePlayers.length === 0) {
+      playerList.innerHTML = '<li class="empty">Keine Spieler verfügbar</li>';
+      gameInfo.textContent = 'Warte auf Gegner...';
+    } else {
+      playerList.innerHTML = availablePlayers.map(player => `
+        <li class="available" data-id="${player.id}">
+          ${player.name}
+          <span class="status">(Wartend)</span>
         </li>
       `).join('');
 
-    // Klick-Listener für verfügbare Spieler
-    document.querySelectorAll('#playerList li.available').forEach(li => {
-      li.addEventListener('click', () => {
-        if (!gameState.currentGame) {
-          console.log('Lade Spieler ein:', li.dataset.id);
-          socket.emit('invite', li.dataset.id);
-          li.classList.add('pending');
-          li.querySelector('.status').textContent = '(Einladung gesendet)';
-        }
+      // Event Listener für Spielereinladungen
+      document.querySelectorAll('#playerList li.available').forEach(li => {
+        li.addEventListener('click', () => {
+          if (!gameState.currentGame) {
+            const playerId = li.dataset.id;
+            console.log('Lade Spieler ein:', playerId);
+            
+            socket.emit('invite', playerId);
+            li.classList.add('pending');
+            li.querySelector('.status').textContent = '(Einladung gesendet)';
+            
+            gameInfo.textContent = 'Einladung gesendet...';
+          }
+        });
       });
-    });
+    }
+  }
+
+  socket.on('player_list', (players) => {
+    if (players.length <= 1) {
+      updateEmptyPlayerList();
+    } else {
+      renderPlayerList(players);
+    }
   });
 
   socket.on('invitation', (data) => {
     invitationText.textContent = `${data.fromName} möchte gegen dich spielen!`;
     invitationModal.style.display = 'flex';
+    gameInfo.textContent = 'Einladung erhalten!';
 
     acceptBtn.onclick = () => {
+      const gameId = data.gameId || `${data.from}-${gameState.playerId}`;
       socket.emit('accept_invitation', {
-        gameId: `${data.from}-${socket.id}`,
-        players: [data.from, socket.id]
+        gameId,
+        players: [data.from, gameState.playerId]
       });
       invitationModal.style.display = 'none';
+      gameInfo.textContent = 'Spiel startet...';
     };
 
     declineBtn.onclick = () => {
       socket.emit('decline_invitation', data.from);
       invitationModal.style.display = 'none';
+      gameInfo.textContent = 'Einladung abgelehnt';
     };
   });
 
   socket.on('invitation_sent', (data) => {
     console.log(`Einladung an ${data.targetName} gesendet`);
-    // Optional: Visuelles Feedback
-    const statusEl = document.getElementById('connectionStatus');
-    statusEl.textContent = `✉️ Einladung an ${data.targetName} gesendet`;
-    statusEl.style.backgroundColor = '#FFA500';
+    gameInfo.textContent = `Einladung an ${data.targetName} gesendet`;
+    
+    // Visuelles Feedback
+    connectionStatus.textContent = `✉️ Einladung gesendet`;
+    connectionStatus.style.backgroundColor = '#FFA500';
+    setTimeout(() => updateConnectionStatus(true), 3000);
   });
 
+  // ================
+  // 6. Spielereignisse
+  // ================
   socket.on('game_start', (data) => {
     gameState.currentGame = data.gameId;
     gameState.playerSide = data.playerSide;
-    console.log(`Spiel gestartet als ${data.playerSide}`);
+    console.log(`🎮 Spiel gestartet als ${data.playerSide}`);
+    gameInfo.textContent = `Spiel läuft (vs ${data.opponent})`;
+    
+    // Canvas für Spiel vorbereiten
+    gameCanvas.style.cursor = 'none';
   });
 
   socket.on('game_update', (state) => {
-    gameState.leftPaddle.y = state.leftPaddleY;
-    gameState.rightPaddle.y = state.rightPaddleY;
+    gameState.lastUpdate = Date.now();
+    
+    // Interpolation für flüssigere Bewegungen
+    const interpolationFactor = 0.2;
+    gameState.leftPaddle.y += (state.leftPaddleY - gameState.leftPaddle.y) * interpolationFactor;
+    gameState.rightPaddle.y += (state.rightPaddleY - gameState.rightPaddle.y) * interpolationFactor;
     gameState.ball.x = state.ballX;
     gameState.ball.y = state.ballY;
+    
+    // Scores aktualisieren
+    if (gameState.scores.left !== state.leftScore || gameState.scores.right !== state.rightScore) {
+      animateScoreChange(state.leftScore, state.rightScore);
+    }
     gameState.scores.left = state.leftScore;
     gameState.scores.right = state.rightScore;
-    
-    leftScore.textContent = gameState.scores.left;
-    rightScore.textContent = gameState.scores.right;
   });
 
-  socket.on('game_end', () => {
+  function animateScoreChange(left, right) {
+    leftScore.textContent = left;
+    rightScore.textContent = right;
+    
+    // Animationseffekt
+    leftScore.style.transform = 'scale(1.5)';
+    rightScore.style.transform = 'scale(1.5)';
+    setTimeout(() => {
+      leftScore.style.transform = 'scale(1)';
+      rightScore.style.transform = 'scale(1)';
+    }, 300);
+  }
+
+  socket.on('game_ended', (data) => {
+    console.log('Spiel beendet:', data.reason);
+    gameCanvas.style.cursor = 'default';
+    
+    if (data.reason === 'opponent_disconnected') {
+      gameInfo.textContent = 'Gegner hat das Spiel verlassen!';
+    } else {
+      gameInfo.textContent = 'Spiel beendet';
+    }
+    
+    // Reset game state
     gameState.currentGame = null;
-    console.log('Spiel beendet');
+    gameState.playerSide = null;
+    gameState.ball.x = 50;
+    gameState.ball.y = 50;
   });
 
   // ================
-  // 6. Spielsteuerung
+  // 7. Spielsteuerung
   // ================
   gameCanvas.addEventListener('mousemove', (e) => {
-    if (!gameState.currentGame) return;
+    if (!gameState.currentGame || !gameState.playerSide) return;
     
     const rect = gameCanvas.getBoundingClientRect();
     const y = ((e.clientY - rect.top) / gameCanvas.height) * 100;
@@ -162,18 +266,34 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Touch-Support für Mobile
+  gameCanvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!gameState.currentGame || !gameState.playerSide) return;
+    
+    const touch = e.touches[0];
+    const rect = gameCanvas.getBoundingClientRect();
+    const y = ((touch.clientY - rect.top) / gameCanvas.height) * 100;
+    
+    socket.emit('move_paddle', {
+      gameId: gameState.currentGame,
+      y: y,
+      side: gameState.playerSide
+    });
+  });
+
   // ================
-  // 7. Render-Loop
+  // 8. Render-Loop
   // ================
   function render() {
     // Hintergrund
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = '#111';
     ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
     
-    // Mittellinie
-    ctx.setLineDash([10, 10]);
+    // Mittellinie (gestrichelt)
+    ctx.setLineDash([15, 15]);
     ctx.strokeStyle = '#333';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(gameCanvas.width/2, 0);
     ctx.lineTo(gameCanvas.width/2, gameCanvas.height);
@@ -182,20 +302,24 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Schläger
     ctx.fillStyle = '#FFF';
+    // Linker Schläger
     ctx.fillRect(
       20, 
       (gameState.leftPaddle.y / 100) * gameCanvas.height - gameState.leftPaddle.height/2, 
       gameState.leftPaddle.width, 
       gameState.leftPaddle.height
     );
+    // Rechter Schläger
     ctx.fillRect(
-      gameCanvas.width - 40, 
+      gameCanvas.width - 20 - gameState.rightPaddle.width, 
       (gameState.rightPaddle.y / 100) * gameCanvas.height - gameState.rightPaddle.height/2, 
       gameState.rightPaddle.width, 
       gameState.rightPaddle.height
     );
     
-    // Ball
+    // Ball mit Glow-Effekt
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#FFF';
     ctx.beginPath();
     ctx.arc(
       (gameState.ball.x / 100) * gameCanvas.width,
@@ -205,23 +329,34 @@ document.addEventListener('DOMContentLoaded', () => {
       Math.PI * 2
     );
     ctx.fill();
+    ctx.shadowBlur = 0;
     
     requestAnimationFrame(render);
   }
 
   // ================
-  // 8. Initialisierung
+  // 9. Ping & Verbindungsüberwachung
   // ================
-  render();
-
-  // Ping-Pong für Verbindungsüberwachung
   setInterval(() => {
     if (socket.connected) {
       const pingStart = Date.now();
       socket.emit('ping', pingStart, (serverTime) => {
-        const latency = Date.now() - pingStart;
-        console.log('Latenz:', latency, 'ms');
+        gameState.ping = Date.now() - pingStart;
+        connectionStatus.title = `Latenz: ${gameState.ping}ms`;
       });
     }
-  }, 25000);
+  }, 10000);
+
+  // ================
+  // 10. Initialisierung
+  // ================
+  render();
+  updateEmptyPlayerList();
+
+  // Automatischer Reconnect bei Tab-Wechsel
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && !socket.connected) {
+      socket.connect();
+    }
+  });
 });
