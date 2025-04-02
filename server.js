@@ -59,6 +59,7 @@ io.on('connection', (socket) => {
   playerCount++;
   const playerName = `Spieler ${playerCount}`;
   players[socket.id] = {
+    id: socket.id,
     name: playerName,
     status: 'waiting',
     lastActive: Date.now()
@@ -82,10 +83,17 @@ io.on('connection', (socket) => {
 
   // Spielmanagement
   socket.on('invite', (targetId) => {
-    if (players[targetId]?.status === 'waiting') {
+    if (players[targetId]?.status === 'waiting' && players[socket.id]?.status === 'waiting') {
+      console.log(`Spieler ${socket.id} lädt ${targetId} ein`);
       io.to(targetId).emit('invitation', {
         from: socket.id,
         fromName: players[socket.id].name
+      });
+      
+      // Bestätigung an den einladenden Spieler senden
+      socket.emit('invitation_sent', {
+        targetId: targetId,
+        targetName: players[targetId].name
       });
     }
   });
@@ -175,7 +183,7 @@ function broadcastGameState(gameId) {
 
 function updatePlayerList() {
   io.emit('player_list', Object.values(players).map(p => ({
-    id: p.socketId,
+    id: p.id,
     name: p.name,
     status: p.status
   })));
