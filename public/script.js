@@ -24,13 +24,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // ================
   // 3. WebSocket-Verbindung
   // ================
-  const socket = io('wss://carnifexe-github-io.onrender.com', {
-    transports: ['websocket'],  // Erzwingt WebSocket
-    reconnectionAttempts: 5,
-    timeout: 10000,
-    withCredentials: true,
-    upgrade: false  // WICHTIG: Deaktiviert Polling-Fallback
-  });
+// In public/script.js
+const socket = io('wss://carnifexe-github-io.onrender.com', {
+  // KRITISCHE EINSTELLUNGEN:
+  transports: ['websocket'],
+  upgrade: false,       // Polling deaktivieren
+  reconnectionAttempts: 5,
+  timeout: 10000,
+  withCredentials: false
+});
 
   // ================
   // 4. Verbindungsmanagement
