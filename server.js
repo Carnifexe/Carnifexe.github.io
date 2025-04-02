@@ -262,7 +262,7 @@ setInterval(() => {
 // ======================
 // 11. Serverstart
 // ======================
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`
   ===============================
