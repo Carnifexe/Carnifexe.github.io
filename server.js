@@ -15,19 +15,21 @@ let players = []; // Liste der verbundenen Spieler
 let gameInProgress = false;
 
 // HTTP-Route für den Fall, dass du eine Webseite servieren möchtest
+app.use(express.static('public')); // Statische Dateien servieren (HTML, CSS, JS)
 app.get('/', (req, res) => {
-    res.send('Pong Server läuft');
+    res.sendFile(__dirname + '/index.html'); // HTML-Datei senden
 });
 
 // WebSocket-Verbindung und Nachrichtenbehandlung
 wss.on('connection', (ws) => {
     console.log('Ein Spieler hat sich verbunden.');
 
+    // Füge den neuen Spieler zur Liste hinzu
     players.push(ws);
 
     // Funktion zur Aktualisierung der Spieler-Liste
     function updatePlayerList() {
-        const playerNames = players.map(player => player.name || `Player ${players.indexOf(player) + 1}`);
+        const playerNames = players.map((player, index) => `Player ${index + 1}`);
         players.forEach(player => {
             player.send(JSON.stringify({
                 type: 'updatePlayers',
@@ -87,7 +89,8 @@ wss.on('connection', (ws) => {
         updatePlayerList();
     });
 
-    ws.name = `Player ${players.indexOf(ws) + 1}`;
+    // Weisen Sie dem Spieler einen Namen zu
+    ws.name = `Player ${players.length}`;
     updatePlayerList();
 });
 
