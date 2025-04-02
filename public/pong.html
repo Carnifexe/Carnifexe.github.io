@@ -71,9 +71,9 @@
         const connectedClients = document.getElementById("connectedClients");
 
         let playerNumber = null;
-        let playerY = canvas.height / 2 - 50;
-        let opponentY = canvas.height / 2 - 50;
-        let ballX = canvas.width / 2, ballY = canvas.height / 2;
+        let opponentY = 300;
+        let playerY = 300;
+        let ballX = 400, ballY = 300;
         let gameRunning = false;
 
         function resizeCanvas() {
@@ -101,15 +101,16 @@
                 waitingText.style.display = "none";
                 canvas.style.display = "block";
                 gameRunning = true;
+                gameLoop();
+            }
+
+            if (data.type === "paddleMove" && data.player !== playerNumber) {
+                opponentY = data.y;
             }
 
             if (data.type === "ballUpdate") {
                 ballX = data.x;
                 ballY = data.y;
-            }
-
-            if (data.type === "paddleMove" && data.player !== playerNumber) {
-                opponentY = data.y;
             }
         };
 
@@ -121,13 +122,18 @@
 
         canvas.addEventListener("mousemove", (e) => {
             if (!gameRunning) return;
-
             const rect = canvas.getBoundingClientRect();
             playerY = e.clientY - rect.top - 50;
             playerY = Math.max(0, Math.min(canvas.height - 100, playerY));
-
             socket.send(JSON.stringify({ type: "paddleMove", player: playerNumber, y: playerY }));
         });
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
 
         function draw() {
             ctx.fillStyle = "#000";
@@ -140,22 +146,13 @@
             ctx.stroke();
 
             ctx.fillStyle = "#fff";
-            ctx.fillRect(0, playerY, 15, 100); // Dein Schläger
-            ctx.fillRect(canvas.width - 15, opponentY, 15, 100); // Gegners Schläger
+            ctx.fillRect(10, playerY, 15, 100);
+            ctx.fillRect(canvas.width - 25, opponentY, 15, 100);
 
             ctx.beginPath();
-            ctx.arc(ballX, ballY, 10, 0, Math.PI * 2); // Ball zeichnen
+            ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
             ctx.fill();
         }
-
-        function gameLoop() {
-            if (!gameRunning) return;
-
-            draw();
-            requestAnimationFrame(gameLoop);
-        }
-
-        gameLoop();
     </script>
 </body>
 </html>
