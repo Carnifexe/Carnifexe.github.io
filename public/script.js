@@ -74,19 +74,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5. Spielereignisse
   // ================
   socket.on('player_list', (players) => {
-    playerList.innerHTML = players.map(player => `
-      <li class="${player.status === 'playing' ? 'playing' : ''}" 
-          data-id="${player.id}">
-        ${player.name} 
-        <span class="status">(${player.status === 'waiting' ? 'Wartend' : 'Spielt'})</span>
-      </li>
-    `).join('');
+    playerList.innerHTML = players
+      .filter(player => player.id !== socket.id) // Filtere den eigenen Spieler
+      .map(player => `
+        <li class="${player.status === 'playing' ? 'playing' : 'available'}" 
+            data-id="${player.id}">
+          ${player.name} 
+          <span class="status">(${player.status === 'waiting' ? 'Wartend' : 'Spielt'})</span>
+        </li>
+      `).join('');
 
-    // Klick-Listener für Spielerliste
-    document.querySelectorAll('#playerList li:not(.playing)').forEach(li => {
+    // Klick-Listener für verfügbare Spieler
+    document.querySelectorAll('#playerList li.available').forEach(li => {
       li.addEventListener('click', () => {
-        if (gameState.socketId !== li.dataset.id) {
+        if (!gameState.currentGame) {
+          console.log('Lade Spieler ein:', li.dataset.id);
           socket.emit('invite', li.dataset.id);
+          li.classList.add('pending');
+          li.querySelector('.status').textContent = '(Einladung gesendet)';
         }
       });
     });
@@ -108,6 +113,14 @@ document.addEventListener('DOMContentLoaded', () => {
       socket.emit('decline_invitation', data.from);
       invitationModal.style.display = 'none';
     };
+  });
+
+  socket.on('invitation_sent', (data) => {
+    console.log(`Einladung an ${data.targetName} gesendet`);
+    // Optional: Visuelles Feedback
+    const statusEl = document.getElementById('connectionStatus');
+    statusEl.textContent = `✉️ Einladung an ${data.targetName} gesendet`;
+    statusEl.style.backgroundColor = '#FFA500';
   });
 
   socket.on('game_start', (data) => {
