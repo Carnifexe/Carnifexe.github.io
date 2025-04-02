@@ -1,7 +1,10 @@
 const WebSocket = require('ws');
 
-// WebSocket Server Setup
-const wss = new WebSocket.Server({ port: 8080 });
+// WebSocket Server Setup mit der externen Adresse
+const wss = new WebSocket.Server({
+    port: 8080,
+    host: 'carnifexe-github-io.onrender.com'  // WebSocket-Serveradresse
+});
 
 let players = [];  // Liste der verbundenen Spieler
 let gameInProgress = false;  // Status, ob das Spiel läuft oder nicht
@@ -111,4 +114,4 @@ wss.on('error', (err) => {
 });
 
 // Server läuft
-console.log('WebSocket-Server läuft auf ws://localhost:8080');
+console.log('WebSocket-Server läuft auf wss://carnifexe-github-io.onrender.com');
