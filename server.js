@@ -247,6 +247,8 @@ function updatePlayerList() {
     name: player.name,
     status: player.status
   }));
+
+  // Sende die Liste an alle verbundenen Clients
   io.emit('player_list_update', playerList);
 }
 
