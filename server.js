@@ -1,51 +1,65 @@
-const WebSocket = require('ws');
-const wss = new WebSocket.Server({ port: 8080 });
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server);
 
 let players = [];
+let playerCount = 0;
+let waitingPlayers = [];
 
-wss.on('connection', (ws) => {
-    console.log('Ein Spieler hat sich verbunden');
-    
-    // Neue Verbindung hinzufügen
-    players.push(ws);
+app.use(express.static('public'));
 
-    // Sende die Liste der verbundenen Spieler an alle Clients
-    function updatePlayers() {
-        const playerNames = players.map((player, index) => `Spieler ${index + 1}`);
-        players.forEach(player => {
-            player.send(JSON.stringify({
-                type: 'updatePlayers',
-                players: playerNames
-            }));
-        });
+io.on('connection', (socket) => {
+  console.log('New player connected: ' + socket.id);
+  
+  players.push(socket);
+  playerCount++;
+  
+  // Wenn ein Spieler sich verbindet, sende ihm die Liste der wartenden Spieler
+  socket.emit('playerList', getWaitingPlayerNames());
+
+  // Wenn ein Spieler einen anderen herausfordert
+  socket.on('challengePlayer', (challengerName, opponentId) => {
+    const opponentSocket = players.find(player => player.id === opponentId);
+    if (opponentSocket) {
+      opponentSocket.emit('receiveChallenge', challengerName, socket.id);
     }
+  });
 
-    // Wenn ein Spieler eine Herausforderung sendet
-    ws.on('message', (message) => {
-        const data = JSON.parse(message);
-        if (data.type === 'challenge') {
-            const opponentIndex = players.findIndex(player => player !== ws);
-            if (opponentIndex !== -1) {
-                players[opponentIndex].send(JSON.stringify({
-                    type: 'gameStart',
-                    playerNumber: players.indexOf(ws)
-                }));
-                ws.send(JSON.stringify({
-                    type: 'gameStart',
-                    playerNumber: players.indexOf(players[opponentIndex])
-                }));
-            }
-        }
-    });
+  // Wenn der Gegner eine Herausforderung annimmt oder ablehnt
+  socket.on('challengeResponse', (accept, challengerId) => {
+    const challengerSocket = players.find(player => player.id === challengerId);
+    if (challengerSocket) {
+      if (accept) {
+        challengerSocket.emit('startGame');
+        socket.emit('startGame');
+      } else {
+        challengerSocket.emit('challengeDeclined');
+        socket.emit('challengeDeclined');
+      }
+    }
+  });
 
-    // Sende regelmäßig die Liste der Spieler
-    setInterval(updatePlayers, 1000);
+  // Wenn ein Spiel vorbei ist, komme zurück in den Wartebereich
+  socket.on('endGame', () => {
+    io.emit('returnToWait');
+  });
 
-    // Wenn ein Spieler die Verbindung schließt
-    ws.on('close', () => {
-        players = players.filter(player => player !== ws);
-        updatePlayers();
-    });
+  // Wenn ein Spieler das Spiel verlässt
+  socket.on('disconnect', () => {
+    console.log('Player disconnected: ' + socket.id);
+    players = players.filter(player => player.id !== socket.id);
+  });
 });
 
-console.log('WebSocket-Server läuft auf ws://localhost:8080');
+function getWaitingPlayerNames() {
+  return players.map((player, index) => {
+    return `Spieler ${index + 1}`;
+  });
+}
+
+server.listen(3000, () => {
+  console.log('Server läuft auf http://localhost:3000');
+});
