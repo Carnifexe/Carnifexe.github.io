@@ -1,8 +1,7 @@
 const WebSocket = require('ws');
 const wss = new WebSocket.Server({ port: 8080 });
 
-let players = [];
-let challenges = [];
+let players = []; // Eine Liste, um alle verbundenen Spieler zu speichern
 
 wss.on('connection', (ws) => {
     console.log('Ein neuer Spieler hat sich verbunden.');
@@ -12,7 +11,7 @@ wss.on('connection', (ws) => {
         const data = JSON.parse(message);
 
         if (data.type === 'challenge') {
-            // Herausforderung von einem Spieler annehmen
+            // Eine Herausforderung wurde gesendet
             const { player } = data;
             const playerName = getPlayerName(ws);
             console.log(`${playerName} hat eine Herausforderung an ${player} gesendet.`);
