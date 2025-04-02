@@ -1,200 +1,132 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pong Spiel</title>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background: transparent;
-            color: white;
-            font-family: Arial, sans-serif;
-        }
-        canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 9999;
-            display: none;
-        }
-        #startButton, #restartButton {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 20px;
-            font-size: 20px;
-            cursor: pointer;
-            z-index: 10001;
-            background: #333;
-            color: white;
-            border: none;
-            border-radius: 5px;
-        }
-        #restartButton {
-            display: none;
-        }
-        #scoreboard {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10000;
-            display: none;
-            color: white;
-            background: rgba(0,0,0,0.5);
-            padding: 15px 30px;
-            border-radius: 10px;
-            text-align: center;
-        }
-        #waitingRoom {
-            position: absolute;
-            top: 10%;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10002;
-            background: rgba(0,0,0,0.7);
-            padding: 20px;
-            border-radius: 10px;
-            display: block;
-            color: white;
-            width: 300px;
-            text-align: center;
-        }
-        .player-list {
-            margin-top: 20px;
-            list-style-type: none;
-            padding: 0;
-        }
-        .player-item {
-            padding: 10px;
-            background: #333;
-            margin: 5px;
-            cursor: pointer;
-        }
-        .player-item:hover {
-            background: #444;
-        }
-        .player-name {
-            font-size: 18px;
-            color: #ffcc00;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pong Multiplayer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+    .waiting-list {
+      margin-top: 20px;
+    }
+    .player {
+      padding: 10px;
+      cursor: pointer;
+      background-color: #f0f0f0;
+      margin-bottom: 5px;
+      border: 1px solid #ddd;
+    }
+    .player:hover {
+      background-color: #d0d0d0;
+    }
+    canvas {
+      border: 1px solid black;
+      display: block;
+      margin: 0 auto;
+    }
+  </style>
 </head>
 <body>
-    <div id="waitingRoom">
-        <h2>Warteraum</h2>
-        <p>Warte auf einen Gegner...</p>
-        <ul id="playerList" class="player-list"></ul>
+  <h1>Pong Multiplayer</h1>
+  <div id="waitingRoom">
+    <h2>Warteliste</h2>
+    <div class="waiting-list" id="waitingList">
+      <!-- Spieler werden hier angezeigt -->
     </div>
-    <button id="startButton" style="display: none;">Pong starten</button>
-    <button id="restartButton" style="display: none;">Neustart</button>
-    <div id="gameOverText"></div>
-    <canvas id="pongCanvas"></canvas>
+  </div>
+
+  <div id="gameArea" style="display: none;">
+    <h2>Spiel läuft...</h2>
+    <canvas id="pongCanvas" width="800" height="400"></canvas>
     <div id="scoreboard">
-        <div class="teams-container">
-            <div class="team">
-                <div class="team-name">Los Santos</div>
-                <div class="team-score" id="computerScore">0</div>
-            </div>
-            <div class="team">
-                <div class="team-name">SAHP</div>
-                <div class="team-score" id="playerScore">0</div>
-            </div>
-        </div>
+      <span id="leftScore">0</span> - <span id="rightScore">0</span>
     </div>
+  </div>
 
-    <!-- Sound-Elemente -->
-    <audio id="pingSound" src="ping.mp3"></audio>
-    <audio id="pongSound" src="pong.mp3"></audio>
-    <audio id="saHPSound" src="sahpsound.mp3"></audio>
-    <audio id="lsSound" src="lssound.mp3"></audio>
-    <audio id="bounceSound" src="bounce.mp3"></audio>
-    <audio id="winnerSound" src="winner.mp3"></audio>
-    <audio id="powerupSound" src="powerup.mp3"></audio>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
 
-    <script>
-        // Canvas und Elemente initialisieren
-        const canvas = document.getElementById("pongCanvas");
-        const ctx = canvas.getContext("2d");
-        const startButton = document.getElementById("startButton");
-        const restartButton = document.getElementById("restartButton");
-        const scoreboard = document.getElementById("scoreboard");
-        const playerScoreElement = document.getElementById("playerScore");
-        const computerScoreElement = document.getElementById("computerScore");
-        const gameOverText = document.getElementById("gameOverText");
-        const waitingRoom = document.getElementById("waitingRoom");
-        const playerList = document.getElementById("playerList");
+    let opponentId = null;
+    let gameInProgress = false;
 
-        // WebSocket-Verbindung
-        const socket = new WebSocket("ws://localhost:8080");
+    // Spielerlistenevents
+    socket.on('playerList', (players) => {
+      const waitingList = document.getElementById('waitingList');
+      waitingList.innerHTML = '';
+      players.forEach((player, index) => {
+        const playerElement = document.createElement('div');
+        playerElement.textContent = player;
+        playerElement.classList.add('player');
+        playerElement.onclick = () => challengePlayer(index);
+        waitingList.appendChild(playerElement);
+      });
+    });
 
-        socket.onopen = () => {
-            console.log("Mit dem WebSocket-Server verbunden");
-        };
+    function challengePlayer(index) {
+      const playerName = `Spieler ${index + 1}`;
+      const opponentSocketId = players[index];
+      if (confirm(`Möchtest du gegen ${playerName} spielen?`)) {
+        socket.emit('challengePlayer', playerName, opponentSocketId);
+      }
+    }
 
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
+    // Herausforderungen empfangen
+    socket.on('receiveChallenge', (challengerName, challengerId) => {
+      if (confirm(`${challengerName} möchte gegen dich spielen. Möchtest du die Herausforderung annehmen?`)) {
+        socket.emit('challengeResponse', true, challengerId);
+      } else {
+        socket.emit('challengeResponse', false, challengerId);
+      }
+    });
 
-            if (data.type === "updatePlayers") {
-                updatePlayerList(data.players);
-            }
+    socket.on('challengeDeclined', () => {
+      alert('Die Herausforderung wurde abgelehnt.');
+    });
 
-            if (data.type === "gameStart") {
-                startGame(data.playerNumber);
-            }
+    socket.on('startGame', () => {
+      startPongGame();
+    });
 
-            if (data.type === "gameOver") {
-                gameOver();
-            }
-        };
+    socket.on('returnToWait', () => {
+      returnToWaitingRoom();
+    });
 
-        socket.onerror = (error) => {
-            console.log("WebSocket-Fehler:", error);
-        };
+    // Pong-Spiel starten
+    function startPongGame() {
+      document.getElementById('waitingRoom').style.display = 'none';
+      document.getElementById('gameArea').style.display = 'block';
+      gameInProgress = true;
 
-        socket.onclose = () => {
-            console.log("Verbindung zum WebSocket-Server geschlossen");
-        };
+      // TODO: Hier das Pong-Spiel-Canvas implementieren
+      let leftScore = 0;
+      let rightScore = 0;
 
-        // Funktion um Spieler anzupassen
-        function updatePlayerList(players) {
-            playerList.innerHTML = "";
-            players.forEach((player, index) => {
-                const li = document.createElement("li");
-                li.classList.add("player-item");
-                li.innerHTML = `<span class="player-name">${player}</span>`;
-                li.onclick = () => sendChallenge(player);
-                playerList.appendChild(li);
-            });
-        }
+      const canvas = document.getElementById('pongCanvas');
+      const context = canvas.getContext('2d');
 
-        // Funktion für Herausforderung
-        function sendChallenge(playerName) {
-            const challenge = confirm(`Möchtest du ${playerName} herausfordern?`);
-            if (challenge) {
-                socket.send(JSON.stringify({
-                    type: "challenge",
-                    player: playerName
-                }));
-            }
-        }
+      // Pong-Spiel Logik
+      // TODO: Pong-Spiel Implementierung, z. B. Bewegung der Schläger und Ball
 
-        // Startet das Spiel nach der Herausforderung
-        function startGame(playerNumber) {
-            waitingRoom.style.display = "none";
-            gameRunning = true;
-            playerScore = 0;
-            computerScore = 0;
+      function draw() {
+        // Zeichne das Spielfeld, die Schläger und den Ball
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        // TODO: Ball- und Schlägerbewegung hier umsetzen
+        // Score anzeigen
+        document.getElementById('leftScore').textContent = leftScore;
+        document.getElementById('rightScore').textContent = rightScore;
+      }
 
-            playerScoreElement.textContent = "0";
-            computerScoreElement.textContent = "0";
-            
-            startButton.style.display = "none";
-            restartButton.style.display = "none";
-            canvas.style.display = "block";
-            scoreboard
+      setInterval(draw, 1000 / 60); // FPS
+    }
+
+    function returnToWaitingRoom() {
+      document.getElementById('gameArea').style.display = 'none';
+      document.getElementById('waitingRoom').style.display = 'block';
+      gameInProgress = false;
+    }
+  </script>
+</body>
+</html>
