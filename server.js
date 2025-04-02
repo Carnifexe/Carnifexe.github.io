@@ -7,20 +7,20 @@ const io = socketIo(server);
 
 let players = [];
 let playerCount = 0;
-let waitingPlayers = [];
 
 app.use(express.static('public'));
 
 io.on('connection', (socket) => {
   console.log('New player connected: ' + socket.id);
-  
+
+  // Spieler zur Liste hinzufügen
   players.push(socket);
   playerCount++;
-  
-  // Wenn ein Spieler sich verbindet, sende ihm die Liste der wartenden Spieler
-  socket.emit('playerList', getWaitingPlayerNames());
 
-  // Wenn ein Spieler einen anderen herausfordert
+  // Sende die Liste der verbundenen Spieler an alle Clients
+  io.emit('playerList', getWaitingPlayerNames());
+
+  // Wenn ein Spieler eine Herausforderung schickt
   socket.on('challengePlayer', (challengerName, opponentId) => {
     const opponentSocket = players.find(player => player.id === opponentId);
     if (opponentSocket) {
@@ -42,21 +42,19 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Wenn ein Spiel vorbei ist, komme zurück in den Wartebereich
-  socket.on('endGame', () => {
-    io.emit('returnToWait');
-  });
-
   // Wenn ein Spieler das Spiel verlässt
   socket.on('disconnect', () => {
     console.log('Player disconnected: ' + socket.id);
     players = players.filter(player => player.id !== socket.id);
+    // Sende die aktualisierte Liste an alle Clients
+    io.emit('playerList', getWaitingPlayerNames());
   });
 });
 
+// Funktion zur Ausgabe der Warteliste
 function getWaitingPlayerNames() {
   return players.map((player, index) => {
-    return `Spieler ${index + 1}`;
+    return { name: `Spieler ${index + 1}`, id: player.id };
   });
 }
 
