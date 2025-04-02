@@ -2,24 +2,28 @@ const express = require('express');
 const http = require('http');
 const socketio = require('socket.io');
 const path = require('path');
+const cors = require('cors');
 
 const app = express();
+app.use(cors());
 const server = http.createServer(app);
-const io = socketio(server);
+const io = socketio(server, {
+  cors: {
+    origin: "http://localhost:10000",
+    methods: ["GET", "POST"]
+  }
+});
 
 // Game state
 const players = {};
 const games = {};
 let playerCount = 0;
 
-// Serve static files
 app.use(express.static(path.join(__dirname, '../client')));
 
-// Socket.io connection
 io.on('connection', (socket) => {
     console.log('New connection:', socket.id);
     
-    // Assign player name and add to players list
     playerCount++;
     const playerName = `Spieler ${playerCount}`;
     players[socket.id] = {
@@ -28,10 +32,8 @@ io.on('connection', (socket) => {
         status: 'waiting'
     };
     
-    // Notify all clients about the updated player list
     updatePlayerList();
     
-    // Handle game invitation
     socket.on('invite', (targetId) => {
         if (players[targetId] && players[targetId].status === 'waiting') {
             io.to(targetId).emit('invitation', {
@@ -41,12 +43,10 @@ io.on('connection', (socket) => {
         }
     });
     
-    // Handle invitation response
     socket.on('invitationResponse', (data) => {
         const { to, accepted } = data;
         
         if (accepted) {
-            // Both players accepted, start game
             players[socket.id].status = 'playing';
             players[to].status = 'playing';
             
@@ -67,14 +67,12 @@ io.on('connection', (socket) => {
             
             updatePlayerList();
         } else {
-            // Invitation declined
             io.to(to).emit('invitationDeclined', {
                 by: players[socket.id].name
             });
         }
     });
     
-    // Handle player movement
     socket.on('paddleMove', (data) => {
         const { gameId, y } = data;
         const game = games[gameId];
@@ -86,22 +84,14 @@ io.on('connection', (socket) => {
                 game.rightPaddleY = y;
             }
             
-            // Broadcast updated game state to both players
             io.to(game.leftPlayer).emit('gameState', getGameState(game, game.leftPlayer));
             io.to(game.rightPlayer).emit('gameState', getGameState(game, game.rightPlayer));
         }
     });
     
-    // Handle game over
-    socket.on('gameOver', (gameId) => {
-        endGame(gameId);
-    });
-    
-    // Handle disconnect
     socket.on('disconnect', () => {
         console.log('Disconnected:', socket.id);
         
-        // Check if player was in a game
         for (const gameId in games) {
             if (games[gameId].leftPlayer === socket.id || games[gameId].rightPlayer === socket.id) {
                 endGame(gameId);
@@ -130,38 +120,22 @@ function createGame(player1, player2) {
     };
 }
 
-function getGameState(game, playerId) {
-    return {
-        leftPaddleY: game.leftPaddleY,
-        rightPaddleY: game.rightPaddleY,
-        ballX: game.ballX,
-        ballY: game.ballY,
-        leftScore: game.leftScore,
-        rightScore: game.rightScore,
-        isLeftPlayer: playerId === game.leftPlayer
-    };
-}
-
 function updateGame(game) {
-    // Move ball
     game.ballX += game.ballSpeedX;
     game.ballY += game.ballSpeedY;
     
-    // Ball collision with top and bottom
     if (game.ballY <= 0 || game.ballY >= 100) {
         game.ballSpeedY = -game.ballSpeedY;
     }
     
-    // Ball collision with paddles
     if (game.ballX <= 5 && game.ballY >= game.leftPaddleY - 10 && game.ballY <= game.leftPaddleY + 10) {
-        game.ballSpeedX = -game.ballSpeedX * 1.05; // Increase speed slightly
+        game.ballSpeedX = -game.ballSpeedX * 1.05;
     }
     
     if (game.ballX >= 95 && game.ballY >= game.rightPaddleY - 10 && game.ballY <= game.rightPaddleY + 10) {
-        game.ballSpeedX = -game.ballSpeedX * 1.05; // Increase speed slightly
+        game.ballSpeedX = -game.ballSpeedX * 1.05;
     }
     
-    // Ball out of bounds (score)
     if (game.ballX < 0) {
         game.rightScore++;
         resetBall(game);
@@ -174,7 +148,6 @@ function updateGame(game) {
         game.roundsPlayed++;
     }
     
-    // Check if game is over
     if (game.roundsPlayed >= 10) {
         io.to(game.leftPlayer).emit('gameEnd');
         io.to(game.rightPlayer).emit('gameEnd');
@@ -214,18 +187,16 @@ function updatePlayerList() {
     io.emit('playerListUpdate', playerList);
 }
 
-// Game loop
 setInterval(() => {
     for (const gameId in games) {
         updateGame(games[gameId]);
-        
         const game = games[gameId];
         io.to(game.leftPlayer).emit('gameState', getGameState(game, game.leftPlayer));
         io.to(game.rightPlayer).emit('gameState', getGameState(game, game.rightPlayer));
     }
-}, 1000 / 60); // 60 FPS
+}, 1000 / 60);
 
-const PORT = process.env.PORT || 3000;
+const PORT = 10000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
