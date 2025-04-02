@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pong Multiplayer | carnifexe-github-io.onrender.com</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏓</text></svg>">
+  <title>Ultimate Pong | carnifexe-github-io.onrender.com</title>
   <style>
     :root {
       --primary: #4CAF50;
@@ -15,6 +14,11 @@
       --error: #CF6679;
       --text-primary: #FFFFFF;
       --text-secondary: rgba(255, 255, 255, 0.7);
+      --fire: #FF5722;
+      --ice: #00BCD4;
+      --earth: #795548;
+      --matter: #9C27B0;
+      --gold: #FFD700;
     }
 
     * {
@@ -55,7 +59,7 @@
       flex-direction: column;
       align-items: center;
       width: 100%;
-      max-width: 1000px;
+      max-width: 800px;
     }
 
     #connectionStatus {
@@ -93,12 +97,17 @@
       width: 100%;
       max-width: 800px;
       margin: 10px 0;
-      font-size: 2.5rem;
+      font-size: 1.5rem;
       font-weight: bold;
+      background: var(--surface);
+      padding: 10px 20px;
+      border-radius: 8px;
     }
 
     #leftScore, #rightScore {
-      padding: 0 40px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
       text-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
       transition: all 0.3s ease;
     }
@@ -109,11 +118,19 @@
       display: block;
       width: 100%;
       max-width: 800px;
-      height: auto;
-      aspect-ratio: 16/10;
+      height: 600px;
       margin: 10px 0;
       box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
       touch-action: none;
+    }
+
+    .ball-trail {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      opacity: 0.7;
+      z-index: 10;
     }
 
     #playersPanel {
@@ -133,10 +150,6 @@
       display: flex;
       align-items: center;
       gap: 10px;
-    }
-
-    #playersPanel h2::before {
-      content: "👥";
     }
 
     #playerList {
@@ -286,6 +299,37 @@
       box-shadow: 0 4px 8px rgba(207, 102, 121, 0.3);
     }
 
+    #winnerModal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.9);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1001;
+      backdrop-filter: blur(5px);
+    }
+
+    #winnerContent {
+      background: var(--surface);
+      padding: 30px;
+      border-radius: 15px;
+      width: 90%;
+      max-width: 500px;
+      text-align: center;
+      box-shadow: 0 0 40px rgba(255, 215, 0, 0.5);
+      border-top: 5px solid var(--gold);
+    }
+
+    #winnerText {
+      font-size: 1.8rem;
+      margin-bottom: 20px;
+      color: var(--gold);
+    }
+
     footer {
       margin-top: 30px;
       color: var(--text-secondary);
@@ -301,7 +345,7 @@
       }
       
       #scoreBoard {
-        font-size: 2rem;
+        font-size: 1.2rem;
       }
       
       #playersPanel {
@@ -318,7 +362,6 @@
       }
     }
 
-    /* Animationen */
     @keyframes fadeIn {
       from { opacity: 0; }
       to { opacity: 1; }
@@ -327,21 +370,60 @@
     body {
       animation: fadeIn 0.5s ease-out;
     }
+
+    .power-up-indicator {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-weight: bold;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .visible {
+      opacity: 1;
+    }
+
+    .fire-bg {
+      background-color: var(--fire);
+    }
+
+    .ice-bg {
+      background-color: var(--ice);
+    }
+
+    .earth-bg {
+      background-color: var(--earth);
+    }
+
+    .matter-bg {
+      background-color: var(--matter);
+    }
+
+    .gold-bg {
+      background-color: var(--gold);
+      color: #000;
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>Pong Multiplayer</h1>
+    <h1>Ultimate Pong</h1>
     <div id="connectionStatus">🟡 Verbinde mit Server...</div>
+    <div id="powerUpIndicator" class="power-up-indicator"></div>
   </header>
 
   <main id="gameContainer">
     <div id="scoreBoard">
-      <div id="leftScore">0</div>
-      <div id="rightScore">0</div>
+      <div id="leftScore"><span id="leftPlayerName">Spieler 1</span>: <span>0</span></div>
+      <div id="rightScore"><span id="rightPlayerName">Spieler 2</span>: <span>0</span></div>
     </div>
     
-    <canvas id="gameCanvas" width="800" height="500"></canvas>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
     
     <section id="playersPanel">
       <h2>Spielerliste</h2>
@@ -363,33 +445,485 @@
     </div>
   </div>
 
+  <!-- Gewinner-Modal -->
+  <div id="winnerModal">
+    <div id="winnerContent">
+      <p id="winnerText">Herzlichen Glückwunsch <span id="winnerName">Gewinner</span>!</p>
+      <button id="restartButton" class="modalBtn" style="background-color: var(--gold); color: #000;">Neues Spiel</button>
+    </div>
+  </div>
+
   <footer>
-    <p>Pong Multiplayer | Hosted on Render.com | &copy; ${new Date().getFullYear()}</p>
+    <p>Ultimate Pong | Hosted on Render.com | &copy; <span id="currentYear"></span></p>
   </footer>
 
-  <!-- Socket.io CDN mit Fallback -->
+  <!-- Audio elements -->
+  <audio id="pingSound" preload="auto"><source src="ping.mp3" type="audio/mpeg"></audio>
+  <audio id="pongSound" preload="auto"><source src="pong.mp3" type="audio/mpeg"></audio>
+  <audio id="bounceSound" preload="auto"><source src="bounce.mp3" type="audio/mpeg"></audio>
+  <audio id="scoreSound" preload="auto"><source src="score.mp3" type="audio/mpeg"></audio>
+  <audio id="winnerSound" preload="auto"><source src="winner.mp3" type="audio/mpeg"></audio>
+  <audio id="powerupSound" preload="auto"><source src="powerup.mp3" type="audio/mpeg"></audio>
+
+  <!-- Socket.io -->
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  
   <script>
-    // Fallback für Socket.io
-    if (typeof io === 'undefined') {
-      document.getElementById('connectionStatus').textContent = "🔴 Fehler: Socket.io nicht geladen";
-      console.error("Socket.io CDN fehlgeschlagen, lokale Version laden");
-      const script = document.createElement('script');
-      script.src = '/socket.io/socket.io.js';
-      script.onerror = () => {
-        document.getElementById('gameInfo').textContent = "Netzwerkfehler: Bitte Seite neu laden";
+    document.addEventListener('DOMContentLoaded', () => {
+      // Game constants
+      const MAX_SCORE = 10;
+      const INITIAL_PADDLE_HEIGHT = 100;
+      const PADDLE_WIDTH = 15;
+      const INITIAL_BALL_SPEED = 3;
+      const BALL_SIZE = 10;
+      const POWERUP_CHANCE = 0.15;
+      const PADDLE_GROWTH_FACTOR = 0.2;
+      const MAX_PADDLE_MULTIPLIER = 5;
+      const POWERUP_DURATION = 10000; // 10 seconds
+
+      // DOM elements
+      const gameCanvas = document.getElementById('gameCanvas');
+      const ctx = gameCanvas.getContext('2d');
+      const leftScore = document.getElementById('leftScore').querySelector('span:last-child');
+      const rightScore = document.getElementById('rightScore').querySelector('span:last-child');
+      const leftPlayerName = document.getElementById('leftPlayerName');
+      const rightPlayerName = document.getElementById('rightPlayerName');
+      const powerUpIndicator = document.getElementById('powerUpIndicator');
+      const winnerModal = document.getElementById('winnerModal');
+      const winnerText = document.getElementById('winnerText');
+      const winnerName = document.getElementById('winnerName');
+      const restartButton = document.getElementById('restartButton');
+
+      // Audio elements
+      const pingSound = document.getElementById('pingSound');
+      const pongSound = document.getElementById('pongSound');
+      const bounceSound = document.getElementById('bounceSound');
+      const scoreSound = document.getElementById('scoreSound');
+      const winnerSound = document.getElementById('winnerSound');
+      const powerupSound = document.getElementById('powerupSound');
+
+      // Set current year in footer
+      document.getElementById('currentYear').textContent = new Date().getFullYear();
+
+      // Game state
+      const gameState = {
+        leftPaddle: { y: 300, width: PADDLE_WIDTH, height: INITIAL_PADDLE_HEIGHT },
+        rightPaddle: { y: 300, width: PADDLE_WIDTH, height: INITIAL_PADDLE_HEIGHT },
+        ball: { 
+          x: 400, 
+          y: 300, 
+          radius: BALL_SIZE, 
+          speedX: INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1), 
+          speedY: INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1),
+          baseSpeed: INITIAL_BALL_SPEED
+        },
+        scores: { left: 0, right: 0 },
+        currentGame: null,
+        playerSide: null,
+        playerId: null,
+        socketId: null,
+        lastUpdate: 0,
+        ping: 0,
+        powerUp: null,
+        leftPaddleSizeMultiplier: 1,
+        rightPaddleSizeMultiplier: 1,
+        trails: [],
+        powerUpEndTime: 0,
+        gameActive: false
       };
-      document.head.appendChild(script);
-    }
-  </script>
-  
-  <!-- Haupt-Spielskript -->
-  <script src="script.js"></script>
-  
-  <!-- Ladeanimation -->
-  <script>
-    window.addEventListener('load', () => {
-      document.getElementById('gameInfo').textContent = "Bereit zum Spielen!";
+
+      // Power-up types
+      const POWERUPS = {
+        FIRE: { 
+          name: "Feuerball", 
+          color: '#FF5722', 
+          effect: 'speed', 
+          speedMultiplier: 1.2,
+          description: "20% schneller mit jedem Aufprall"
+        },
+        ICE: { 
+          name: "Eisball", 
+          color: '#00BCD4', 
+          effect: 'split', 
+          description: "Teilt sich beim Schlägertreffer"
+        },
+        EARTH: { 
+          name: "Erdball", 
+          color: '#795548', 
+          effect: 'size', 
+          sizeMultiplier: 4,
+          description: "4x größer als normal"
+        },
+        MATTER: { 
+          name: "Materieball", 
+          color: '#9C27B0', 
+          effect: 'direction', 
+          speedMultiplier: 1.15,
+          description: "Zufällige Richtungsänderungen"
+        },
+        GOLD: { 
+          name: "Goldball", 
+          color: '#FFD700', 
+          effect: 'fast', 
+          speedMultiplier: 2,
+          sizeMultiplier: 0.5,
+          description: "100% schneller, 50% kleiner"
+        }
+      };
+
+      // Trail effect
+      function addTrail(x, y, color) {
+        gameState.trails.push({
+          x, y, 
+          color,
+          alpha: 1,
+          radius: gameState.ball.radius * (gameState.powerUp?.effect === 'size' ? 4 : 
+                                        (gameState.powerUp?.effect === 'fast' ? 0.5 : 1))
+        });
+        
+        // Limit number of trails
+        if (gameState.trails.length > 20) {
+          gameState.trails.shift();
+        }
+      }
+
+      // Show power-up indicator
+      function showPowerUp(powerUp) {
+        powerUpIndicator.textContent = `${powerUp.name}: ${powerUp.description}`;
+        powerUpIndicator.className = `power-up-indicator ${powerUp.name.toLowerCase()}-bg visible`;
+        
+        setTimeout(() => {
+          powerUpIndicator.classList.remove('visible');
+        }, 3000);
+      }
+
+      // Reset ball to center
+      function resetBall() {
+        gameState.ball.x = gameCanvas.width / 2;
+        gameState.ball.y = gameCanvas.height / 2;
+        gameState.ball.speedX = gameState.ball.baseSpeed * (Math.random() > 0.5 ? 1 : -1);
+        gameState.ball.speedY = gameState.ball.baseSpeed * (Math.random() > 0.5 ? 1 : -1);
+        
+        // 15% chance for power-up
+        if (Math.random() < POWERUP_CHANCE) {
+          const powerUpKeys = Object.keys(POWERUPS);
+          const randomPowerUp = POWERUPS[powerUpKeys[Math.floor(Math.random() * powerUpKeys.length)]];
+          gameState.powerUp = randomPowerUp;
+          gameState.powerUpEndTime = Date.now() + POWERUP_DURATION;
+          powerupSound.play();
+          showPowerUp(randomPowerUp);
+        } else {
+          gameState.powerUp = null;
+        }
+      }
+
+      // Check paddle collision
+      function checkPaddleCollision() {
+        // Left paddle
+        if (gameState.ball.x - gameState.ball.radius <= 20 + PADDLE_WIDTH && 
+            gameState.ball.y >= gameState.leftPaddle.y - (gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier)/2 && 
+            gameState.ball.y <= gameState.leftPaddle.y + (gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier)/2) {
+          
+          // Play sound
+          pingSound.currentTime = 0;
+          pingSound.play();
+          
+          // Calculate angle based on where ball hits paddle
+          const relativeIntersectY = (gameState.leftPaddle.y - gameState.ball.y) / 
+                                   (gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier / 2);
+          const bounceAngle = relativeIntersectY * (Math.PI/4); // Max 45 degrees
+          
+          // Increase speed by 5%
+          gameState.ball.baseSpeed *= 1.05;
+          
+          // Apply power-up effects
+          if (gameState.powerUp) {
+            switch (gameState.powerUp.effect) {
+              case 'speed':
+                gameState.ball.baseSpeed *= gameState.powerUp.speedMultiplier;
+                break;
+              case 'split':
+                // Implement split ball logic
+                break;
+              case 'direction':
+                gameState.ball.speedY *= -1;
+                gameState.ball.baseSpeed *= gameState.powerUp.speedMultiplier;
+                break;
+            }
+          }
+          
+          gameState.ball.speedX = Math.abs(gameState.ball.baseSpeed * Math.cos(bounceAngle));
+          gameState.ball.speedY = -gameState.ball.baseSpeed * Math.sin(bounceAngle);
+          
+          // Add trail with power-up color or white
+          addTrail(gameState.ball.x, gameState.ball.y, gameState.powerUp?.color || '#FFF');
+        }
+        
+        // Right paddle
+        if (gameState.ball.x + gameState.ball.radius >= gameCanvas.width - 20 - PADDLE_WIDTH && 
+            gameState.ball.y >= gameState.rightPaddle.y - (gameState.rightPaddle.height * gameState.rightPaddleSizeMultiplier)/2 && 
+            gameState.ball.y <= gameState.rightPaddle.y + (gameState.rightPaddle.height * gameState.rightPaddleSizeMultiplier)/2) {
+          
+          // Play sound
+          pongSound.currentTime = 0;
+          pongSound.play();
+          
+          // Calculate angle based on where ball hits paddle
+          const relativeIntersectY = (gameState.rightPaddle.y - gameState.ball.y) / 
+                                   (gameState.rightPaddle.height * gameState.rightPaddleSizeMultiplier / 2);
+          const bounceAngle = relativeIntersectY * (Math.PI/4); // Max 45 degrees
+          
+          // Increase speed by 5%
+          gameState.ball.baseSpeed *= 1.05;
+          
+          // Apply power-up effects
+          if (gameState.powerUp) {
+            switch (gameState.powerUp.effect) {
+              case 'speed':
+                gameState.ball.baseSpeed *= gameState.powerUp.speedMultiplier;
+                break;
+              case 'split':
+                // Implement split ball logic
+                break;
+              case 'direction':
+                gameState.ball.speedY *= -1;
+                gameState.ball.baseSpeed *= gameState.powerUp.speedMultiplier;
+                break;
+            }
+          }
+          
+          gameState.ball.speedX = -Math.abs(gameState.ball.baseSpeed * Math.cos(bounceAngle));
+          gameState.ball.speedY = -gameState.ball.baseSpeed * Math.sin(bounceAngle);
+          
+          // Add trail with power-up color or white
+          addTrail(gameState.ball.x, gameState.ball.y, gameState.powerUp?.color || '#FFF');
+        }
+      }
+
+      // Check wall collision
+      function checkWallCollision() {
+        // Top and bottom walls
+        if (gameState.ball.y - gameState.ball.radius <= 0 || 
+            gameState.ball.y + gameState.ball.radius >= gameCanvas.height) {
+          gameState.ball.speedY *= -1;
+          bounceSound.currentTime = 0;
+          bounceSound.play();
+          
+          // For fire power-up, increase speed on wall bounce too
+          if (gameState.powerUp?.effect === 'speed') {
+            gameState.ball.baseSpeed *= gameState.powerUp.speedMultiplier;
+          }
+        }
+      }
+
+      // Check for score
+      function checkScore() {
+        // Left player scores
+        if (gameState.ball.x + gameState.ball.radius >= gameCanvas.width) {
+          scoreSound.play();
+          gameState.scores.left++;
+          leftScore.textContent = gameState.scores.left;
+          
+          // Reset right paddle size
+          gameState.rightPaddleSizeMultiplier = 1;
+          
+          // Increase left paddle size
+          if (gameState.leftPaddleSizeMultiplier < MAX_PADDLE_MULTIPLIER) {
+            gameState.leftPaddleSizeMultiplier += PADDLE_GROWTH_FACTOR;
+          }
+          
+          resetBall();
+          
+          // Check for winner
+          if (gameState.scores.left >= MAX_SCORE) {
+            endGame('left');
+          }
+        }
+        
+        // Right player scores
+        if (gameState.ball.x - gameState.ball.radius <= 0) {
+          scoreSound.play();
+          gameState.scores.right++;
+          rightScore.textContent = gameState.scores.right;
+          
+          // Reset left paddle size
+          gameState.leftPaddleSizeMultiplier = 1;
+          
+          // Increase right paddle size
+          if (gameState.rightPaddleSizeMultiplier < MAX_PADDLE_MULTIPLIER) {
+            gameState.rightPaddleSizeMultiplier += PADDLE_GROWTH_FACTOR;
+          }
+          
+          resetBall();
+          
+          // Check for winner
+          if (gameState.scores.right >= MAX_SCORE) {
+            endGame('right');
+          }
+        }
+      }
+
+      // End game
+      function endGame(winner) {
+        gameState.gameActive = false;
+        winnerName.textContent = winner === 'left' ? leftPlayerName.textContent : rightPlayerName.textContent;
+        winnerModal.style.display = 'flex';
+        winnerSound.play();
+      }
+
+      // Restart game
+      restartButton.addEventListener('click', () => {
+        gameState.scores = { left: 0, right: 0 };
+        leftScore.textContent = '0';
+        rightScore.textContent = '0';
+        gameState.leftPaddleSizeMultiplier = 1;
+        gameState.rightPaddleSizeMultiplier = 1;
+        gameState.ball.baseSpeed = INITIAL_BALL_SPEED;
+        resetBall();
+        winnerModal.style.display = 'none';
+        gameState.gameActive = true;
+      });
+
+      // Update game state
+      function update() {
+        if (!gameState.gameActive) return;
+        
+        // Move ball
+        gameState.ball.x += gameState.ball.speedX;
+        gameState.ball.y += gameState.ball.speedY;
+        
+        // Check collisions
+        checkPaddleCollision();
+        checkWallCollision();
+        checkScore();
+        
+        // Check if power-up expired
+        if (gameState.powerUp && Date.now() > gameState.powerUpEndTime) {
+          gameState.powerUp = null;
+        }
+      }
+
+      // Render function
+      function render() {
+        // Clear canvas
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+        // Draw trails
+        gameState.trails.forEach((trail, index) => {
+          trail.alpha -= 0.05;
+          ctx.globalAlpha = trail.alpha;
+          ctx.fillStyle = trail.color;
+          ctx.beginPath();
+          ctx.arc(trail.x, trail.y, trail.radius, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Remove faded trails
+          if (trail.alpha <= 0) {
+            gameState.trails.splice(index, 1);
+          }
+        });
+        ctx.globalAlpha = 1;
+
+        // Draw center line
+        ctx.setLineDash([15, 15]);
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(gameCanvas.width/2, 0);
+        ctx.lineTo(gameCanvas.width/2, gameCanvas.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw paddles
+        ctx.fillStyle = '#FFF';
+        
+        // Left paddle
+        ctx.fillRect(
+          20, 
+          gameState.leftPaddle.y - (gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier)/2, 
+          gameState.leftPaddle.width, 
+          gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier
+        );
+        
+        // Right paddle
+        ctx.fillRect(
+          gameCanvas.width - 20 - gameState.rightPaddle.width, 
+          gameState.rightPaddle.y - (gameState.rightPaddle.height * gameState.rightPaddleSizeMultiplier)/2, 
+          gameState.rightPaddle.width, 
+          gameState.rightPaddle.height * gameState.rightPaddleSizeMultiplier
+        );
+
+        // Draw ball with power-up effects
+        if (gameState.powerUp) {
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = gameState.powerUp.color;
+          ctx.fillStyle = gameState.powerUp.color;
+        } else {
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = '#FFF';
+          ctx.fillStyle = '#FFF';
+        }
+        
+        ctx.beginPath();
+        ctx.arc(
+          gameState.ball.x,
+          gameState.ball.y,
+          gameState.ball.radius * (gameState.powerUp?.effect === 'size' ? 4 : 
+                                 (gameState.powerUp?.effect === 'fast' ? 0.5 : 1)),
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        requestAnimationFrame(render);
+      }
+
+      // Paddle movement
+      gameCanvas.addEventListener('mousemove', (e) => {
+        if (!gameState.gameActive) return;
+        
+        const rect = gameCanvas.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        
+        // Constrain paddle to canvas
+        const paddleHeight = gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier;
+        gameState.leftPaddle.y = Math.max(paddleHeight/2, Math.min(gameCanvas.height - paddleHeight/2, y));
+        gameState.rightPaddle.y = Math.max(paddleHeight/2, Math.min(gameCanvas.height - paddleHeight/2, y));
+      });
+
+      // Touch support
+      gameCanvas.addEventListener('touchmove', (e) => {
+        if (!gameState.gameActive) return;
+        e.preventDefault();
+        
+        const rect = gameCanvas.getBoundingClientRect();
+        const touch = e.touches[0];
+        const y = touch.clientY - rect.top;
+        
+        // Constrain paddle to canvas
+        const paddleHeight = gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier;
+        gameState.leftPaddle.y = Math.max(paddleHeight/2, Math.min(gameCanvas.height - paddleHeight/2, y));
+        gameState.rightPaddle.y = Math.max(paddleHeight/2, Math.min(gameCanvas.height - paddleHeight/2, y));
+      });
+
+      // Initialize game
+      function initGame() {
+        resetBall();
+        gameState.gameActive = true;
+        render();
+        
+        // Game loop
+        setInterval(update, 1000/60);
+      }
+
+      // Start the game
+      initGame();
+
+      // Socket.io connection would go here
+      // This would handle multiplayer functionality, player names, etc.
+      // For now we're just implementing the local game mechanics
     });
   </script>
 </body>
