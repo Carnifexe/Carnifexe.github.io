@@ -4,51 +4,44 @@ const { Server } = require('socket.io');
 const path = require('path');
 const cors = require('cors');
 
+// Initialisierung
 const app = express();
-const server = createServer(app);
+const httpServer = createServer(app);
 
 // CORS für Render.com konfigurieren
+const allowedOrigins = [
+  'https://carnifexe-github-io.onrender.com',
+  'http://localhost:10000'
+];
+
 app.use(cors({
-  origin: [
-    'https://carnifexe-github-io.onrender.com',
-    'http://localhost:10000'
-  ],
+  origin: allowedOrigins,
   credentials: true
 }));
 
-// WebSocket-Server mit speziellen Render-Einstellungen
-const io = new Server(server, {
+// WebSocket-Server mit Render-spezifischen Einstellungen
+const io = new Server(httpServer, {
   cors: {
-    origin: [
-      'https://carnifexe-github-io.onrender.com',
-      'http://localhost:10000'
-    ],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   },
   transports: ['websocket', 'polling'],
-  pingTimeout: 60000,
-  pingInterval: 25000
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000, // 2 Minuten
+    skipMiddlewares: true
+  }
 });
 
-// Statische Dateien bereitstellen
-app.use(express.static(path.join(__dirname, '../client')));
+// Statische Dateien aus public/ servieren
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Health Check für Render
+// API-Endpunkte
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
-    connections: io.engine.clientsCount,
-    uptime: process.uptime()
-  });
-});
-
-// Debug Endpoint
-app.get('/debug', (req, res) => {
-  res.json({
-    clients: Array.from(io.sockets.sockets.keys()),
-    games: Object.keys(games).length,
-    memory: process.memoryUsage()
+    uptime: process.uptime(),
+    connections: io.engine.clientsCount
   });
 });
 
@@ -60,19 +53,18 @@ let playerCount = 0;
 io.on('connection', (socket) => {
   console.log('🔌 Neue Verbindung:', socket.id);
   
+  // Spieler registrieren
   playerCount++;
   const playerName = `Spieler ${playerCount}`;
-  players[socket.id] = {
-    name: playerName,
-    socket: socket,
-    status: 'waiting'
-  };
+  players[socket.id] = { name: playerName, status: 'waiting' };
 
+  // Initiale Spielerliste senden
   updatePlayerList();
 
   // Ping/Pong für Verbindungsüberwachung
-  socket.on('ping', (cb) => cb(Date.now()));
+  socket.on('ping', (cb) => cb('pong'));
 
+  // Spiel-Events
   socket.on('invite', (targetId) => {
     if (players[targetId]?.status === 'waiting') {
       io.to(targetId).emit('invitation', {
@@ -173,12 +165,7 @@ function endPlayerSession(playerId) {
 }
 
 function updatePlayerList() {
-  const playerList = Object.values(players).map(p => ({
-    id: p.socket.id,
-    name: p.name,
-    status: p.status
-  }));
-  io.emit('playerListUpdate', playerList);
+  io.emit('playerListUpdate', Object.values(players));
 }
 
 // Spiel-Loop (60 FPS)
@@ -188,8 +175,42 @@ setInterval(() => {
   }
 }, 1000 / 60);
 
+function updateGamePhysics(game) {
+  // Ballbewegung
+  game.ballX += game.ballSpeedX;
+  game.ballY += game.ballSpeedY;
+
+  // Kollisionen
+  if (game.ballY <= 0 || game.ballY >= 100) game.ballSpeedY *= -1;
+  if (game.ballX <= 5 && Math.abs(game.ballY - game.leftPaddleY) < 10) game.ballSpeedX *= -1.05;
+  if (game.ballX >= 95 && Math.abs(game.ballY - game.rightPaddleY) < 10) game.ballSpeedX *= -1.05;
+
+  // Punkte
+  if (game.ballX < 0 || game.ballX > 100) {
+    game.ballX < 0 ? game.rightScore++ : game.leftScore++;
+    resetBall(game);
+    game.roundsPlayed++;
+  }
+
+  // Spielende
+  if (game.roundsPlayed >= 10) {
+    io.to(game.leftPlayer).emit('gameEnd');
+    io.to(game.rightPlayer).emit('gameEnd');
+    endGame(gameId);
+  }
+}
+
+function resetBall(game) {
+  game.ballX = 50;
+  game.ballY = 50;
+  game.ballSpeedX = (Math.random() > 0.5 ? 1 : -1) * 5;
+  game.ballSpeedY = (Math.random() > 0.5 ? 1 : -1) * 5;
+}
+
+// Server starten
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`🎮 Server läuft auf Port ${PORT}`);
-  console.log(`🔗 WebSocket: wss://localhost:${PORT}`);
+  console.log(`🌐 WebSocket: wss://localhost:${PORT}`);
+  console.log(`📂 Statische Dateien aus: ${path.join(__dirname, 'public')}`);
 });
