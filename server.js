@@ -7,11 +7,10 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 const server = http.createServer(app);
-const io = socketio(server, {
-  cors: {
-    origin: "http://localhost:10000",
-    methods: ["GET", "POST"]
-  }
+const socket = io('http://localhost:10000', {
+  transports: ['websocket'],  // Erzwingt WebSocket
+  upgrade: false,
+  reconnectionAttempts: 5
 });
 
 // Game state
