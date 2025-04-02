@@ -1,78 +1,114 @@
 const WebSocket = require('ws');
-const PORT = process.env.PORT || 8080;
 
-const server = new WebSocket.Server({ port: PORT });
+// WebSocket Server Setup
+const wss = new WebSocket.Server({ port: 8080 });
 
-let queue = [];
-let games = new Map();
-let ball = { x: 400, y: 300, speedX: 4, speedY: 4 };
+let players = [];  // Liste der verbundenen Spieler
+let gameInProgress = false;  // Status, ob das Spiel läuft oder nicht
 
-server.on('connection', (socket) => {
-    console.log('Neuer Spieler verbunden.');
+// Wenn ein Client sich verbindet
+wss.on('connection', (ws) => {
+    console.log('Ein neuer Spieler hat sich verbunden');
+    
+    // Füge den neuen Spieler zur Liste hinzu
+    players.push(ws);
 
-    socket.on('message', (message) => {
+    // Sende die aktuelle Liste der Spieler an alle verbundenen Clients
+    sendPlayerList();
+
+    // Wenn der Spieler eine Herausforderung annehmen möchte
+    ws.on('message', (message) => {
         const data = JSON.parse(message);
 
-        if (data.type === "joinQueue") {
-            queue.push(socket);
-            console.log(`Spieler in Warteschlange: ${queue.length}`);
-
-            server.clients.forEach(client => {
-                if (client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify({ type: "queueUpdate", count: queue.length }));
-                }
-            });
-
-            if (queue.length >= 2) {
-                startGame(queue.shift(), queue.shift());
-            }
-        }
-
-        if (data.type === "paddleMove") {
-            const game = games.get(socket);
-            if (game) {
-                const opponent = game.opponent;
-                if (opponent.readyState === WebSocket.OPEN) {
-                    opponent.send(JSON.stringify(data));
-                }
-            }
+        switch (data.type) {
+            case 'challenge':
+                // Spieler herausfordern
+                handleChallenge(ws, data.player);
+                break;
+            case 'scoreUpdate':
+                // Die Punktzahl aktualisieren
+                updateScore(data.player1, data.player2);
+                break;
+            case 'gameStart':
+                // Das Spiel starten
+                startGame();
+                break;
+            default:
+                console.log('Unbekannter Nachrichtentyp:', data);
         }
     });
 
-    socket.on('close', () => {
-        console.log('Spieler hat die Verbindung getrennt.');
-        queue = queue.filter(player => player !== socket);
-
-        const game = games.get(socket);
-        if (game) {
-            games.delete(game.player);
-            games.delete(game.opponent);
-            if (game.opponent.readyState === WebSocket.OPEN) {
-                game.opponent.send(JSON.stringify({ type: "opponentDisconnected" }));
-            }
-        }
+    // Wenn der Spieler die Verbindung schließt
+    ws.on('close', () => {
+        console.log('Ein Spieler hat die Verbindung getrennt');
+        players = players.filter(player => player !== ws);
+        sendPlayerList();
     });
 });
 
-function startGame(player1, player2) {
-    games.set(player1, { player: player1, opponent: player2 });
-    games.set(player2, { player: player2, opponent: player1 });
+// Funktion um die Liste der Spieler an alle zu senden
+function sendPlayerList() {
+    const playerNames = players.map(player => player.id || `Spieler ${players.indexOf(player) + 1}`);
+    const message = JSON.stringify({ type: 'updatePlayers', players: playerNames });
 
-    player1.send(JSON.stringify({ type: "gameStart", playerNumber: 1 }));
-    player2.send(JSON.stringify({ type: "gameStart", playerNumber: 2 }));
-
-    console.log('Neues Spiel gestartet!');
-
-    setInterval(() => {
-        ball.x += ball.speedX;
-        ball.y += ball.speedY;
-
-        if (ball.y <= 0 || ball.y >= 600) ball.speedY *= -1;
-        if (ball.x <= 0 || ball.x >= 800) ball.speedX *= -1;
-
-        player1.send(JSON.stringify({ type: "ballUpdate", x: ball.x, y: ball.y }));
-        player2.send(JSON.stringify({ type: "ballUpdate", x: ball.x, y: ball.y }));
-    }, 1000 / 60);
+    players.forEach(player => player.send(message));
 }
 
-console.log(`WebSocket-Server läuft auf Port ${PORT}`);
+// Funktion, um eine Herausforderung zu senden
+function handleChallenge(ws, playerName) {
+    // Wenn ein Spiel bereits läuft, nicht herausfordern
+    if (gameInProgress) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Ein Spiel läuft bereits!' }));
+        return;
+    }
+
+    // Den Herausgeforderten finden
+    const opponent = players.find(player => player.id === playerName);
+
+    if (opponent) {
+        // Frage den Gegner, ob er die Herausforderung annimmt
+        opponent.send(JSON.stringify({
+            type: 'challenge',
+            player: ws.id
+        }));
+
+        // Warte auf Antwort
+        ws.send(JSON.stringify({
+            type: 'waiting',
+            message: `Warte auf Antwort von ${playerName}...`
+        }));
+    } else {
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: `Spieler ${playerName} existiert nicht!`
+        }));
+    }
+}
+
+// Funktion um das Spiel zu starten
+function startGame() {
+    if (gameInProgress) return;
+
+    gameInProgress = true;
+    console.log('Das Spiel hat begonnen!');
+
+    // Sende an alle Spieler, dass das Spiel gestartet ist
+    players.forEach(player => {
+        player.send(JSON.stringify({ type: 'gameStart', playerNumber: players.indexOf(player) }));
+    });
+}
+
+// Funktion, um die Punktzahl zu aktualisieren
+function updateScore(player1, player2) {
+    players.forEach(player => {
+        player.send(JSON.stringify({ type: 'scoreUpdate', player1, player2 }));
+    });
+}
+
+// Error Handling
+wss.on('error', (err) => {
+    console.error('WebSocket-Fehler:', err);
+});
+
+// Server läuft
+console.log('WebSocket-Server läuft auf ws://localhost:8080');
