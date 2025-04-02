@@ -5,245 +5,196 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pong Multiplayer | carnifexe-github-io.onrender.com</title>
   <style>
-    /* Globale Styles */
-    :root {
-      --primary: #00c6ff;
-      --secondary: #0072ff;
-      --dark: #121212;
-      --darker: #0a0a0a;
-      --light: #ffffff;
-      --gray: #333333;
-    }
-
-    * {
-      box-sizing: border-box;
+    body {
       margin: 0;
       padding: 0;
-    }
-
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: var(--dark);
-      color: var(--light);
-      height: 100vh;
+      background-color: #222;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
       overflow: hidden;
     }
-
-    /* Header */
-    header {
-      background-color: var(--darker);
-      padding: 1rem;
-      text-align: center;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-    }
-
     h1 {
-      background: linear-gradient(90deg, var(--primary), var(--secondary));
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
-      font-size: 2.5rem;
+      margin-top: 20px;
+      color: #4CAF50;
     }
-
-    /* Hauptlayout */
-    .main-container {
-      display: flex;
-      height: calc(100vh - 80px);
-    }
-
-    /* Spielbereich */
-    .game-area {
-      flex: 3;
+    #gameContainer {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      position: relative;
+      min-height: 100vh;
     }
-
     #gameCanvas {
-      background-color: #000;
-      border: 2px solid var(--gray);
+      background: #000;
+      border: 2px solid #444;
       display: block;
-      margin: 0 auto;
+      margin: 20px auto;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
     }
-
-    /* Score-Anzeige */
-    .scoreboard {
+    #scoreBoard {
       display: flex;
       justify-content: space-between;
       width: 800px;
-      margin: 1rem auto;
+      margin: 0 auto;
       font-size: 2rem;
     }
-
-    /* Lobby-Bereich */
-    .lobby {
-      flex: 1;
-      background-color: var(--darker);
-      padding: 1rem;
-      border-left: 1px solid var(--gray);
-      overflow-y: auto;
+    #leftScore, #rightScore {
+      padding: 0 50px;
     }
-
-    .lobby h2 {
-      margin-bottom: 1rem;
-      color: var(--primary);
-    }
-
     #playerList {
       list-style: none;
+      padding: 0;
+      max-width: 400px;
+      margin: 20px auto;
+      background: #2a2a2a;
+      border-radius: 10px;
+      padding: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
     }
-
     #playerList li {
-      padding: 0.75rem;
-      margin-bottom: 0.5rem;
-      background-color: var(--gray);
+      padding: 12px;
+      margin: 8px 0;
       border-radius: 5px;
-      cursor: pointer;
-      transition: all 0.3s;
+      transition: all 0.3s ease;
     }
-
-    #playerList li:hover:not(.playing) {
+    #playerList li.available {
+      cursor: pointer;
       background-color: #3a3a3a;
     }
-
-    #playerList .playing {
-      color: #aaaaaa;
-      cursor: not-allowed;
+    #playerList li.available:hover {
+      background-color: #4a4a4a;
+      transform: scale(1.02);
     }
-
+    #playerList li.playing {
+      color: #777;
+      cursor: not-allowed;
+      background-color: #2a2a2a;
+    }
+    #playerList li.pending {
+      color: #FFA500;
+      cursor: wait;
+      background-color: #3a3a3a;
+    }
     #playerList .status {
       float: right;
-      font-size: 0.8rem;
-      color: var(--primary);
+      font-size: 0.9rem;
+      margin-top: 3px;
     }
-
-    /* Verbindungsstatus */
     #connectionStatus {
-      position: fixed;
-      bottom: 1rem;
-      right: 1rem;
-      padding: 0.5rem 1rem;
+      padding: 12px;
       border-radius: 5px;
+      margin: 10px auto;
+      max-width: 400px;
       font-weight: bold;
-      transition: all 0.3s;
+      transition: all 0.3s ease;
     }
-
     .online {
-      background-color: #4CAF50;
-      color: white;
+      background-color: #2a7a2a;
     }
-
     .offline {
-      background-color: #F44336;
-      color: white;
+      background-color: #7a2a2a;
       animation: pulse 1.5s infinite;
     }
-
     @keyframes pulse {
       0% { opacity: 1; }
-      50% { opacity: 0.6; }
+      50% { opacity: 0.7; }
       100% { opacity: 1; }
     }
-
-    /* Einladungs-Modal */
-    .modal {
+    #invitationModal {
       display: none;
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background-color: rgba(0, 0, 0, 0.8);
-      z-index: 1000;
+      background-color: rgba(0,0,0,0.9);
       justify-content: center;
       align-items: center;
+      z-index: 1000;
     }
-
-    .modal-content {
-      background-color: var(--darker);
-      padding: 2rem;
-      border-radius: 10px;
+    #invitationContent {
+      background-color: #333;
+      padding: 30px;
+      border-radius: 15px;
       max-width: 400px;
-      width: 90%;
       text-align: center;
-      border: 1px solid var(--primary);
+      box-shadow: 0 0 25px rgba(0, 0, 0, 0.6);
+      border: 1px solid #4CAF50;
     }
-
-    .modal-buttons {
+    #invitationText {
+      font-size: 1.2rem;
+      margin-bottom: 25px;
+      color: #FFF;
+    }
+    .modalButtons {
       display: flex;
       justify-content: center;
-      gap: 1rem;
-      margin-top: 1.5rem;
+      gap: 15px;
     }
-
-    button {
-      padding: 0.5rem 1rem;
+    #acceptInvite, #declineInvite {
+      padding: 10px 25px;
+      cursor: pointer;
       border: none;
       border-radius: 5px;
-      cursor: pointer;
       font-weight: bold;
-      transition: all 0.3s;
+      transition: all 0.2s;
     }
-
     #acceptInvite {
-      background-color: var(--primary);
+      background-color: #4CAF50;
       color: white;
     }
-
+    #acceptInvite:hover {
+      background-color: #45a049;
+      transform: scale(1.05);
+    }
     #declineInvite {
-      background-color: var(--gray);
+      background-color: #f44336;
       color: white;
     }
-
-    button:hover {
-      transform: translateY(-2px);
+    #declineInvite:hover {
+      background-color: #d32f2f;
+      transform: scale(1.05);
+    }
+    #gameInfo {
+      margin-top: 20px;
+      font-size: 0.9rem;
+      color: #aaa;
     }
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <header>
+  <div id="gameContainer">
     <h1>Pong Multiplayer</h1>
-  </header>
-
-  <!-- Hauptbereich -->
-  <div class="main-container">
-    <!-- Spielbereich -->
-    <div class="game-area">
-      <div class="scoreboard">
-        <span id="leftScore">0</span>
-        <span id="rightScore">0</span>
-      </div>
-      <canvas id="gameCanvas" width="800" height="500"></canvas>
+    <div id="connectionStatus">🟡 Verbinde mit Server...</div>
+    
+    <div id="scoreBoard">
+      <div id="leftScore">0</div>
+      <div id="rightScore">0</div>
     </div>
-
-    <!-- Lobby-Bereich -->
-    <div class="lobby">
-      <h2>Spieler Online</h2>
-      <ul id="playerList">
-        <li>Lade Spielerliste...</li>
-      </ul>
+    
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+    
+    <h2>Verfügbare Spieler</h2>
+    <ul id="playerList"></ul>
+    
+    <div id="gameInfo">
+      Klicke auf einen verfügbaren Spieler, um eine Einladung zu senden
     </div>
   </div>
 
-  <!-- Verbindungsstatus -->
-  <div id="connectionStatus" class="offline">Verbindung wird hergestellt...</div>
-
-  <!-- Einladungs-Modal -->
-  <div id="invitationModal" class="modal">
-    <div class="modal-content">
-      <p id="invitationText">Spieler lädt dich zu einem Spiel ein</p>
-      <div class="modal-buttons">
+  <div id="invitationModal">
+    <div id="invitationContent">
+      <p id="invitationText">Spieler möchte gegen dich spielen!</p>
+      <div class="modalButtons">
         <button id="acceptInvite">Annehmen</button>
         <button id="declineInvite">Ablehnen</button>
       </div>
     </div>
   </div>
 
-  <!-- Skripte -->
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <!-- Socket.io & Game Script -->
+  <script src="/socket.io/socket.io.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
