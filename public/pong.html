@@ -112,6 +112,7 @@
             }
 
             if (data.type === "ballUpdate") {
+                // Korrigiere die Ballposition, falls der Ball nicht richtig angezeigt wird.
                 ballX = data.x;
                 ballY = data.y;
                 ballSpeedX = data.speedX;
@@ -138,16 +139,20 @@
         function gameLoop() {
             if (!gameRunning) return;
 
+            // Berechnungen des Balls
             ballX += ballSpeedX;
             ballY += ballSpeedY;
 
+            // Ball stößt an die obere oder untere Wand
             if (ballY <= 0 || ballY >= canvas.height) ballSpeedY *= -1;
 
+            // Ball kollidiert mit den Schlägern
             if ((ballX <= 15 && ballY >= playerY && ballY <= playerY + 100) ||
                 (ballX >= canvas.width - 15 && ballY >= opponentY && ballY <= opponentY + 100)) {
                 ballSpeedX *= -1;
             }
 
+            // Ball außerhalb des Spielfelds (Punkte)
             if (ballX < 0 || ballX > canvas.width) {
                 ballX = canvas.width / 2;
                 ballY = canvas.height / 2;
@@ -155,8 +160,10 @@
                 ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
             }
 
+            // Zeichne das Spielfeld
             draw();
 
+            // Nur als Spieler 1 die Ballposition weiter an den Server senden
             if (playerNumber === 1) {
                 socket.send(JSON.stringify({
                     type: "ballUpdate",
@@ -181,11 +188,11 @@
             ctx.stroke();
 
             ctx.fillStyle = "#fff";
-            ctx.fillRect(0, playerY, 15, 100);
-            ctx.fillRect(canvas.width - 15, opponentY, 15, 100);
+            ctx.fillRect(0, playerY, 15, 100); // Dein Schläger
+            ctx.fillRect(canvas.width - 15, opponentY, 15, 100); // Gegners Schläger
 
             ctx.beginPath();
-            ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
+            ctx.arc(ballX, ballY, 10, 0, Math.PI * 2); // Ball zeichnen
             ctx.fill();
         }
     </script>
