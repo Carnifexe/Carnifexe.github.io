@@ -51,39 +51,6 @@
             border-radius: 10px;
             text-align: center;
         }
-        .teams-container {
-            display: flex;
-            justify-content: center;
-            gap: 40px;
-        }
-        .team {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .team-name {
-            font-size: 18px;
-            color: #ffcc00;
-            margin-bottom: 5px;
-        }
-        .team-score {
-            font-size: 24px;
-            font-weight: bold;
-        }
-        #gameOverText {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 32px;
-            color: white;
-            z-index: 10002;
-            display: none;
-            text-align: center;
-            background: rgba(0,0,0,0.7);
-            padding: 20px;
-            border-radius: 10px;
-        }
         #waitingRoom {
             position: absolute;
             top: 10%;
@@ -312,16 +279,18 @@
                 ball.dx *= -1;
             }
 
-            // KI-Steuerung
-            const computerReactionSpeed = 6;
-            if (ball.dy > 0) {
-                if (ball.y < computerScoreElement.height - rightPaddleHeight / 2) {
-                    computerScore += computerReactionSpeed;
-                }
-            }
-
+            // Ball und Schläger zeichnen
             drawBall();
+
             requestAnimationFrame(update);
+        }
+
+        // Spiel beenden
+        function gameOver() {
+            gameRunning = false;
+            gameOverText.style.display = "block";
+            gameOverText.innerHTML = `Spiel beendet! Spieler 1: ${playerScore} - Spieler 2: ${computerScore}`;
+            restartButton.style.display = "block";
         }
     </script>
 </body>
