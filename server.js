@@ -1,93 +1,91 @@
 const WebSocket = require('ws');
-const wss = new WebSocket.Server({ port: 8080 });
+const http = require('http');
 
-let players = []; // Eine Liste, um alle verbundenen Spieler zu speichern
+const server = http.createServer();
+const wss = new WebSocket.Server({ server });
+
+let players = [];  // Liste der verbundenen Spieler
+let gameInProgress = false;
 
 wss.on('connection', (ws) => {
-    console.log('Ein neuer Spieler hat sich verbunden.');
+    console.log('Ein Spieler hat sich verbunden.');
 
-    // Bei Empfang einer Nachricht vom Client
+    // Wenn ein neuer Spieler sich verbindet, wird dieser der Spieler-Liste hinzugefügt
+    players.push(ws);
+
+    // Sende die Liste der verbundenen Spieler an alle Clients
+    function updatePlayerList() {
+        const playerNames = players.map(player => player.name || `Player ${players.indexOf(player) + 1}`);
+        players.forEach(player => {
+            player.send(JSON.stringify({
+                type: 'updatePlayers',
+                players: playerNames
+            }));
+        });
+    }
+
+    // Wenn ein Spieler eine Herausforderung sendet
     ws.on('message', (message) => {
         const data = JSON.parse(message);
 
         if (data.type === 'challenge') {
-            // Eine Herausforderung wurde gesendet
-            const { player } = data;
-            const playerName = getPlayerName(ws);
-            console.log(`${playerName} hat eine Herausforderung an ${player} gesendet.`);
-            handleChallenge(player, playerName);
-        } else if (data.type === 'scoreUpdate') {
-            // Punkte nach einem Tor aktualisieren
+            const challenger = ws;
+            const challengedPlayerName = data.player;
+
+            // Suche den herausgeforderten Spieler
+            const challengedPlayer = players.find(player => player.name === challengedPlayerName);
+
+            if (challengedPlayer) {
+                // Sende eine Nachricht an den herausgeforderten Spieler
+                challengedPlayer.send(JSON.stringify({
+                    type: 'gameStart',
+                    playerNumber: players.indexOf(challenger) + 1
+                }));
+                challenger.send(JSON.stringify({
+                    type: 'gameStart',
+                    playerNumber: players.indexOf(challengedPlayer) + 1
+                }));
+
+                // Spiel starten
+                gameInProgress = true;
+            }
+        }
+
+        // Wenn das Spiel vorbei ist, senden wir eine "gameOver"-Nachricht an beide Spieler
+        if (data.type === 'gameOver') {
+            players.forEach(player => {
+                player.send(JSON.stringify({
+                    type: 'gameOver'
+                }));
+            });
+            gameInProgress = false;
+        }
+
+        // Wenn der Spieler das Spiel gewonnen hat, senden wir eine "scoreUpdate"-Nachricht an beide Spieler
+        if (data.type === 'scoreUpdate') {
             const { player1, player2 } = data;
-            console.log(`Punkte Update - Player1: ${player1}, Player2: ${player2}`);
-            // Hier könnte man den Score in einer Datenbank speichern, wenn nötig
-        } else if (data.type === 'gameStart') {
-            // Wenn das Spiel startet
-            console.log('Spiel gestartet!');
-            broadcastGameStart();
+            players.forEach(player => {
+                player.send(JSON.stringify({
+                    type: 'scoreUpdate',
+                    player1,
+                    player2
+                }));
+            });
         }
     });
 
-    // Bei einer neuen Verbindung Spieler hinzufügen
-    ws.on('open', () => {
-        const playerName = 'Spieler_' + (players.length + 1); // Einfache Namensvergabe
-        players.push({ name: playerName, socket: ws });
-        console.log(`${playerName} wurde dem Spiel beigetreten.`);
-        sendPlayerList();
-    });
-
-    // Wenn ein Spieler sich trennt, entfernen wir ihn aus der Liste
+    // Wenn der Spieler den Server verlässt, wird er aus der Spieler-Liste entfernt
     ws.on('close', () => {
-        const playerIndex = players.findIndex(player => player.socket === ws);
-        if (playerIndex !== -1) {
-            const playerName = players[playerIndex].name;
-            players.splice(playerIndex, 1);
-            console.log(`${playerName} hat das Spiel verlassen.`);
-            sendPlayerList();
-        }
+        console.log('Ein Spieler hat die Verbindung getrennt.');
+        players = players.filter(player => player !== ws);
+        updatePlayerList();
     });
 
-    // Sendet die Spielerliste an alle Clients
-    function sendPlayerList() {
-        const playerNames = players.map(player => player.name);
-        broadcast({
-            type: 'updatePlayers',
-            players: playerNames
-        });
-    }
-
-    // Sendet eine Nachricht an alle verbundenen Clients
-    function broadcast(message) {
-        players.forEach(player => {
-            player.socket.send(JSON.stringify(message));
-        });
-    }
-
-    // Startet das Spiel, wenn eine Herausforderung angenommen wird
-    function handleChallenge(challenger, challenged) {
-        const challengerSocket = players.find(player => player.name === challenger)?.socket;
-        const challengedSocket = players.find(player => player.name === challenged)?.socket;
-
-        if (challengerSocket && challengedSocket) {
-            // Sende eine Nachricht an beide Spieler, dass das Spiel gestartet wird
-            challengerSocket.send(JSON.stringify({ type: 'gameStart', playerNumber: 1 }));
-            challengedSocket.send(JSON.stringify({ type: 'gameStart', playerNumber: 2 }));
-            console.log(`Spiel zwischen ${challenger} und ${challenged} wird gestartet.`);
-        }
-    }
-
-    // Broadcast eine Nachricht an alle Spieler, dass das Spiel gestartet wird
-    function broadcastGameStart() {
-        broadcast({
-            type: 'gameStart'
-        });
-    }
-
-    // Hilfsfunktion, um den Spielernamen aus einer Verbindung zu extrahieren
-    function getPlayerName(socket) {
-        const player = players.find(player => player.socket === socket);
-        return player ? player.name : 'Unbekannt';
-    }
+    // Spieler benennen (hier nur zu Demonstrationszwecken)
+    ws.name = `Player ${players.indexOf(ws) + 1}`;
+    updatePlayerList();
 });
 
-console.log('WebSocket-Server läuft auf ws://localhost:8080');
+server.listen(8080, () => {
+    console.log('Server läuft auf http://localhost:8080');
+});
