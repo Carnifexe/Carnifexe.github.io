@@ -116,21 +116,11 @@
       background: #000;
       border: 2px solid var(--surface);
       display: block;
-      width: 100%;
-      max-width: 800px;
+      width: 800px;
       height: 600px;
       margin: 10px 0;
       box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
       touch-action: none;
-    }
-
-    .ball-trail {
-      position: absolute;
-      border-radius: 50%;
-      pointer-events: none;
-      transform: translate(-50%, -50%);
-      opacity: 0.7;
-      z-index: 10;
     }
 
     #playersPanel {
@@ -299,7 +289,7 @@
       box-shadow: 0 4px 8px rgba(207, 102, 121, 0.3);
     }
 
-    #winnerModal {
+    #gameEndModal {
       position: fixed;
       top: 0;
       left: 0;
@@ -313,7 +303,7 @@
       backdrop-filter: blur(5px);
     }
 
-    #winnerContent {
+    #gameEndContent {
       background: var(--surface);
       padding: 30px;
       border-radius: 15px;
@@ -324,7 +314,7 @@
       border-top: 5px solid var(--gold);
     }
 
-    #winnerText {
+    #gameEndText {
       font-size: 1.8rem;
       margin-bottom: 20px;
       color: var(--gold);
@@ -408,6 +398,15 @@
       background-color: var(--gold);
       color: #000;
     }
+
+    .ball-trail {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      opacity: 0.7;
+      z-index: 10;
+    }
   </style>
 </head>
 <body>
@@ -465,16 +464,14 @@
   <audio id="winnerSound" preload="auto"><source src="winner.mp3" type="audio/mpeg"></audio>
   <audio id="powerupSound" preload="auto"><source src="powerup.mp3" type="audio/mpeg"></audio>
 
-  <!-- Socket.io -->
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  
+  <script src="/socket.io/socket.io.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       // Game constants
       const MAX_SCORE = 10;
       const INITIAL_PADDLE_HEIGHT = 100;
       const PADDLE_WIDTH = 15;
-      const INITIAL_BALL_SPEED = 3;
+      const INITIAL_BALL_SPEED = 2; // Langsamere Startgeschwindigkeit
       const BALL_SIZE = 10;
       const POWERUP_CHANCE = 0.15;
       const PADDLE_GROWTH_FACTOR = 0.2;
