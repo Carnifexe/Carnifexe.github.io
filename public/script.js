@@ -1,13 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
   // ================
-  // 1. DOM-Elemente
+  // 1. Initialisierung
   // ================
-  const statusDisplay = document.getElementById('connectionStatus');
-  const playerList = document.getElementById('playerList');
   const gameCanvas = document.getElementById('gameCanvas');
   const ctx = gameCanvas.getContext('2d');
+  const playerList = document.getElementById('playerList');
   const leftScore = document.getElementById('leftScore');
   const rightScore = document.getElementById('rightScore');
+  const connectionStatus = document.getElementById('connectionStatus');
+  const invitationModal = document.getElementById('invitationModal');
+  const invitationText = document.getElementById('invitationText');
+  const acceptBtn = document.getElementById('acceptInvite');
+  const declineBtn = document.getElementById('declineInvite');
 
   // ================
   // 2. Spielzustand
@@ -18,101 +22,92 @@ document.addEventListener('DOMContentLoaded', () => {
     ball: { x: 50, y: 50, radius: 10 },
     scores: { left: 0, right: 0 },
     currentGame: null,
-    playerSide: null
+    playerSide: null,
+    socketId: null
   };
 
   // ================
   // 3. WebSocket-Verbindung
   // ================
-// In public/script.js
-const socket = io('wss://carnifexe-github-io.onrender.com', {
-  // KRITISCHE EINSTELLUNGEN:
-  transports: ['websocket'],
-  upgrade: false,  // Deaktiviert HTTP-Polling-Fallback
-  reconnection: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-  timeout: 20000,
-  withCredentials: false,
-  extraHeaders: {
-    'X-Requested-With': 'XMLHttpRequest'
-  }
-});
+  const socket = io('wss://carnifexe-github-io.onrender.com', {
+    transports: ['websocket'],
+    upgrade: false,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 3000,
+    timeout: 10000,
+    withCredentials: false
+  });
 
   // ================
   // 4. Verbindungsmanagement
   // ================
-  function updateStatus(connected, message = '') {
-    statusDisplay.textContent = connected ? '🟢 ONLINE' : `🔴 OFFLINE: ${message}`;
-    statusDisplay.className = connected ? 'online' : 'offline';
+  function updateConnectionStatus(connected, message = '') {
+    connectionStatus.textContent = connected ? '🟢 ONLINE' : `🔴 OFFLINE: ${message}`;
+    connectionStatus.className = connected ? 'online' : 'offline';
   }
 
-// Verbindungs-Event-Handler
-socket.on('connect', () => {
-  console.log('✅ Verbunden mit Socket-ID:', socket.id);
-  document.getElementById('connectionStatus').textContent = '🟢 ONLINE';
-});
-    updateStatus(true);
-    
-    // Handshake mit Server
-    socket.emit('client_ready', {
-      version: '1.0',
-      renderUrl: 'carnifexe-github-io.onrender.com'
-    });
+  socket.on('connect', () => {
+    console.log('✅ Verbunden mit Socket-ID:', socket.id);
+    gameState.socketId = socket.id;
+    updateConnectionStatus(true);
   });
 
-socket.on('connect_error', (err) => {
-  console.error('❌ Verbindungsfehler:', err.message);
-  const statusEl = document.getElementById('connectionStatus');
-  statusEl.textContent = `🔴 ${err.message}`;
-  statusEl.style.backgroundColor = '#ff4444';
+  socket.on('connect_error', (err) => {
+    console.error('❌ Verbindungsfehler:', err.message);
+    updateConnectionStatus(false, err.message);
     
-  // Automatischer Neuversuch mit Verzögerung
-  setTimeout(() => {
-    console.log('Versuche erneute Verbindung...');
-    socket.connect();
-  }, 3000);
-});
+    // Automatischer Neuversuch
+    setTimeout(() => socket.connect(), 5000);
+  });
 
   socket.on('disconnect', (reason) => {
     console.log('Verbindung getrennt:', reason);
-    updateStatus(false, 'Verbindung verloren');
+    updateConnectionStatus(false, 'Verbindung verloren');
   });
 
-// Manueller Verbindungstest
-function testConnection() {
-  fetch('https://carnifexe-github-io.onrender.com/health')
-    .then(res => res.json())
-    .then(data => console.log('Health Check:', data))
-    .catch(err => console.error('Health Check Fehler:', err));
-}
-
-// Initialer Test
-testConnection();
-
-  // ================
-  // 5. Server-Ereignisse
-  // ================
-  socket.on('server_ready', (data) => {
-    console.log('Server bestätigt:', data.message);
-    statusDisplay.textContent = `🟢 ${data.message}`;
+  socket.on('welcome', (data) => {
+    console.log('Server begrüßt:', data.message);
+    connectionStatus.textContent = `🟢 ${data.message}`;
   });
 
-  socket.on('playerListUpdate', (players) => {
+  // ================
+  // 5. Spielereignisse
+  // ================
+  socket.on('player_list', (players) => {
     playerList.innerHTML = players.map(player => `
       <li class="${player.status === 'playing' ? 'playing' : ''}" 
           data-id="${player.id}">
         ${player.name} 
-        <span>(${player.status === 'waiting' ? 'Wartend' : 'Spielt'})</span>
+        <span class="status">(${player.status === 'waiting' ? 'Wartend' : 'Spielt'})</span>
       </li>
     `).join('');
 
-    // Event-Listener für Spielerliste
+    // Klick-Listener für Spielerliste
     document.querySelectorAll('#playerList li:not(.playing)').forEach(li => {
       li.addEventListener('click', () => {
-        socket.emit('invite_player', li.dataset.id);
+        if (gameState.socketId !== li.dataset.id) {
+          socket.emit('invite', li.dataset.id);
+        }
       });
     });
+  });
+
+  socket.on('invitation', (data) => {
+    invitationText.textContent = `${data.fromName} möchte gegen dich spielen!`;
+    invitationModal.style.display = 'flex';
+
+    acceptBtn.onclick = () => {
+      socket.emit('accept_invitation', {
+        gameId: `${data.from}-${socket.id}`,
+        players: [data.from, socket.id]
+      });
+      invitationModal.style.display = 'none';
+    };
+
+    declineBtn.onclick = () => {
+      socket.emit('decline_invitation', data.from);
+      invitationModal.style.display = 'none';
+    };
   });
 
   socket.on('game_start', (data) => {
@@ -131,6 +126,11 @@ testConnection();
     
     leftScore.textContent = gameState.scores.left;
     rightScore.textContent = gameState.scores.right;
+  });
+
+  socket.on('game_end', () => {
+    gameState.currentGame = null;
+    console.log('Spiel beendet');
   });
 
   // ================
@@ -205,10 +205,10 @@ testConnection();
   setInterval(() => {
     if (socket.connected) {
       const pingStart = Date.now();
-      socket.emit('ping', pingStart, () => {
+      socket.emit('ping', pingStart, (serverTime) => {
         const latency = Date.now() - pingStart;
-        console.log('Ping:', latency, 'ms');
+        console.log('Latenz:', latency, 'ms');
       });
     }
-  }, 20000);
+  }, 25000);
 });
