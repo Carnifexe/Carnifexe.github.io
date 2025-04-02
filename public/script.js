@@ -28,10 +28,15 @@ document.addEventListener('DOMContentLoaded', () => {
 const socket = io('wss://carnifexe-github-io.onrender.com', {
   // KRITISCHE EINSTELLUNGEN:
   transports: ['websocket'],
-  upgrade: false,       // Polling deaktivieren
+  upgrade: false,  // Deaktiviert HTTP-Polling-Fallback
+  reconnection: true,
   reconnectionAttempts: 5,
-  timeout: 10000,
-  withCredentials: false
+  reconnectionDelay: 1000,
+  timeout: 20000,
+  withCredentials: false,
+  extraHeaders: {
+    'X-Requested-With': 'XMLHttpRequest'
+  }
 });
 
   // ================
@@ -42,8 +47,11 @@ const socket = io('wss://carnifexe-github-io.onrender.com', {
     statusDisplay.className = connected ? 'online' : 'offline';
   }
 
-  socket.on('connect', () => {
-    console.log('✅ Verbunden mit Server:', socket.id);
+// Verbindungs-Event-Handler
+socket.on('connect', () => {
+  console.log('✅ Verbunden mit Socket-ID:', socket.id);
+  document.getElementById('connectionStatus').textContent = '🟢 ONLINE';
+});
     updateStatus(true);
     
     // Handshake mit Server
@@ -53,21 +61,34 @@ const socket = io('wss://carnifexe-github-io.onrender.com', {
     });
   });
 
-  socket.on('connect_error', (err) => {
-    console.error('❌ Verbindungsfehler:', err.message);
-    updateStatus(false, err.message.includes('websocket') 
-      ? 'WebSocket blockiert' 
-      : 'Server nicht erreichbar'
-    );
+socket.on('connect_error', (err) => {
+  console.error('❌ Verbindungsfehler:', err.message);
+  const statusEl = document.getElementById('connectionStatus');
+  statusEl.textContent = `🔴 ${err.message}`;
+  statusEl.style.backgroundColor = '#ff4444';
     
-    // Automatischer Neuversuch
-    setTimeout(() => socket.connect(), 3000);
-  });
+  // Automatischer Neuversuch mit Verzögerung
+  setTimeout(() => {
+    console.log('Versuche erneute Verbindung...');
+    socket.connect();
+  }, 3000);
+});
 
   socket.on('disconnect', (reason) => {
     console.log('Verbindung getrennt:', reason);
     updateStatus(false, 'Verbindung verloren');
   });
+
+// Manueller Verbindungstest
+function testConnection() {
+  fetch('https://carnifexe-github-io.onrender.com/health')
+    .then(res => res.json())
+    .then(data => console.log('Health Check:', data))
+    .catch(err => console.error('Health Check Fehler:', err));
+}
+
+// Initialer Test
+testConnection();
 
   // ================
   // 5. Server-Ereignisse
