@@ -1,16 +1,25 @@
 const WebSocket = require('ws');
 const http = require('http');
+const express = require('express');
 
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Pong Server is running...');
-});
+const app = express();
+const port = process.env.PORT || 8080; // Der Port, den Render bereitstellt, oder 8080 für lokale Entwicklung
 
+// HTTP-Server erstellen und Express verwenden
+const server = http.createServer(app);
+
+// WebSocket-Server erstellen
 const wss = new WebSocket.Server({ server });
 
 let players = []; // Liste der verbundenen Spieler
 let gameInProgress = false;
 
+// HTTP-Route für den Fall, dass du eine Webseite servieren möchtest
+app.get('/', (req, res) => {
+    res.send('Pong Server läuft');
+});
+
+// WebSocket-Verbindung und Nachrichtenbehandlung
 wss.on('connection', (ws) => {
     console.log('Ein Spieler hat sich verbunden.');
 
@@ -82,6 +91,7 @@ wss.on('connection', (ws) => {
     updatePlayerList();
 });
 
-server.listen(8080, '0.0.0.0', () => {
-    console.log('Server läuft auf http://0.0.0.0:8080');
+// Den HTTP-Server auf Port 8080 oder den von Render angegebenen Port starten
+server.listen(port, '0.0.0.0', () => {
+    console.log(`Server läuft auf http://0.0.0.0:${port}`);
 });
