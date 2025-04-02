@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pong Multiplayer</title>
+    <title>Pong Spiel</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background: #000;
+            background: transparent;
             color: white;
             font-family: Arial, sans-serif;
         }
@@ -18,9 +18,10 @@
             left: 0;
             width: 100vw;
             height: 100vh;
+            z-index: 9999;
             display: none;
         }
-        #queueButton {
+        #startButton, #restartButton {
             position: fixed;
             bottom: 30px;
             left: 50%;
@@ -28,130 +29,299 @@
             padding: 20px;
             font-size: 20px;
             cursor: pointer;
+            z-index: 10001;
             background: #333;
             color: white;
             border: none;
             border-radius: 5px;
         }
-        #waitingText {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 24px;
-            color: white;
+        #restartButton {
             display: none;
-            text-align: center;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 20px;
-            border-radius: 10px;
         }
-        #connectedClients {
+        #scoreboard {
             position: fixed;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            font-size: 20px;
+            z-index: 10000;
+            display: none;
             color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 15px 30px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .teams-container {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+        }
+        .team {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .team-name {
+            font-size: 18px;
+            color: #ffcc00;
+            margin-bottom: 5px;
+        }
+        .team-score {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        #gameOverText {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 32px;
+            color: white;
+            z-index: 10002;
+            display: none;
+            text-align: center;
+            background: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        #waitingRoom {
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10002;
+            background: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+            display: block;
+            color: white;
+            width: 300px;
+            text-align: center;
+        }
+        .player-list {
+            margin-top: 20px;
+            list-style-type: none;
+            padding: 0;
+        }
+        .player-item {
+            padding: 10px;
+            background: #333;
+            margin: 5px;
+            cursor: pointer;
+        }
+        .player-item:hover {
+            background: #444;
+        }
+        .player-name {
+            font-size: 18px;
+            color: #ffcc00;
         }
     </style>
 </head>
 <body>
-    <div id="waitingText">Warte auf Gegner...</div>
-    <div id="connectedClients">Verbunden: 0 Spieler</div>
-    <button id="queueButton">Warteschlange beitreten</button>
+    <div id="waitingRoom">
+        <h2>Warteraum</h2>
+        <p>Warte auf einen Gegner...</p>
+        <ul id="playerList" class="player-list"></ul>
+    </div>
+    <button id="startButton" style="display: none;">Pong starten</button>
+    <button id="restartButton" style="display: none;">Neustart</button>
+    <div id="gameOverText"></div>
     <canvas id="pongCanvas"></canvas>
+    <div id="scoreboard">
+        <div class="teams-container">
+            <div class="team">
+                <div class="team-name">Los Santos</div>
+                <div class="team-score" id="computerScore">0</div>
+            </div>
+            <div class="team">
+                <div class="team-name">SAHP</div>
+                <div class="team-score" id="playerScore">0</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sound-Elemente -->
+    <audio id="pingSound" src="ping.mp3"></audio>
+    <audio id="pongSound" src="pong.mp3"></audio>
+    <audio id="saHPSound" src="sahpsound.mp3"></audio>
+    <audio id="lsSound" src="lssound.mp3"></audio>
+    <audio id="bounceSound" src="bounce.mp3"></audio>
+    <audio id="winnerSound" src="winner.mp3"></audio>
+    <audio id="powerupSound" src="powerup.mp3"></audio>
 
     <script>
-        const socket = new WebSocket('wss://carnifexe-github-io.onrender.com');
+        // Canvas und Elemente initialisieren
         const canvas = document.getElementById("pongCanvas");
         const ctx = canvas.getContext("2d");
-        const queueButton = document.getElementById("queueButton");
-        const waitingText = document.getElementById("waitingText");
-        const connectedClients = document.getElementById("connectedClients");
+        const startButton = document.getElementById("startButton");
+        const restartButton = document.getElementById("restartButton");
+        const scoreboard = document.getElementById("scoreboard");
+        const playerScoreElement = document.getElementById("playerScore");
+        const computerScoreElement = document.getElementById("computerScore");
+        const gameOverText = document.getElementById("gameOverText");
+        const waitingRoom = document.getElementById("waitingRoom");
+        const playerList = document.getElementById("playerList");
 
-        let playerNumber = null;
-        let opponentY = 300;
-        let playerY = 300;
-        let ballX = 400, ballY = 300;
-        let gameRunning = false;
-
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        // WebSocket-Verbindung
+        const socket = new WebSocket("ws://localhost:8080");
 
         socket.onopen = () => {
-            console.log("Mit Server verbunden");
+            console.log("Mit dem WebSocket-Server verbunden");
         };
 
         socket.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
-            if (data.type === "queueUpdate") {
-                connectedClients.textContent = `Warteschlange: ${data.count} Spieler`;
+            if (data.type === "updatePlayers") {
+                updatePlayerList(data.players);
             }
 
             if (data.type === "gameStart") {
-                playerNumber = data.playerNumber;
-                console.log(`Spiel gestartet als Spieler ${playerNumber}`);
-                queueButton.style.display = "none";
-                waitingText.style.display = "none";
-                canvas.style.display = "block";
-                gameRunning = true;
-                gameLoop();
+                startGame(data.playerNumber);
             }
 
-            if (data.type === "paddleMove" && data.player !== playerNumber) {
-                opponentY = data.y;
-            }
-
-            if (data.type === "ballUpdate") {
-                ballX = data.x;
-                ballY = data.y;
+            if (data.type === "gameOver") {
+                gameOver();
             }
         };
 
-        queueButton.addEventListener("click", () => {
-            queueButton.style.display = "none";
-            waitingText.style.display = "block";
-            socket.send(JSON.stringify({ type: "joinQueue" }));
-        });
+        socket.onerror = (error) => {
+            console.log("WebSocket-Fehler:", error);
+        };
 
-        canvas.addEventListener("mousemove", (e) => {
-            if (!gameRunning) return;
-            const rect = canvas.getBoundingClientRect();
-            playerY = e.clientY - rect.top - 50;
-            playerY = Math.max(0, Math.min(canvas.height - 100, playerY));
-            socket.send(JSON.stringify({ type: "paddleMove", player: playerNumber, y: playerY }));
-        });
+        socket.onclose = () => {
+            console.log("Verbindung zum WebSocket-Server geschlossen");
+        };
 
-        function gameLoop() {
-            if (!gameRunning) return;
-
-            draw();
-            requestAnimationFrame(gameLoop);
+        // Funktion um Spieler anzupassen
+        function updatePlayerList(players) {
+            playerList.innerHTML = "";
+            players.forEach((player, index) => {
+                const li = document.createElement("li");
+                li.classList.add("player-item");
+                li.innerHTML = `<span class="player-name">${player}</span>`;
+                li.onclick = () => sendChallenge(player);
+                playerList.appendChild(li);
+            });
         }
 
-        function draw() {
-            ctx.fillStyle = "#000";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Funktion für Herausforderung
+        function sendChallenge(playerName) {
+            const challenge = confirm(`Möchtest du ${playerName} herausfordern?`);
+            if (challenge) {
+                socket.send(JSON.stringify({
+                    type: "challenge",
+                    player: playerName
+                }));
+            }
+        }
 
-            ctx.strokeStyle = "#333";
+        // Startet das Spiel nach der Herausforderung
+        function startGame(playerNumber) {
+            waitingRoom.style.display = "none";
+            gameRunning = true;
+            playerScore = 0;
+            computerScore = 0;
+
+            playerScoreElement.textContent = "0";
+            computerScoreElement.textContent = "0";
+            
+            startButton.style.display = "none";
+            restartButton.style.display = "none";
+            canvas.style.display = "block";
+            scoreboard.style.display = "block";
+            gameOverText.style.display = "none";
+            
+            resetBall();
+            leftPaddleY = (canvas.height - basePaddleHeight) / 2;
+            rightPaddleY = (canvas.height - basePaddleHeight) / 2;
+            requestAnimationFrame(update);
+        }
+
+        // Spiel-Logik
+        let gameRunning = false;
+        let playerScore = 0;
+        let computerScore = 0;
+        const maxScore = 10;
+        const basePaddleHeight = 100;
+        const paddleWidth = 10;
+
+        let ball = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            dx: 4,
+            dy: 4,
+            size: 10
+        };
+        let leftPaddleY = (canvas.height - basePaddleHeight) / 2;
+        let rightPaddleY = (canvas.height - basePaddleHeight) / 2;
+
+        // Ball zurücksetzen
+        function resetBall() {
+            ball = { 
+                x: canvas.width / 2, 
+                y: canvas.height / 2, 
+                dx: 4 * (Math.random() > 0.5 ? 1 : -1), 
+                dy: 4 * (Math.random() * 2 - 1),
+                size: 10
+            };
+        }
+
+        // Ball und Schläger zeichnen
+        function drawBall() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "white";
             ctx.beginPath();
-            ctx.moveTo(canvas.width / 2, 0);
-            ctx.lineTo(canvas.width / 2, canvas.height);
-            ctx.stroke();
-
-            ctx.fillStyle = "#fff";
-            ctx.fillRect(10, playerY, 15, 100);
-            ctx.fillRect(canvas.width - 25, opponentY, 15, 100);
-
-            ctx.beginPath();
-            ctx.arc(ballX, ballY, 10, 0, Math.PI * 2);
+            ctx.arc(ball.x, ball.y, ball.size, 0, Math.PI * 2);
             ctx.fill();
+        }
+
+        // Spiel-Update
+        function update() {
+            if (!gameRunning) return;
+
+            // Ball bewegen
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            if (ball.y - ball.size < 0 || ball.y + ball.size > canvas.height) {
+                ball.dy *= -1;
+            }
+
+            // Tore prüfen
+            if (ball.x < 0 || ball.x > canvas.width) {
+                socket.send(JSON.stringify({
+                    type: "scoreUpdate",
+                    player1: playerScore,
+                    player2: computerScore
+                }));
+            }
+
+            // Kollision mit Schlägern
+            const leftPaddleHeight = basePaddleHeight;
+            const rightPaddleHeight = basePaddleHeight;
+
+            // Linker Schläger
+            if (ball.x - ball.size <= paddleWidth && ball.y + ball.size >= leftPaddleY && ball.y - ball.size <= leftPaddleY + leftPaddleHeight) {
+                ball.dx *= -1;
+            }
+
+            // Rechter Schläger
+            if (ball.x + ball.size >= canvas.width - paddleWidth && ball.y + ball.size >= rightPaddleY && ball.y - ball.size <= rightPaddleY + rightPaddleHeight) {
+                ball.dx *= -1;
+            }
+
+            // KI-Steuerung
+            const computerReactionSpeed = 6;
+            if (ball.dy > 0) {
+                if (ball.y < computerScoreElement.height - rightPaddleHeight / 2) {
+                    computerScore += computerReactionSpeed;
+                }
+            }
+
+            drawBall();
+            requestAnimationFrame(update);
         }
     </script>
 </body>
