@@ -12,17 +12,21 @@ const httpServer = createServer(app);
 // ======================
 // 2. WebSocket-Konfiguration
 // ======================
+// In server.js (vor dem server.listen)
 const io = new Server(httpServer, {
   cors: {
-    origin: 'https://carnifexe-github-io.onrender.com',
-    methods: ["GET", "POST"],
-    credentials: true
+    origin: [
+      'https://carnifexe-github-io.onrender.com',
+      'http://localhost:10000'
+    ],
+    methods: ["GET", "POST"]
   },
+  // RENDER-SPEZIFISCHE EINSTELLUNGEN:
   transports: ['websocket'],
-  connectionStateRecovery: {
-    maxDisconnectionDuration: 2 * 60 * 1000,
-    skipMiddlewares: true
-  }
+  allowEIO3: true,
+  pingInterval: 25000,  // 25s für Render Keep-Alive
+  pingTimeout: 60000,   // 60s Timeout
+  cookie: false         // Cookies können Probleme verursachen
 });
 
 // ======================
@@ -33,6 +37,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ======================
 // 4. Wichtige Endpoints
 // ======================
+// Health Check Route (bereits vorhanden)
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'online',
