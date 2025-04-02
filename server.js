@@ -1,117 +1,94 @@
 const WebSocket = require('ws');
+const wss = new WebSocket.Server({ port: 8080 });
 
-// WebSocket Server Setup mit der externen Adresse
-const wss = new WebSocket.Server({
-    port: 8080,
-    host: 'carnifexe-github-io.onrender.com'  // WebSocket-Serveradresse
-});
+let players = [];
+let challenges = [];
 
-let players = [];  // Liste der verbundenen Spieler
-let gameInProgress = false;  // Status, ob das Spiel läuft oder nicht
-
-// Wenn ein Client sich verbindet
 wss.on('connection', (ws) => {
-    console.log('Ein neuer Spieler hat sich verbunden');
-    
-    // Füge den neuen Spieler zur Liste hinzu
-    players.push(ws);
+    console.log('Ein neuer Spieler hat sich verbunden.');
 
-    // Sende die aktuelle Liste der Spieler an alle verbundenen Clients
-    sendPlayerList();
-
-    // Wenn der Spieler eine Herausforderung annehmen möchte
+    // Bei Empfang einer Nachricht vom Client
     ws.on('message', (message) => {
         const data = JSON.parse(message);
 
-        switch (data.type) {
-            case 'challenge':
-                // Spieler herausfordern
-                handleChallenge(ws, data.player);
-                break;
-            case 'scoreUpdate':
-                // Die Punktzahl aktualisieren
-                updateScore(data.player1, data.player2);
-                break;
-            case 'gameStart':
-                // Das Spiel starten
-                startGame();
-                break;
-            default:
-                console.log('Unbekannter Nachrichtentyp:', data);
+        if (data.type === 'challenge') {
+            // Herausforderung von einem Spieler annehmen
+            const { player } = data;
+            const playerName = getPlayerName(ws);
+            console.log(`${playerName} hat eine Herausforderung an ${player} gesendet.`);
+            handleChallenge(player, playerName);
+        } else if (data.type === 'scoreUpdate') {
+            // Punkte nach einem Tor aktualisieren
+            const { player1, player2 } = data;
+            console.log(`Punkte Update - Player1: ${player1}, Player2: ${player2}`);
+            // Hier könnte man den Score in einer Datenbank speichern, wenn nötig
+        } else if (data.type === 'gameStart') {
+            // Wenn das Spiel startet
+            console.log('Spiel gestartet!');
+            broadcastGameStart();
         }
     });
 
-    // Wenn der Spieler die Verbindung schließt
-    ws.on('close', () => {
-        console.log('Ein Spieler hat die Verbindung getrennt');
-        players = players.filter(player => player !== ws);
+    // Bei einer neuen Verbindung Spieler hinzufügen
+    ws.on('open', () => {
+        const playerName = 'Spieler_' + (players.length + 1); // Einfache Namensvergabe
+        players.push({ name: playerName, socket: ws });
+        console.log(`${playerName} wurde dem Spiel beigetreten.`);
         sendPlayerList();
     });
-});
 
-// Funktion um die Liste der Spieler an alle zu senden
-function sendPlayerList() {
-    const playerNames = players.map(player => player.id || `Spieler ${players.indexOf(player) + 1}`);
-    const message = JSON.stringify({ type: 'updatePlayers', players: playerNames });
+    // Wenn ein Spieler sich trennt, entfernen wir ihn aus der Liste
+    ws.on('close', () => {
+        const playerIndex = players.findIndex(player => player.socket === ws);
+        if (playerIndex !== -1) {
+            const playerName = players[playerIndex].name;
+            players.splice(playerIndex, 1);
+            console.log(`${playerName} hat das Spiel verlassen.`);
+            sendPlayerList();
+        }
+    });
 
-    players.forEach(player => player.send(message));
-}
-
-// Funktion, um eine Herausforderung zu senden
-function handleChallenge(ws, playerName) {
-    // Wenn ein Spiel bereits läuft, nicht herausfordern
-    if (gameInProgress) {
-        ws.send(JSON.stringify({ type: 'error', message: 'Ein Spiel läuft bereits!' }));
-        return;
+    // Sendet die Spielerliste an alle Clients
+    function sendPlayerList() {
+        const playerNames = players.map(player => player.name);
+        broadcast({
+            type: 'updatePlayers',
+            players: playerNames
+        });
     }
 
-    // Den Herausgeforderten finden
-    const opponent = players.find(player => player.id === playerName);
-
-    if (opponent) {
-        // Frage den Gegner, ob er die Herausforderung annimmt
-        opponent.send(JSON.stringify({
-            type: 'challenge',
-            player: ws.id
-        }));
-
-        // Warte auf Antwort
-        ws.send(JSON.stringify({
-            type: 'waiting',
-            message: `Warte auf Antwort von ${playerName}...`
-        }));
-    } else {
-        ws.send(JSON.stringify({
-            type: 'error',
-            message: `Spieler ${playerName} existiert nicht!`
-        }));
+    // Sendet eine Nachricht an alle verbundenen Clients
+    function broadcast(message) {
+        players.forEach(player => {
+            player.socket.send(JSON.stringify(message));
+        });
     }
-}
 
-// Funktion um das Spiel zu starten
-function startGame() {
-    if (gameInProgress) return;
+    // Startet das Spiel, wenn eine Herausforderung angenommen wird
+    function handleChallenge(challenger, challenged) {
+        const challengerSocket = players.find(player => player.name === challenger)?.socket;
+        const challengedSocket = players.find(player => player.name === challenged)?.socket;
 
-    gameInProgress = true;
-    console.log('Das Spiel hat begonnen!');
+        if (challengerSocket && challengedSocket) {
+            // Sende eine Nachricht an beide Spieler, dass das Spiel gestartet wird
+            challengerSocket.send(JSON.stringify({ type: 'gameStart', playerNumber: 1 }));
+            challengedSocket.send(JSON.stringify({ type: 'gameStart', playerNumber: 2 }));
+            console.log(`Spiel zwischen ${challenger} und ${challenged} wird gestartet.`);
+        }
+    }
 
-    // Sende an alle Spieler, dass das Spiel gestartet ist
-    players.forEach(player => {
-        player.send(JSON.stringify({ type: 'gameStart', playerNumber: players.indexOf(player) }));
-    });
-}
+    // Broadcast eine Nachricht an alle Spieler, dass das Spiel gestartet wird
+    function broadcastGameStart() {
+        broadcast({
+            type: 'gameStart'
+        });
+    }
 
-// Funktion, um die Punktzahl zu aktualisieren
-function updateScore(player1, player2) {
-    players.forEach(player => {
-        player.send(JSON.stringify({ type: 'scoreUpdate', player1, player2 }));
-    });
-}
-
-// Error Handling
-wss.on('error', (err) => {
-    console.error('WebSocket-Fehler:', err);
+    // Hilfsfunktion, um den Spielernamen aus einer Verbindung zu extrahieren
+    function getPlayerName(socket) {
+        const player = players.find(player => player.socket === socket);
+        return player ? player.name : 'Unbekannt';
+    }
 });
 
-// Server läuft
-console.log('WebSocket-Server läuft auf wss://carnifexe-github-io.onrender.com');
+console.log('WebSocket-Server läuft auf ws://localhost:8080');
