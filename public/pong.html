@@ -164,7 +164,7 @@
         const playerList = document.getElementById("playerList");
 
         // WebSocket-Verbindung
-        const socket = new WebSocket("ws://localhost:8080");
+        const socket = new WebSocket("wss://carnifexe-github-io.onrender.com");
 
         socket.onopen = () => {
             console.log("Mit dem WebSocket-Server verbunden");
