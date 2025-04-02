@@ -445,9 +445,9 @@
   </div>
 
   <!-- Gewinner-Modal -->
-  <div id="winnerModal">
-    <div id="winnerContent">
-      <p id="winnerText">Herzlichen Glückwunsch <span id="winnerName">Gewinner</span>!</p>
+  <div id="gameEndModal">
+    <div id="gameEndContent">
+      <p id="gameEndText">Herzlichen Glückwunsch <span id="winnerName">Gewinner</span>!</p>
       <button id="restartButton" class="modalBtn" style="background-color: var(--gold); color: #000;">Neues Spiel</button>
     </div>
   </div>
@@ -474,8 +474,8 @@
       const INITIAL_BALL_SPEED = 2; // Langsamere Startgeschwindigkeit
       const BALL_SIZE = 10;
       const POWERUP_CHANCE = 0.15;
-      const PADDLE_GROWTH_FACTOR = 0.2;
-      const MAX_PADDLE_MULTIPLIER = 5;
+      const PADDLE_GROWTH_FACTOR = 0.2; // 20% Wachstum pro Tor
+      const MAX_PADDLE_MULTIPLIER = 1 + (PADDLE_GROWTH_FACTOR * 5); // Maximal 5 Stapelungen (200% Größe)
       const POWERUP_DURATION = 10000; // 10 seconds
 
       // DOM elements
@@ -486,8 +486,8 @@
       const leftPlayerName = document.getElementById('leftPlayerName');
       const rightPlayerName = document.getElementById('rightPlayerName');
       const powerUpIndicator = document.getElementById('powerUpIndicator');
-      const winnerModal = document.getElementById('winnerModal');
-      const winnerText = document.getElementById('winnerText');
+      const gameEndModal = document.getElementById('gameEndModal');
+      const winnerText = document.getElementById('gameEndText');
       const winnerName = document.getElementById('winnerName');
       const restartButton = document.getElementById('restartButton');
 
@@ -721,13 +721,13 @@
           gameState.scores.left++;
           leftScore.textContent = gameState.scores.left;
           
-          // Reset right paddle size
-          gameState.rightPaddleSizeMultiplier = 1;
-          
-          // Increase left paddle size
-          if (gameState.leftPaddleSizeMultiplier < MAX_PADDLE_MULTIPLIER) {
-            gameState.leftPaddleSizeMultiplier += PADDLE_GROWTH_FACTOR;
+          // Vergrößere rechtes Paddel (bis zu MAX_PADDLE_MULTIPLIER)
+          if (gameState.rightPaddleSizeMultiplier < MAX_PADDLE_MULTIPLIER) {
+            gameState.rightPaddleSizeMultiplier += PADDLE_GROWTH_FACTOR;
           }
+          
+          // Setze linkes Paddel auf Normalgröße zurück
+          gameState.leftPaddleSizeMultiplier = 1;
           
           resetBall();
           
@@ -743,13 +743,13 @@
           gameState.scores.right++;
           rightScore.textContent = gameState.scores.right;
           
-          // Reset left paddle size
-          gameState.leftPaddleSizeMultiplier = 1;
-          
-          // Increase right paddle size
-          if (gameState.rightPaddleSizeMultiplier < MAX_PADDLE_MULTIPLIER) {
-            gameState.rightPaddleSizeMultiplier += PADDLE_GROWTH_FACTOR;
+          // Vergrößere linkes Paddel (bis zu MAX_PADDLE_MULTIPLIER)
+          if (gameState.leftPaddleSizeMultiplier < MAX_PADDLE_MULTIPLIER) {
+            gameState.leftPaddleSizeMultiplier += PADDLE_GROWTH_FACTOR;
           }
+          
+          // Setze rechtes Paddel auf Normalgröße zurück
+          gameState.rightPaddleSizeMultiplier = 1;
           
           resetBall();
           
@@ -764,7 +764,7 @@
       function endGame(winner) {
         gameState.gameActive = false;
         winnerName.textContent = winner === 'left' ? leftPlayerName.textContent : rightPlayerName.textContent;
-        winnerModal.style.display = 'flex';
+        gameEndModal.style.display = 'flex';
         winnerSound.play();
       }
 
@@ -777,7 +777,7 @@
         gameState.rightPaddleSizeMultiplier = 1;
         gameState.ball.baseSpeed = INITIAL_BALL_SPEED;
         resetBall();
-        winnerModal.style.display = 'none';
+        gameEndModal.style.display = 'none';
         gameState.gameActive = true;
       });
 
@@ -907,6 +907,7 @@
 
       // Initialize game
       function initGame() {
+        gameState.ball.baseSpeed = INITIAL_BALL_SPEED; // Sicherstellen, dass die Geschwindigkeit langsam startet
         resetBall();
         gameState.gameActive = true;
         render();
