@@ -1,16 +1,15 @@
 const express = require('express');
-const http = require('http');
-const socketio = require('socket.io');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
 const path = require('path');
-const cors = require('cors');
 
 const app = express();
-app.use(cors());
-const server = http.createServer(app);
-const socket = io('http://localhost:10000', {
-  transports: ['websocket'],  // Erzwingt WebSocket
-  upgrade: false,
-  reconnectionAttempts: 5
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
 });
 
 // Game state
@@ -18,11 +17,14 @@ const players = {};
 const games = {};
 let playerCount = 0;
 
+// Serve static files
 app.use(express.static(path.join(__dirname, '../client')));
 
+// Socket.io connection
 io.on('connection', (socket) => {
-    console.log('New connection:', socket.id);
+    console.log('✅ Neue Verbindung:', socket.id);
     
+    // Assign player name
     playerCount++;
     const playerName = `Spieler ${playerCount}`;
     players[socket.id] = {
@@ -31,21 +33,26 @@ io.on('connection', (socket) => {
         status: 'waiting'
     };
     
+    // Send updated player list
     updatePlayerList();
     
+    // Handle game invitation
     socket.on('invite', (targetId) => {
         if (players[targetId] && players[targetId].status === 'waiting') {
             io.to(targetId).emit('invitation', {
                 from: socket.id,
                 fromName: players[socket.id].name
             });
+            console.log(`🎮 ${playerName} lädt ${players[targetId].name} ein`);
         }
     });
     
+    // Handle invitation response
     socket.on('invitationResponse', (data) => {
         const { to, accepted } = data;
         
         if (accepted) {
+            // Start game
             players[socket.id].status = 'playing';
             players[to].status = 'playing';
             
@@ -64,14 +71,18 @@ io.on('connection', (socket) => {
                 playerSide: 'right'
             });
             
+            console.log(`🚀 Spiel gestartet: ${gameId}`);
             updatePlayerList();
         } else {
+            // Decline
             io.to(to).emit('invitationDeclined', {
                 by: players[socket.id].name
             });
+            console.log(`❌ Einladung abgelehnt von ${players[socket.id].name}`);
         }
     });
     
+    // Handle paddle movement
     socket.on('paddleMove', (data) => {
         const { gameId, y } = data;
         const game = games[gameId];
@@ -83,14 +94,17 @@ io.on('connection', (socket) => {
                 game.rightPaddleY = y;
             }
             
+            // Broadcast game state
             io.to(game.leftPlayer).emit('gameState', getGameState(game, game.leftPlayer));
             io.to(game.rightPlayer).emit('gameState', getGameState(game, game.rightPlayer));
         }
     });
     
+    // Handle disconnect
     socket.on('disconnect', () => {
-        console.log('Disconnected:', socket.id);
+        console.log('❌ Verbindung getrennt:', socket.id);
         
+        // End any active games
         for (const gameId in games) {
             if (games[gameId].leftPlayer === socket.id || games[gameId].rightPlayer === socket.id) {
                 endGame(gameId);
@@ -103,6 +117,7 @@ io.on('connection', (socket) => {
     });
 });
 
+// Game functions
 function createGame(player1, player2) {
     return {
         leftPlayer: player1,
@@ -111,8 +126,8 @@ function createGame(player1, player2) {
         rightPaddleY: 50,
         ballX: 50,
         ballY: 50,
-        ballSpeedX: 5,
-        ballSpeedY: 5,
+        ballSpeedX: (Math.random() > 0.5 ? 1 : -1) * 5,
+        ballSpeedY: (Math.random() > 0.5 ? 1 : -1) * 5,
         leftScore: 0,
         rightScore: 0,
         roundsPlayed: 0
@@ -120,13 +135,16 @@ function createGame(player1, player2) {
 }
 
 function updateGame(game) {
+    // Ball movement
     game.ballX += game.ballSpeedX;
     game.ballY += game.ballSpeedY;
     
+    // Wall collision
     if (game.ballY <= 0 || game.ballY >= 100) {
         game.ballSpeedY = -game.ballSpeedY;
     }
     
+    // Paddle collision
     if (game.ballX <= 5 && game.ballY >= game.leftPaddleY - 10 && game.ballY <= game.leftPaddleY + 10) {
         game.ballSpeedX = -game.ballSpeedX * 1.05;
     }
@@ -135,6 +153,7 @@ function updateGame(game) {
         game.ballSpeedX = -game.ballSpeedX * 1.05;
     }
     
+    // Scoring
     if (game.ballX < 0) {
         game.rightScore++;
         resetBall(game);
@@ -147,6 +166,7 @@ function updateGame(game) {
         game.roundsPlayed++;
     }
     
+    // Game over after 10 rounds
     if (game.roundsPlayed >= 10) {
         io.to(game.leftPlayer).emit('gameEnd');
         io.to(game.rightPlayer).emit('gameEnd');
@@ -159,6 +179,18 @@ function resetBall(game) {
     game.ballY = 50;
     game.ballSpeedX = (Math.random() > 0.5 ? 1 : -1) * 5;
     game.ballSpeedY = (Math.random() > 0.5 ? 1 : -1) * 5;
+}
+
+function getGameState(game, playerId) {
+    return {
+        leftPaddleY: game.leftPaddleY,
+        rightPaddleY: game.rightPaddleY,
+        ballX: game.ballX,
+        ballY: game.ballY,
+        leftScore: game.leftScore,
+        rightScore: game.rightScore,
+        isLeftPlayer: playerId === game.leftPlayer
+    };
 }
 
 function endGame(gameId) {
@@ -174,6 +206,7 @@ function endGame(gameId) {
         }
         delete games[gameId];
         updatePlayerList();
+        console.log(`🏁 Spiel beendet: ${gameId}`);
     }
 }
 
@@ -184,8 +217,10 @@ function updatePlayerList() {
         status: player.status
     }));
     io.emit('playerListUpdate', playerList);
+    console.log('📋 Spielerliste aktualisiert:', playerList);
 }
 
+// Game loop (60 FPS)
 setInterval(() => {
     for (const gameId in games) {
         updateGame(games[gameId]);
@@ -195,7 +230,9 @@ setInterval(() => {
     }
 }, 1000 / 60);
 
-const PORT = 10000;
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+// Start server
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`🎮 Server läuft auf Port ${PORT}`);
+    console.log(`🔗 http://localhost:${PORT}`);
 });
