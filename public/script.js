@@ -15,19 +15,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const gameInfo = document.getElementById('gameInfo');
 
   // ================
-  // 2. Spielzustand
+  // 2. Spielzustand mit optimierten Werten
   // ================
   const gameState = {
-    leftPaddle: { y: 50, width: 15, height: 100 },
-    rightPaddle: { y: 50, width: 15, height: 100 },
+    leftPaddle: { y: 50, width: 15, height: 100, sizeMultiplier: 1 },
+    rightPaddle: { y: 50, width: 15, height: 100, sizeMultiplier: 1 },
     ball: { x: 50, y: 50, radius: 8 },
     scores: { left: 0, right: 0 },
     currentGame: null,
     playerSide: null,
     playerId: null,
     socketId: null,
-    lastUpdate: 0,
-    ping: 0
+    lastUpdate: Date.now(),
+    ping: 0,
+    interpolationFactor: 0.3, // Für flüssigere Bewegungen
+    gameActive: false
   };
 
   // ================
@@ -96,7 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateConnectionStatus(false, 'Verbindung verloren');
     
     if (reason === 'io server disconnect') {
-      // Server-seitige Trennung, neu verbinden
       socket.connect();
     }
   });
@@ -183,36 +184,38 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log(`Einladung an ${data.targetName} gesendet`);
     gameInfo.textContent = `Einladung an ${data.targetName} gesendet`;
     
-    // Visuelles Feedback
     connectionStatus.textContent = `✉️ Einladung gesendet`;
     connectionStatus.style.backgroundColor = '#FFA500';
     setTimeout(() => updateConnectionStatus(true), 3000);
   });
 
   // ================
-  // 6. Spielereignisse
+  // 6. Spielereignisse mit verbesserten Updates
   // ================
   socket.on('game_start', (data) => {
     gameState.currentGame = data.gameId;
     gameState.playerSide = data.playerSide;
+    gameState.gameActive = true;
     console.log(`🎮 Spiel gestartet als ${data.playerSide}`);
     gameInfo.textContent = `Spiel läuft (vs ${data.opponent})`;
-    
-    // Canvas für Spiel vorbereiten
     gameCanvas.style.cursor = 'none';
   });
 
   socket.on('game_update', (state) => {
-    gameState.lastUpdate = Date.now();
+    const now = Date.now();
+    const delta = now - gameState.lastUpdate;
+    gameState.lastUpdate = now;
     
-    // Interpolation für flüssigere Bewegungen
-    const interpolationFactor = 0.2;
-    gameState.leftPaddle.y += (state.leftPaddleY - gameState.leftPaddle.y) * interpolationFactor;
-    gameState.rightPaddle.y += (state.rightPaddleY - gameState.rightPaddle.y) * interpolationFactor;
+    // Verbesserte Interpolation mit delta-Zeit
+    const factor = Math.min(1, gameState.interpolationFactor * (delta / 16));
+    
+    gameState.leftPaddle.y += (state.leftPaddleY - gameState.leftPaddle.y) * factor;
+    gameState.rightPaddle.y += (state.rightPaddleY - gameState.rightPaddle.y) * factor;
+    gameState.leftPaddle.sizeMultiplier = state.leftPaddleSize || 1;
+    gameState.rightPaddle.sizeMultiplier = state.rightPaddleSize || 1;
     gameState.ball.x = state.ballX;
     gameState.ball.y = state.ballY;
     
-    // Scores aktualisieren
     if (gameState.scores.left !== state.leftScore || gameState.scores.right !== state.rightScore) {
       animateScoreChange(state.leftScore, state.rightScore);
     }
@@ -221,10 +224,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function animateScoreChange(left, right) {
-    leftScore.textContent = left;
-    rightScore.textContent = right;
+    leftScore.querySelector('span:last-child').textContent = left;
+    rightScore.querySelector('span:last-child').textContent = right;
     
-    // Animationseffekt
     leftScore.style.transform = 'scale(1.5)';
     rightScore.style.transform = 'scale(1.5)';
     setTimeout(() => {
@@ -236,6 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on('game_ended', (data) => {
     console.log('Spiel beendet:', data.reason);
     gameCanvas.style.cursor = 'default';
+    gameState.gameActive = false;
     
     if (data.reason === 'opponent_disconnected') {
       gameInfo.textContent = 'Gegner hat das Spiel verlassen!';
@@ -248,13 +251,15 @@ document.addEventListener('DOMContentLoaded', () => {
     gameState.playerSide = null;
     gameState.ball.x = 50;
     gameState.ball.y = 50;
+    gameState.leftPaddle.sizeMultiplier = 1;
+    gameState.rightPaddle.sizeMultiplier = 1;
   });
 
   // ================
   // 7. Spielsteuerung
   // ================
   gameCanvas.addEventListener('mousemove', (e) => {
-    if (!gameState.currentGame || !gameState.playerSide) return;
+    if (!gameState.currentGame || !gameState.playerSide || !gameState.gameActive) return;
     
     const rect = gameCanvas.getBoundingClientRect();
     const y = ((e.clientY - rect.top) / gameCanvas.height) * 100;
@@ -269,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Touch-Support für Mobile
   gameCanvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
-    if (!gameState.currentGame || !gameState.playerSide) return;
+    if (!gameState.currentGame || !gameState.playerSide || !gameState.gameActive) return;
     
     const touch = e.touches[0];
     const rect = gameCanvas.getBoundingClientRect();
@@ -283,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ================
-  // 8. Render-Loop
+  // 8. Render-Loop mit korrekter Schlägerdarstellung
   // ================
   function render() {
     // Hintergrund
@@ -300,21 +305,23 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.stroke();
     ctx.setLineDash([]);
     
-    // Schläger
+    // Schläger mit Größenanpassung
     ctx.fillStyle = '#FFF';
+    
     // Linker Schläger
     ctx.fillRect(
       20, 
-      (gameState.leftPaddle.y / 100) * gameCanvas.height - gameState.leftPaddle.height/2, 
+      (gameState.leftPaddle.y / 100) * gameCanvas.height - (gameState.leftPaddle.height * gameState.leftPaddle.sizeMultiplier)/2, 
       gameState.leftPaddle.width, 
-      gameState.leftPaddle.height
+      gameState.leftPaddle.height * gameState.leftPaddle.sizeMultiplier
     );
+    
     // Rechter Schläger
     ctx.fillRect(
       gameCanvas.width - 20 - gameState.rightPaddle.width, 
-      (gameState.rightPaddle.y / 100) * gameCanvas.height - gameState.rightPaddle.height/2, 
+      (gameState.rightPaddle.y / 100) * gameCanvas.height - (gameState.rightPaddle.height * gameState.rightPaddle.sizeMultiplier)/2, 
       gameState.rightPaddle.width, 
-      gameState.rightPaddle.height
+      gameState.rightPaddle.height * gameState.rightPaddle.sizeMultiplier
     );
     
     // Ball mit Glow-Effekt
