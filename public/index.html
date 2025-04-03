@@ -422,7 +422,7 @@
       <div id="rightScore"><span id="rightPlayerName">Spieler 2</span>: <span>0</span></div>
     </div>
     
-    <canvas id="gameCanvas" width="1024" height="768"></canvas>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
     
     <section id="playersPanel">
       <h2>Spielerliste</h2>
@@ -471,12 +471,12 @@
       const MAX_SCORE = 10;
       const INITIAL_PADDLE_HEIGHT = 100;
       const PADDLE_WIDTH = 15;
-      const INITIAL_BALL_SPEED = 2; // Langsamere Startgeschwindigkeit
+      const INITIAL_BALL_SPEED = 1.5; // Reduzierte Startgeschwindigkeit
       const BALL_SIZE = 10;
       const POWERUP_CHANCE = 0.15;
-      const PADDLE_GROWTH_FACTOR = 0.2; // 20% Wachstum pro Tor
-      const MAX_PADDLE_MULTIPLIER = 1 + (PADDLE_GROWTH_FACTOR * 5); // Maximal 5 Stapelungen (200% Größe)
-      const POWERUP_DURATION = 10000; // 10 seconds
+      const PADDLE_GROWTH_FACTOR = 0.2;
+      const MAX_PADDLE_MULTIPLIER = 1 + (PADDLE_GROWTH_FACTOR * 5);
+      const POWERUP_DURATION = 10000;
 
       // DOM elements
       const gameCanvas = document.getElementById('gameCanvas');
@@ -519,7 +519,7 @@
         playerSide: null,
         playerId: null,
         socketId: null,
-        lastUpdate: 0,
+        lastUpdate: Date.now(),
         ping: 0,
         powerUp: null,
         leftPaddleSizeMultiplier: 1,
@@ -785,9 +785,13 @@
       function update() {
         if (!gameState.gameActive) return;
         
-        // Move ball
-        gameState.ball.x += gameState.ball.speedX;
-        gameState.ball.y += gameState.ball.speedY;
+        // Move ball with time-based movement
+        const now = Date.now();
+        const deltaTime = (now - gameState.lastUpdate) / 1000;
+        gameState.lastUpdate = now;
+        
+        gameState.ball.x += gameState.ball.speedX * deltaTime * 60;
+        gameState.ball.y += gameState.ball.speedY * deltaTime * 60;
         
         // Check collisions
         checkPaddleCollision();
@@ -832,7 +836,7 @@
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Draw paddles
+        // Draw paddles with size multipliers
         ctx.fillStyle = '#FFF';
         
         // Left paddle
@@ -907,7 +911,7 @@
 
       // Initialize game
       function initGame() {
-        gameState.ball.baseSpeed = INITIAL_BALL_SPEED; // Sicherstellen, dass die Geschwindigkeit langsam startet
+        gameState.ball.baseSpeed = INITIAL_BALL_SPEED;
         resetBall();
         gameState.gameActive = true;
         render();
@@ -918,10 +922,9 @@
 
       // Start the game
       initGame();
-
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="script.js"></script>
     });
   </script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
