@@ -3,26 +3,64 @@ const { createServer } = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 
+// Server Initialisierung
 const app = express();
 const httpServer = createServer(app);
+const PORT = process.env.PORT || 10000;
+
+// Socket.io Konfiguration
 const io = new Server(httpServer, {
   cors: {
-    origin: ['https://carnifexe-github-io.onrender.com', 'http://localhost:10000'],
+    origin: [
+      'https://carnifexe-github-io.onrender.com',
+      'https://carnifexe.github.io',
+      'http://localhost:10000'
+    ],
     methods: ["GET", "POST"]
   },
   transports: ['websocket']
 });
 
-// Matchmaking Queue
+// Middleware für statische Dateien
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res) => {
+    res.set('Cache-Control', 'no-store');
+  }
+});
+
+// API Endpoints
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'online',
+    players: waitingQueue.length,
+    activeGames: activeGames.size
+  });
+});
+
+// Fallback für SPA Routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Spieler-Warteschlange
 const waitingQueue = [];
 const activeGames = new Map();
 
+// Socket.io Verbindungsmanagement
 io.on('connection', (socket) => {
-  console.log(`Neuer Spieler verbunden: ${socket.id}`);
+  console.log(`Neue Verbindung: ${socket.id}`);
 
   socket.on('join_queue', (playerName) => {
-    waitingQueue.push({ socket, name: playerName });
+    const player = {
+      socket,
+      name: playerName || `Spieler_${Math.floor(Math.random() * 1000)}`,
+      joinedAt: Date.now()
+    };
+    
+    waitingQueue.push(player);
     tryMatchPlayers();
+    
+    console.log(`Spieler in Warteschlange: ${player.name}`);
   });
 
   socket.on('game_update', (data) => {
@@ -39,25 +77,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    // Handle disconnect from queue
-    const queueIndex = waitingQueue.findIndex(p => p.socket.id === socket.id);
-    if (queueIndex !== -1) {
-      waitingQueue.splice(queueIndex, 1);
-    }
-
-    // Handle disconnect from active game
-    activeGames.forEach((game, gameId) => {
-      const playerIndex = game.players.findIndex(p => p.socket.id === socket.id);
-      if (playerIndex !== -1) {
-        game.players.forEach(p => {
-          p.socket.emit('game_ended', { reason: 'opponent_disconnected' });
-        });
-        activeGames.delete(gameId);
-      }
-    });
+    cleanupPlayer(socket.id);
+    console.log(`Verbindung getrennt: ${socket.id}`);
   });
 });
 
+// Matchmaking Funktion
 function tryMatchPlayers() {
   while (waitingQueue.length >= 2) {
     const player1 = waitingQueue.shift();
@@ -66,7 +91,7 @@ function tryMatchPlayers() {
 
     activeGames.set(gameId, {
       players: [player1, player2],
-      lastUpdate: Date.now()
+      createdAt: Date.now()
     });
 
     player1.socket.emit('game_start', {
@@ -81,20 +106,56 @@ function tryMatchPlayers() {
       opponentName: player1.name
     });
 
-    console.log(`Spiel gestartet: ${gameId} | ${player1.name} vs ${player2.name}`);
+    console.log(`Neues Spiel gestartet: ${gameId}`);
+    console.log(`Spieler: ${player1.name} vs ${player2.name}`);
   }
 }
 
-// Cleanup inactive games every hour
-setInterval(() => {
-  const now = Date.now();
+// Spieler Cleanup
+function cleanupPlayer(socketId) {
+  // Aus Warteschlange entfernen
+  const queueIndex = waitingQueue.findIndex(p => p.socket.id === socketId);
+  if (queueIndex !== -1) {
+    waitingQueue.splice(queueIndex, 1);
+  }
+
+  // Aktive Spiele beenden
   activeGames.forEach((game, gameId) => {
-    if (now - game.lastUpdate > 3600000) {
+    const playerIndex = game.players.findIndex(p => p.socket.id === socketId);
+    if (playerIndex !== -1) {
+      game.players.forEach(player => {
+        player.socket.emit('game_ended', {
+          reason: 'opponent_disconnected'
+        });
+      });
       activeGames.delete(gameId);
     }
   });
-}, 3600000);
+}
 
-httpServer.listen(process.env.PORT || 10000, () => {
-  console.log(`Server läuft auf Port ${process.env.PORT || 10000}`);
+// Server Start
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`
+  ==========================================
+  🚀 Server gestartet auf Port ${PORT}
+  📡 WebSocket: wss://carnifexe-github-io.onrender.com
+  🕹️  Bereit für Verbindungen
+  ⏱  ${new Date().toLocaleString()}
+  ==========================================
+  `);
 });
+
+// Inaktive Spiele bereinigen (alle 30 Minuten)
+setInterval(() => {
+  const now = Date.now();
+  activeGames.forEach((game, gameId) => {
+    if (now - game.createdAt > 1800000) { // 30 Minuten
+      game.players.forEach(player => {
+        player.socket.emit('game_ended', {
+          reason: 'session_expired'
+        });
+      });
+      activeGames.delete(gameId);
+    }
+  });
+}, 1800000);
