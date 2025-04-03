@@ -1,5 +1,3 @@
-json
-Copy
 {
   "scripts": {
     "start": "node server.js"
