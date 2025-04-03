@@ -7,46 +7,66 @@ const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 10000;
 
-// Debugging aktivieren
+// Debugging
 const DEBUG = true;
 function log(...args) {
   if (DEBUG) console.log(`[${new Date().toISOString()}]`, ...args);
 }
 
+// Socket.io Konfiguration
 const io = new Server(httpServer, {
   cors: {
-    origin: ['https://carnifexe-github-io.onrender.com', 'http://localhost:10000'],
+    origin: [
+      'https://carnifexe-github-io.onrender.com',
+      'http://localhost:10000'
+    ],
     methods: ["GET", "POST"]
   },
-  transports: ['websocket']
+  transports: ['websocket'],
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
+// Middleware
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Erweiterte Spielerverwaltung
+// Spielerverwaltung
 const players = {
-  waiting: new Map(),  // socket.id -> playerData
-  inGame: new Map()    // gameId -> {player1, player2}
+  waiting: new Map(), // socket.id -> playerData
+  inGame: new Map()   // gameId -> {player1, player2}
 };
 
 io.on('connection', (socket) => {
   log(`Neue Verbindung: ${socket.id}`);
 
-  socket.on('join', (playerName = `Player_${Math.floor(Math.random() * 1000)}`) => {
-    log(`${socket.id} betritt Warteschlange als "${playerName}"`);
-    
-    players.waiting.set(socket.id, {
+  socket.on('join_queue', (playerName) => {
+    const player = {
       socket,
-      name: playerName,
+      id: socket.id,
+      name: playerName || `Player_${Math.floor(Math.random() * 1000)}`,
       joinedAt: Date.now()
-    });
+    };
 
+    players.waiting.set(socket.id, player);
+    log(`${player.name} (${socket.id}) in Warteschlange`);
+
+    // Bestätigung senden
     socket.emit('queue_update', {
       position: players.waiting.size,
-      estimatedTime: players.waiting.size * 10 // Geschätzte Sekunden
+      estimatedWait: players.waiting.size * 5 // Sekunden
     });
 
     tryMatchPlayers();
+  });
+
+  socket.on('game_update', (data) => {
+    const game = players.inGame.get(data.gameId);
+    if (!game) return;
+
+    const opponent = game.players.find(p => p.id !== socket.id);
+    if (opponent) {
+      opponent.socket.emit('game_update', data);
+    }
   });
 
   socket.on('disconnect', () => {
@@ -55,22 +75,26 @@ io.on('connection', (socket) => {
   });
 });
 
-// Verbessertes Matchmaking
+// Matchmaking
 function tryMatchPlayers() {
-  log(`Aktuelle Warteschlange: ${players.waiting.size} Spieler`);
-  
   if (players.waiting.size >= 2) {
-    const [id1, id2] = Array.from(players.waiting.keys()).slice(0, 2);
-    const player1 = players.waiting.get(id1);
-    const player2 = players.waiting.get(id2);
+    const playersToMatch = Array.from(players.waiting.values()).slice(0, 2);
+    const [player1, player2] = playersToMatch;
     const gameId = `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
-    // Spieler in Spiel bewegen
-    players.waiting.delete(id1);
-    players.waiting.delete(id2);
-    players.inGame.set(gameId, { player1, player2 });
+    // Spieler aus Warteschlange entfernen
+    players.waiting.delete(player1.id);
+    players.waiting.delete(player2.id);
 
-    // Spiel starten
+    // Spiel erstellen
+    players.inGame.set(gameId, {
+      players: [player1, player2],
+      createdAt: Date.now()
+    });
+
+    log(`Spiel gestartet: ${gameId} | ${player1.name} vs ${player2.name}`);
+
+    // Spieler benachrichtigen
     player1.socket.emit('game_start', {
       gameId,
       playerSide: 'left',
@@ -83,21 +107,9 @@ function tryMatchPlayers() {
       opponent: player1.name
     });
 
-    log(`Neues Spiel (${gameId}): ${player1.name} vs ${player2.name}`);
-    
-    // Update für verbleibende Wartende
-    updateQueuePositions();
+    // Warteschlange aktualisieren
+    updateQueue();
   }
-}
-
-function updateQueuePositions() {
-  let position = 1;
-  players.waiting.forEach((player, id) => {
-    player.socket.emit('queue_update', {
-      position: position++,
-      estimatedTime: position * 10
-    });
-  });
 }
 
 function cleanupPlayer(playerId) {
@@ -105,25 +117,40 @@ function cleanupPlayer(playerId) {
   if (players.waiting.has(playerId)) {
     players.waiting.delete(playerId);
     log(`Spieler ${playerId} aus Warteschlange entfernt`);
-    updateQueuePositions();
+    updateQueue();
   }
 
   // Aus aktiven Spielen entfernen
   players.inGame.forEach((game, gameId) => {
-    if (game.player1.socket.id === playerId || game.player2.socket.id === playerId) {
-      const opponent = game.player1.socket.id === playerId ? game.player2 : game.player1;
-      opponent.socket.emit('game_ended', { reason: 'opponent_disconnected' });
+    if (game.players.some(p => p.id === playerId)) {
+      game.players.forEach(player => {
+        player.socket.emit('game_ended', {
+          reason: 'opponent_disconnected'
+        });
+      });
       players.inGame.delete(gameId);
-      log(`Spiel ${gameId} beendet (Spieler getrennt)`);
+      log(`Spiel ${gameId} beendet`);
     }
   });
 }
 
-// Statusüberwachung
+function updateQueue() {
+  let position = 1;
+  players.waiting.forEach(player => {
+    player.socket.emit('queue_update', {
+      position: position++,
+      estimatedWait: position * 5
+    });
+  });
+}
+
+// Serverstart
+httpServer.listen(PORT, () => {
+  log(`Server läuft auf Port ${PORT}`);
+  log(`Warte auf Verbindungen...`);
+});
+
+// Status-Logging
 setInterval(() => {
   log(`Status: ${players.waiting.size} wartende, ${players.inGame.size} aktive Spiele`);
-}, 60000); // Loggt alle 60 Sekunden
-
-httpServer.listen(PORT, () => {
-  log(`Server gestartet auf Port ${PORT}`);
-});
+}, 30000);
