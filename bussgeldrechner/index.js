@@ -26,6 +26,67 @@ function searchFine() {
     }
 }
 
+// Funktion zum Speichern der ausgewählten Strafen im localStorage
+function saveSelectedFines() {
+    let fineCollection = document.querySelectorAll(".selected");
+    
+    // Aktuelle Statistik aus dem localStorage laden oder leeres Objekt erstellen
+    let stats = JSON.parse(localStorage.getItem('fineStats')) || {
+        day: {},
+        week: {},
+        month: {},
+        year: {},
+        allTime: {},
+        lastUpdated: new Date().toISOString()
+    };
+
+    // Aktuelles Datum für die Zeiträume
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const thisWeek = getWeekNumber(now);
+    const thisMonth = now.getFullYear() + '-' + (now.getMonth() + 1);
+    const thisYear = now.getFullYear().toString();
+
+    // Hilfsfunktion zum Inkrementieren der Zähler
+    const incrementCounter = (period, key) => {
+        if (!stats[period][key]) {
+            stats[period][key] = 0;
+        }
+        stats[period][key]++;
+    };
+
+    // Durch alle ausgewählten Strafen iterieren
+    for (var i = 0; i < fineCollection.length; i++) { 
+        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
+            ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
+            : fineCollection[i].querySelector(".fineText").innerHTML;
+        const trimmedText = fineText.trim();
+
+        // Zähler für alle Zeiträume erhöhen
+        incrementCounter('allTime', trimmedText);
+        incrementCounter('year', trimmedText);
+        incrementCounter('month', trimmedText);
+        incrementCounter('week', trimmedText + thisWeek); // Wochenspezifisch
+        incrementCounter('day', trimmedText + today); // Tagspezifisch
+    }
+
+    // Aktualisierungsdatum setzen
+    stats.lastUpdated = now.toISOString();
+
+    // Statistik zurück in den localStorage speichern
+    localStorage.setItem('fineStats', JSON.stringify(stats));
+}
+
+// Hilfsfunktion zur Berechnung der Kalenderwoche
+function getWeekNumber(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+    const week1 = new Date(d.getFullYear(), 0, 4);
+    return d.getFullYear() + '-' + 
+           Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
+}
+
 function selectFine(event) {
     let element = event.target;
 
@@ -112,6 +173,7 @@ document.querySelectorAll(".fine").forEach(fine => {
         showSelectedFinesTable();
     });
 });
+
 // Funktion zum Anzeigen der Benachrichtigung
 function showNotification(message) {
     const notification = document.getElementById('notification');
@@ -137,32 +199,64 @@ function showNotification(message) {
     }, 3000);
 }
 
+// Modifizierte copyText Funktion
+function copyText(event) {
+    const now = Date.now();
+    
+    // Cooldown prüfen
+    if (now - lastCopyTime < COPY_COOLDOWN) {
+        showCooldownMessage(COPY_COOLDOWN - (now - lastCopyTime));
+        return;
+    }
 
+    // Cooldown setzen
+    lastCopyTime = now;
 
+    const target = event.currentTarget;
+    const textToCopy = target.textContent || target.innerText;
+    const successMessage = target.getAttribute("data-success-message") || "Text kopiert!";
 
+    const successSound = new Audio('copy.mp3');
 
+    navigator.clipboard.writeText(textToCopy.trim())
+        .then(() => {
+            successSound.play().catch(e => console.log("Ton fehlgeschlagen:", e));
+            
+            // Erfolgsmeldung anzeigen
+            showSuccessNotification(successMessage);
+            
+            // Wenn der kopierte Text der Grund ist, Statistik speichern
+            if (target.closest('#reasonResult')) {
+                saveSelectedFines();
+            }
+        })
+        .catch(err => {
+            console.error("Kopieren fehlgeschlagen:", err);
+            // Bei Fehler Cooldown zurücksetzen
+            lastCopyTime = 0;
+        });
+}
 
 function startCalculating() {
-
     document.getElementById("finesListTable").innerHTML = `<tr>
                     <th style="width: 80%;">Grund für die Geldstrafe</th>
                     <th style="width: 20%;">Bußgeld</th>
                 </tr>`
-	let isWiederholungstäter = document.getElementById("wiederholungstäter_box").checked;
+    let isWiederholungstäter = document.getElementById("wiederholungstäter_box").checked;
     let fineResult = document.getElementById("fineResult")
     let fineAmount = 0
-	
+    
     let wantedResult = document.getElementById("wantedsResult")
     let wantedAmount = 0
-	
+    
     let characterResult = document.getElementById("charactersResult")
-	
+    
     let reasonResult = document.getElementById("reasonResult")
     let reasonText = ""
     let plate = document.getElementById("plateInput_input").value
     let blitzerort = document.getElementById("blitzerInput_input").value
     let systemwanteds = document.getElementById("systemwantedsInput_input").value
-	
+    
     let infoResult = document.getElementById("infoResult")
     let noticeText = ""
     let removeWeaponLicense = false
@@ -178,40 +272,36 @@ function startCalculating() {
     let fineCollectionWantedAmount = []
     let fineCollectionFineAmount = []
 
+    for (var i = 0; i < fineCollection.length; i++) { 
+        let paragraphText = fineCollection[i].querySelector(".paragraph").innerText;
+        let isStVO = paragraphText.includes("StVO");
 
+        let cache_wanted_amount = parseInt(fineCollection[i].querySelector(".wantedAmount").getAttribute("data-wantedamount")) || 0;
+        let cache_fine_amount = parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount")) || 0;
+        
+        // Extra-Wanted Strafen berechnen
+        let extrafines_amount = 0;
+        let extrawanteds_found = fineCollection[i].querySelector(".wantedAmount").querySelectorAll(".selected_extrawanted");
+        
+        for (let b = 0; b < extrawanteds_found.length; b++) {
+            let addedFine = parseInt(extrawanteds_found[b].getAttribute("data-addedfine")) || 0;
+            extrafines_amount += addedFine;
+        }
 
-for (var i = 0; i < fineCollection.length; i++) { 
-    let paragraphText = fineCollection[i].querySelector(".paragraph").innerText;
-    let isStVO = paragraphText.includes("StVO");
+        if (isWiederholungstäter && isStVO) {
+            cache_fine_amount = (cache_fine_amount + extrafines_amount) * 2; // Beides verdoppeln
+            cache_wanted_amount = (cache_wanted_amount + extrawanteds_found.length) * 2;
+        } else {
+            cache_fine_amount += extrafines_amount; // Extra-Strafen hinzufügen
+            cache_wanted_amount += extrawanteds_found.length;
+        }
 
-    let cache_wanted_amount = parseInt(fineCollection[i].querySelector(".wantedAmount").getAttribute("data-wantedamount")) || 0;
-    let cache_fine_amount = parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount")) || 0;
-    
-    // Extra-Wanted Strafen berechnen
-    let extrafines_amount = 0;
-    let extrawanteds_found = fineCollection[i].querySelector(".wantedAmount").querySelectorAll(".selected_extrawanted");
-    
-    for (let b = 0; b < extrawanteds_found.length; b++) {
-        let addedFine = parseInt(extrawanteds_found[b].getAttribute("data-addedfine")) || 0;
-        extrafines_amount += addedFine;
+        if (cache_fine_amount > 50000) cache_fine_amount = 50000;
+        if (cache_wanted_amount > 5) cache_wanted_amount = 5;
+
+        fineCollectionWantedAmount.push(cache_wanted_amount);
+        fineCollectionFineAmount.push(cache_fine_amount);
     }
-
-    if (isWiederholungstäter && isStVO) {
-        cache_fine_amount = (cache_fine_amount + extrafines_amount) * 2; // Beides verdoppeln
-        cache_wanted_amount = (cache_wanted_amount + extrawanteds_found.length) * 2;
-    } else {
-        cache_fine_amount += extrafines_amount; // Extra-Strafen hinzufügen
-        cache_wanted_amount += extrawanteds_found.length;
-    }
-
-    if (cache_fine_amount > 50000) cache_fine_amount = 50000;
-    if (cache_wanted_amount > 5) cache_wanted_amount = 5;
-
-    fineCollectionWantedAmount.push(cache_wanted_amount);
-    fineCollectionFineAmount.push(cache_fine_amount);
-}
-
-
 
     console.log(fineCollectionWantedAmount);
     let maxWanted = fineCollectionWantedAmount[0]; // initialize to the first value
@@ -222,118 +312,114 @@ for (var i = 0; i < fineCollection.length; i++) {
         }
     }
 
-	// Beide Arrays zusammen betrachten, um das passende Bußgeld zum höchsten Wanted-Level zu ermitteln
-	let maxIndex = 0; // Index des höchsten Strafmaßes
+    // Beide Arrays zusammen betrachten, um das passende Bußgeld zum höchsten Wanted-Level zu ermitteln
+    let maxIndex = 0; // Index des höchsten Strafmaßes
 
-	for (let i = 1; i < fineCollectionWantedAmount.length; i++) {
-		if (fineCollectionWantedAmount[i] > fineCollectionWantedAmount[maxIndex]) {
-			maxIndex = i; // Aktualisiere den Index des höchsten Wanted-Levels
-		}
-	}
-
-	// Setze das Strafmaß und das zugehörige Bußgeld
-	wantedAmount = fineCollectionWantedAmount[maxIndex];
-	fineAmount = fineCollectionFineAmount[maxIndex];
-
-	// Fallback, falls keine Werte gefunden werden
-	if (wantedAmount === undefined) wantedAmount = 0;
-	if (fineAmount === undefined) fineAmount = 0;
-	if (wantedAmount === 0) 
-		{
-			//fineAmount = Math.max(...fineCollectionFineAmount); // Höchste Geldstrafe nehmen
-			fineAmount = fineCollectionFineAmount.length > 0 ? Math.max(...fineCollectionFineAmount) : 0;
-		}
-		
-// Durch alle ausgewählten Strafen iterieren
-for (let i = 0; i < fineCollectionWantedAmount.length; i++) {
-    if (fineCollectionWantedAmount[i] > wantedAmount) {
-        // Höchste Wanteds gefunden -> Geldstrafe speichern
-        wantedAmount = fineCollectionWantedAmount[i];
-        fineAmount = fineCollectionFineAmount[i];
-    } else if (fineCollectionWantedAmount[i] === wantedAmount) {
-        // Falls die Wanteds gleich sind, die höhere Geldstrafe nehmen
-        if (fineCollectionFineAmount[i] > fineAmount) {
-            fineAmount = fineCollectionFineAmount[i];
+    for (let i = 1; i < fineCollectionWantedAmount.length; i++) {
+        if (fineCollectionWantedAmount[i] > fineCollectionWantedAmount[maxIndex]) {
+            maxIndex = i; // Aktualisiere den Index des höchsten Wanted-Levels
         }
     }
-}
 
-// Fallback, falls keine Strafen ausgewählt wurden
-if (fineCollectionWantedAmount.length === 0) {
-    wantedAmount = 0;
-    fineAmount = 0;
-}
-		
-	console.log("Höchstes Strafmaß:", wantedAmount);
-	console.log("Zugehöriges Bußgeld:", fineAmount);
+    // Setze das Strafmaß und das zugehörige Bußgeld
+    wantedAmount = fineCollectionWantedAmount[maxIndex];
+    fineAmount = fineCollectionFineAmount[maxIndex];
 
-for (var i = 0; i < fineCollection.length; i++) {
-    let extrawanteds_found = fineCollection[i].querySelector(".wantedAmount").querySelectorAll(".selected_extrawanted")
-    let extrafines_amount = 0;
-    for (let b = 0; b < extrawanteds_found.length; b++) {
-        extrafines_amount = extrafines_amount + parseInt(extrawanteds_found[b].getAttribute("data-addedfine"));
+    // Fallback, falls keine Werte gefunden werden
+    if (wantedAmount === undefined) wantedAmount = 0;
+    if (fineAmount === undefined) fineAmount = 0;
+    if (wantedAmount === 0) {
+        fineAmount = fineCollectionFineAmount.length > 0 ? Math.max(...fineCollectionFineAmount) : 0;
+    }
+        
+    // Durch alle ausgewählten Strafen iterieren
+    for (let i = 0; i < fineCollectionWantedAmount.length; i++) {
+        if (fineCollectionWantedAmount[i] > wantedAmount) {
+            // Höchste Wanteds gefunden -> Geldstrafe speichern
+            wantedAmount = fineCollectionWantedAmount[i];
+            fineAmount = fineCollectionFineAmount[i];
+        } else if (fineCollectionWantedAmount[i] === wantedAmount) {
+            // Falls die Wanteds gleich sind, die höhere Geldstrafe nehmen
+            if (fineCollectionFineAmount[i] > fineAmount) {
+                fineAmount = fineCollectionFineAmount[i];
+            }
+        }
     }
 
-    // Funktion, um die aktuelle Zeit für Berlin zu bekommen
-    function getCurrentTime() {
-        const germanyOffset = new Date().toLocaleString("en-US", { timeZone: "Europe/Berlin" });
-        const germany = new Date(germanyOffset);
-
-        let hour = String(germany.getHours()).padStart(2, '0');
-        let minute = String(germany.getMinutes()).padStart(2, '0');
-        let day = String(germany.getDate()).padStart(2, '0');
-        let month = String(germany.getMonth() + 1).padStart(2, '0');
-
-        return { day, month, hour, minute };
+    // Fallback, falls keine Strafen ausgewählt wurden
+    if (fineCollectionWantedAmount.length === 0) {
+        wantedAmount = 0;
+        fineAmount = 0;
     }
+        
+    console.log("Höchstes Strafmaß:", wantedAmount);
+    console.log("Zugehöriges Bußgeld:", fineAmount);
 
-    const { day, month, hour, minute } = getCurrentTime();
+    for (var i = 0; i < fineCollection.length; i++) {
+        let extrawanteds_found = fineCollection[i].querySelector(".wantedAmount").querySelectorAll(".selected_extrawanted")
+        let extrafines_amount = 0;
+        for (let b = 0; b < extrawanteds_found.length; b++) {
+            extrafines_amount = extrafines_amount + parseInt(extrawanteds_found[b].getAttribute("data-addedfine"));
+        }
 
-    let fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
-        ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
-        : fineCollection[i].querySelector(".fineText").innerHTML;
+        // Funktion, um die aktuelle Zeit für Berlin zu bekommen
+        function getCurrentTime() {
+            const germanyOffset = new Date().toLocaleString("en-US", { timeZone: "Europe/Berlin" });
+            const germany = new Date(germanyOffset);
 
-    // Berechnung für reasonText
-    if (shortMode) {
-        reasonText = reasonText ? 
-            `${reasonText} + ${fineCollection[i].querySelector(".paragraph").hasAttribute("data-paragraphAddition") ? fineCollection[i].querySelector(".paragraph").getAttribute("data-paragraphAddition") + " " : ""}${fineCollection[i].querySelector(".paragraph").innerHTML}` 
-            : `${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").hasAttribute("data-paragraphAddition") ? fineCollection[i].querySelector(".paragraph").getAttribute("data-paragraphAddition") + " " : ""}${fineCollection[i].querySelector(".paragraph").innerHTML}`;
-    } else {
-        reasonText = reasonText ? 
-            `${reasonText} + ${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}` 
-            : `${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}`;
+            let hour = String(germany.getHours()).padStart(2, '0');
+            let minute = String(germany.getMinutes()).padStart(2, '0');
+            let day = String(germany.getDate()).padStart(2, '0');
+            let month = String(germany.getMonth() + 1).padStart(2, '0');
+
+            return { day, month, hour, minute };
+        }
+
+        const { day, month, hour, minute } = getCurrentTime();
+
+        let fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
+            ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
+            : fineCollection[i].querySelector(".fineText").innerHTML;
+
+        // Berechnung für reasonText
+        if (shortMode) {
+            reasonText = reasonText ? 
+                `${reasonText} + ${fineCollection[i].querySelector(".paragraph").hasAttribute("data-paragraphAddition") ? fineCollection[i].querySelector(".paragraph").getAttribute("data-paragraphAddition") + " " : ""}${fineCollection[i].querySelector(".paragraph").innerHTML}` 
+                : `${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").hasAttribute("data-paragraphAddition") ? fineCollection[i].querySelector(".paragraph").getAttribute("data-paragraphAddition") + " " : ""}${fineCollection[i].querySelector(".paragraph").innerHTML}`;
+        } else {
+            reasonText = reasonText ? 
+                `${reasonText} + ${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}` 
+                : `${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}`;
+        }
+
+        // Verarbeiten von extraFines und hinzufügen zu list
+        if (fineCollection[i].getAttribute("data-removedriverlicence") == "true") removeDriverLicense = true;
+        if (fineCollection[i].getAttribute("data-removeweaponlicence") == "true") removeWeaponLicense = true;
+
+        if (fineCollection[i].classList.contains("addPlateInList")) {
+            document.getElementById("finesListTable").innerHTML +=
+            `
+            <tr class="finesList_fine">
+                <td onclick="JavaScript:copyText(event)">${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}${plate !== "" ? " - " + plate.toLocaleUpperCase() : ""}${blitzerort !== "" ? " - " + blitzerort : ""}</td>
+                <td>$${parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount")) + extrafines_amount}</td>
+            </tr>
+            `;
+        } else {
+            document.getElementById("finesListTable").innerHTML +=
+            `
+            <tr class="finesList_fine">
+                <td onclick="JavaScript:copyText(event)">${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}</td>
+                <td>$${parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount")) + extrafines_amount}</td>
+            </tr>
+            `;
+        }
     }
-
-    // Verarbeiten von extraFines und hinzufügen zu list
-    if (fineCollection[i].getAttribute("data-removedriverlicence") == "true") removeDriverLicense = true;
-    if (fineCollection[i].getAttribute("data-removeweaponlicence") == "true") removeWeaponLicense = true;
-
-    if (fineCollection[i].classList.contains("addPlateInList")) {
-        document.getElementById("finesListTable").innerHTML +=
-        `
-        <tr class="finesList_fine">
-            <td onclick="JavaScript:copyText(event)">${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}${plate !== "" ? " - " + plate.toLocaleUpperCase() : ""}${blitzerort !== "" ? " - " + blitzerort : ""}</td>
-            <td>$${parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount")) + extrafines_amount}</td>
-        </tr>
-        `;
-    } else {
-        document.getElementById("finesListTable").innerHTML +=
-        `
-        <tr class="finesList_fine">
-            <td onclick="JavaScript:copyText(event)">${day}.${month} ${hour}:${minute} - ${fineCollection[i].querySelector(".paragraph").innerHTML} - ${fineText}</td>
-            <td>$${parseInt(fineCollection[i].querySelector(".fineAmount").getAttribute("data-fineamount")) + extrafines_amount}</td>
-        </tr>
-        `;
-    }
-}
-
-
 
     if (document.getElementById("reue_box").checked && wantedAmount !== 0) { // Means "reue" is active
         wantedAmount = wantedAmount - 2
         if (wantedAmount < 1) wantedAmount = 1
     }
-document.getElementById("wiederholungstäter_box").addEventListener("change", startCalculating);
+    document.getElementById("wiederholungstäter_box").addEventListener("change", startCalculating);
 
     if (plate != "") {
         reasonText += ` - ${plate.toLocaleUpperCase()}`
@@ -354,16 +440,12 @@ document.getElementById("wiederholungstäter_box").addEventListener("change", st
     }
     if (systemwanteds != "") {
         reasonText += ` + ${systemwanteds} Systemwanteds`
-	    if (systemwanteds > 5) systemwanteds = 5
+        if (systemwanteds > 5) systemwanteds = 5
     }
 
-       if (!isNaN(systemwanteds) && systemwanteds !== "") {
-    
+    if (!isNaN(systemwanteds) && systemwanteds !== "") {
         if (wantedAmount > 5) wantedAmount = 5
     }
-
-
-
 
     if (removeDriverLicense) {
         noticeText = "Führerschein entziehen"
@@ -381,21 +463,21 @@ document.getElementById("wiederholungstäter_box").addEventListener("change", st
     }
 
     infoResult.innerHTML = `<b>Information:</b> ${noticeText}`
-	fineResult.innerHTML = `<b>Geldstrafe:</b> $<font style="user-select: all;" onclick="copyText(event)"data-success-message="Der Geldbetrag wurde kopiert!">${fineAmount}</font>`;
+    fineResult.innerHTML = `<b>Geldstrafe:</b> $<font style="user-select: all;" onclick="copyText(event)"data-success-message="Der Geldbetrag wurde kopiert!">${fineAmount}</font>`;
     wantedResult.innerHTML = `<b>Wanteds:</b> <font style="user-select: all;">${wantedAmount}</font>`
-	reasonResult.innerHTML = `<b>Grund:</b> <font style="user-select: all;" onclick="copyText(event)"data-success-message="Die Begründung wurde kopiert!">${reasonText}</font>`;
+    reasonResult.innerHTML = `<b>Grund:</b> <font style="user-select: all;" onclick="copyText(event)"data-success-message="Die Begründung wurde kopiert!">${reasonText}</font>`;
     if (reasonText.length <= 150) {
         characterResult.innerHTML = `<b>Zeichen:</b> ${reasonText.length}/150`
     } else {
         characterResult.innerHTML = `<b>Zeichen:</b> <font style="color: red;">${reasonText.length}/150<br>Dieser Grund ist zu lang!</font>`
     }
-
 }
-    function openPopup(url) {
-        window.open(url, 'popupWindow', 'width=1024,height=768,scrollbars=yes,resizable=yes');
-    }
-const encoded = "aWYod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIpIHtkb2N1bWVudC5ib2R5LmlubmVySFRNTCA9ICJVbmF1dGhvcml6ZWQgQWNjZXNzIjtzZXRUaW1lb3V0KCgpID0+IHsgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiYWJvdXQ6YmxhbmsiOyB9LCAyMDAwKTt9";
 
+function openPopup(url) {
+    window.open(url, 'popupWindow', 'width=1024,height=768,scrollbars=yes,resizable=yes');
+}
+
+const encoded = "aWYod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIpIHtkb2N1bWVudC5ib2R5LmlubmVySFRNTCA9ICJVbmF1dGhvcml6ZWQgQWNjZXNzIjtzZXRUaW1lb3V0KCgpID0+IHsgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiYWJvdXQ6YmxhbmsiOyB9LCAyMDAwKTt9";
 
 function showFines() {
     if (document.getElementById("finesListContainer").style.opacity == 0) {
@@ -431,7 +513,6 @@ setTimeout(() => {
     document.body.appendChild(x);
 }, 5000);
 
-
 function showRightsContainer() {
     document.getElementById("rightsContainer").setAttribute("data-showing", "true");
     document.getElementById("rightsContainer_backdrop").style.display = "block";
@@ -456,7 +537,7 @@ window.onload = async () => {
     savedBody = document.body.innerHTML;
 
     openDisclaimer();
-	document.getElementById("clickSound").volume = 0.1;
+    document.getElementById("clickSound").volume = 0.1;
     setInterval(() => {
         if (document.body.clientWidth < 700) {
             alreadyBig = false;
@@ -474,8 +555,6 @@ window.onload = async () => {
 setInterval(() => {
     eval(atob("ZnVuY3Rpb24gdGVzdCgpIHsKICAgIC8vIMOcYmVycHLDvGZlbiwgb2IgZGllIFNlaXRlICoqbmljaHQqKiB2b24gZGVyIGFuZ2VnZWJlbmVuIFVSTCBnZWxhZGVuIHd1cmRlCiAgICBpZiAod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIgfHwgd2luZG93LmxvY2F0aW9uLnBhdGhuYW1lICE9PSAiL2J1c3NnZWxkcmVjaG5lci8iKSB7CiAgICAgICAgaWYgKHdpbmRvdy5vdXRlcldpZHRoIC0gd2luZG93LmlubmVyV2lkdGggPiAyMDAgfHwgd2luZG93Lm91dGVySGVpZ2h0IC0gd2luZG93LmlubmVySGVpZ2h0ID4gMjAwKSB7CiAgICAgICAgICAgIGRvY3VtZW50LmJvZHkuaW5uZXJIVE1MID0gIlVuYXV0aG9yaXplZCBBY2Nlc3MiOwogICAgICAgICAgICBzZXRUaW1lb3V0KGZ1bmN0aW9uKCkgewogICAgICAgICAgICAgICAgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiaHR0cHM6Ly9wYXBlcnRvaWxldC5jb20vIjsgCiAgICAgICAgICAgIH0sIDIwMDApOwogICAgICAgIH0KICAgIH0KfQoKc2V0SW50ZXJ2YWwodGVzdCwgMTAwMCk7"));
 }, 100);
-
-
 
 function resetButton() {
     let fineCollection = document.querySelectorAll(".selected")
@@ -498,6 +577,7 @@ function resetButton() {
 
     startCalculating()
 }
+
 function clearNotepad() {
     document.getElementById("notepadArea_input").value = ""; // Inhalt des Textarea löschen
 }
@@ -505,38 +585,6 @@ function clearNotepad() {
 // GLOBALE VARIABLEN (ganz am Anfang der JavaScript-Datei)
 let lastCopyTime = 0;
 const COPY_COOLDOWN = 2000; // 2 Sekunden in Millisekunden
-
-function copyText(event) {
-    const now = Date.now();
-    
-    // Cooldown prüfen
-    if (now - lastCopyTime < COPY_COOLDOWN) {
-        showCooldownMessage(COPY_COOLDOWN - (now - lastCopyTime));
-        return;
-    }
-
-    // Cooldown setzen
-    lastCopyTime = now;
-
-    const target = event.currentTarget;
-    const textToCopy = target.textContent || target.innerText;
-    const successMessage = target.getAttribute("data-success-message") || "Text kopiert!";
-
-    const successSound = new Audio('copy.mp3');
-
-    navigator.clipboard.writeText(textToCopy.trim())
-        .then(() => {
-            successSound.play().catch(e => console.log("Ton fehlgeschlagen:", e));
-            
-            // Erfolgsmeldung anzeigen
-            showSuccessNotification(successMessage);
-        })
-        .catch(err => {
-            console.error("Kopieren fehlgeschlagen:", err);
-            // Bei Fehler Cooldown zurücksetzen
-            lastCopyTime = 0;
-        });
-}
 
 // Erfolgsmeldung anzeigen
 function showSuccessNotification(message) {
@@ -696,18 +744,14 @@ function toggleExtraWanted(event) {
     if(target.classList.contains("extrawanted4")) extrastarNumber = 4
     if(target.classList.contains("extrawanted5")) extrastarNumber = 5
 
-
     if (target.classList.contains("selected_extrawanted")) isSelected = true
 
     if (isSelected && target.parentElement.querySelectorAll(".selected_extrawanted").length == extrastarNumber) isLead = true
 
     if (isSelected && isLead) {
-
-
         let foundEnabled = target.parentElement.querySelectorAll(".selected_extrawanted")
         for (let i = 0; i < foundEnabled.length; i++) {
             foundEnabled[i].classList.remove("selected_extrawanted")
-            
         }
 
         startCalculating()
@@ -715,15 +759,11 @@ function toggleExtraWanted(event) {
     }
 
     if (isSelected) {
-
-
         let found = target.parentElement.querySelectorAll(".extrawanted")
         for (let i = 0; i < found.length; i++) {
             if (i + 1 > extrastarNumber) {
-
                 found[i].classList.remove("selected_extrawanted")
             }
-            
         }
 
         startCalculating()
@@ -734,14 +774,10 @@ function toggleExtraWanted(event) {
         let found = target.parentElement.querySelectorAll(".extrawanted")
         for (let i = 0; i < extrastarNumber; i++) {
             found[i].classList.add("selected_extrawanted")
-            
         }
     }
 
     startCalculating()
-    //for (let index = 0; index < extrastarNumber; index++) {
-    //    const element = array[index];    
-    //}
 }
 
 setInterval(() => {
@@ -753,7 +789,7 @@ setInterval(() => {
 }, 1000)
 
 async function sleep(ms) {
-	return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function pongAccepted() {
@@ -770,6 +806,7 @@ async function pongAccepted() {
 
     disclaimerNode.style.display = "none"
 }
+
 async function disclaimerAccepted() {
     // Disable Accept Button to prevent stacking of events
     document.getElementById("disclaimer_button").setAttribute("disabled", "")
@@ -791,9 +828,9 @@ async function openDisclaimer() {
     let disclaimerNode = document.getElementById("disclaimer")
     disclaimerNode.style.opacity = 1
 
-
     disclaimerNode.style.boxShadow = "rgba(0, 0, 0, 0.219) 0px 0px 70px 30vw"
 }
+
 document.documentElement.setAttribute("translate", "no");
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -849,6 +886,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Starte die Überwachung mit requestAnimationFrame
     requestAnimationFrame(checkIfElementHitsTrigger);
 });
+
 function updateCategorySize() {
     let titleContainer = document.querySelector("#finesListContainer_title");
     let fixedCategories = document.querySelectorAll(".fixedcategory");
@@ -912,7 +950,6 @@ function updateCategorySize() {
 // Event listeners for resize and load
 window.addEventListener("resize", updateCategorySize);
 window.addEventListener("load", updateCategorySize);
-
 
 function showCustomAlert() {
     // Video-Element erstellen
@@ -1020,8 +1057,6 @@ document.addEventListener("keydown", function(event) {
     }
 });
 
-
-
 // Konsole-Schutz (erschwert Entwicklertools öffnen)
 (function() {
     let DevToolsCheck = function() {};
@@ -1038,7 +1073,6 @@ document.addEventListener("keydown", function(event) {
     let devTools = new DevToolsCheck();
     setInterval(() => devTools.check(), 1000);
 })();
-
 
 document.addEventListener("click", function(event) {
     let gameOverlay = document.getElementById("gameOverlay");
@@ -1061,8 +1095,6 @@ document.getElementById("closeGameButton").addEventListener("click", function() 
     gameOverlay.style.display = "none";
     pongIframe.src = "";
 });
-
-
 
 // JavaScript: Klasse toggeln
 document.getElementById('pongIframe')
