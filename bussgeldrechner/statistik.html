@@ -195,35 +195,50 @@
     </div>
 
     <script>
-  const STATS_URL = 'https://raw.githubusercontent.com/<IHR-USERNAME>/sahp-stats/main/data/stats.json';
+const BIN_ID = "67ef04308960c979a57dd947"; // Aus der JSONBin-URL (z.B. "123456789")
+const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62"; // Wird auf jsonbin.io angezeigt
 
-  // Daten laden
-  async function loadStats() {
-    try {
-      const response = await fetch(STATS_URL + '?t=' + Date.now()); // Cache umgehen
-      return await response.json();
-    } catch (error) {
-      console.error("Fehler beim Laden:", error);
-      return {
-        day: {}, week: {}, month: {}, year: {}, allTime: {},
-        lastUpdated: new Date().toISOString()
-      };
-    }
-  }
-
-  // Daten "speichern" (manuell über GitHub)
-  function showUpdateInstructions() {
-    alert("Um Daten zu aktualisieren:\n1. Öffnen Sie stats.json auf GitHub\n2. Bearbeiten Sie die Datei\n3. Commit & Push");
-  }
-
-  // Initialisierung
-  document.addEventListener('DOMContentLoaded', async function() {
-    const stats = await loadStats();
-    document.getElementById('last-updated').textContent = 
-      new Date(stats.lastUpdated).toLocaleDateString('de-DE');
-    
-    updateChart('day');
+// Statistik laden
+async function loadStats() {
+  const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+    headers: { "X-Master-Key": API_KEY }
   });
+  const data = await response.json();
+  return data.record;
+}
+
+// Statistik speichern
+async function saveStats(stats) {
+  await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+    method: "PUT",
+    headers: { 
+      "Content-Type": "application/json",
+      "X-Master-Key": API_KEY 
+    },
+    body: JSON.stringify(stats)
+  });
+}
+
+// Beispiel: Strafe hinzufügen
+async function addFine(offenseName) {
+  const stats = await loadStats();
+  
+  // Aktualisiere alle Zeiträume
+  ["day", "week", "month", "year", "allTime"].forEach(period => {
+    stats[period][offenseName] = (stats[period][offenseName] || 0) + 1;
+  });
+  
+  stats.lastUpdated = new Date().toISOString();
+  await saveStats(stats);
+}
+
+// Initialisierung
+document.addEventListener('DOMContentLoaded', async () => {
+  const stats = await loadStats();
+  document.getElementById('last-updated').textContent = 
+    new Date(stats.lastUpdated).toLocaleString('de-DE');
+  updateChart('day');
+});
 
         // Top 10 Strafen für einen Zeitraum ermitteln
         function getTop10(data) {
