@@ -1,3 +1,110 @@
+// ====================
+// JSONBin.io Integration
+// ====================
+const BIN_ID = "67ef04308960c979a57dd947"; // Ihre Bin-ID
+const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62"; // Ihr API-Key
+
+// Statistik zum Server senden
+async function addFine(offenseName, period = "day") {
+    try {
+        // Aktuelle Statistik laden
+        const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+            headers: { "X-Master-Key": API_KEY }
+        });
+        const data = await response.json();
+        let stats = data.record || {
+            day: {}, week: {}, month: {}, year: {}, allTime: {},
+            lastUpdated: new Date().toISOString()
+        };
+
+        // Statistik aktualisieren
+        stats[period][offenseName] = (stats[period][offenseName] || 0) + 1;
+        stats.allTime[offenseName] = (stats.allTime[offenseName] || 0) + 1;
+        stats.lastUpdated = new Date().toISOString();
+
+        // Aktualisierte Statistik speichern
+        await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+            method: "PUT",
+            headers: { 
+                "Content-Type": "application/json",
+                "X-Master-Key": API_KEY 
+            },
+            body: JSON.stringify(stats)
+        });
+    } catch (error) {
+        console.error("Fehler beim Speichern der Statistik:", error);
+    }
+}
+
+// ====================
+// Angepasste saveSelectedFines()
+// ====================
+async function saveSelectedFines() {
+    const fineCollection = document.querySelectorAll(".selected");
+    
+    for (let i = 0; i < fineCollection.length; i++) {
+        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
+            ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
+            : fineCollection[i].querySelector(".fineText").innerHTML;
+        
+        await addFine(fineText.trim(), "day");
+    }
+}
+
+// ====================
+// Angepasste copyText()
+// ====================
+function copyText(event) {
+    const now = Date.now();
+    
+    // Cooldown prüfen
+    if (now - lastCopyTime < COPY_COOLDOWN) {
+        showCooldownMessage(COPY_COOLDOWN - (now - lastCopyTime));
+        return;
+    }
+
+    // Cooldown setzen
+    lastCopyTime = now;
+
+    const target = event.currentTarget;
+    const textToCopy = target.textContent || target.innerText;
+    const successMessage = target.getAttribute("data-success-message") || "Text kopiert!";
+
+    const successSound = new Audio('copy.mp3');
+
+    navigator.clipboard.writeText(textToCopy.trim())
+        .then(() => {
+            successSound.play().catch(e => console.log("Ton fehlgeschlagen:", e));
+            
+            // Erfolgsmeldung anzeigen
+            showSuccessNotification(successMessage);
+            
+            // Wenn der kopierte Text der Grund ist, Statistik speichern
+            if (target.closest('#reasonResult')) {
+                saveSelectedFines();
+            }
+        })
+        .catch(err => {
+            console.error("Kopieren fehlgeschlagen:", err);
+            // Bei Fehler Cooldown zurücksetzen
+            lastCopyTime = 0;
+        });
+}
+
+// ====================
+// Automatische Statistik-Aktualisierung
+// ====================
+setInterval(async () => {
+    // Aktualisiere die angezeigte Statistik alle 5 Minuten
+    if (document.querySelector('.timeframe-btn.active')) {
+        const activePeriod = document.querySelector('.timeframe-btn.active').onclick.name.slice(11);
+        await updateChart(activePeriod);
+    }
+}, 300000); // 300000ms = 5 Minuten
+
+// ====================
+// Bestehender Code (unverändert)
+// ====================
 function searchFine() {
     let searchFor = document.getElementById("searchbar_input").value.toLocaleLowerCase();
     
