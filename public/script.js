@@ -6,12 +6,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const connectionStatus = document.getElementById('connectionStatus');
   const playButton = document.getElementById('playButton');
   const gameInfo = document.getElementById('gameInfo');
-  const leftScoreElement = document.getElementById('leftScore').querySelector('span:last-child');
-  const rightScoreElement = document.getElementById('rightScore').querySelector('span:last-child');
+  const leftScore = document.getElementById('leftScore').querySelector('span:last-child');
+  const rightScore = document.getElementById('rightScore').querySelector('span:last-child');
   const leftPlayerName = document.getElementById('leftPlayerName');
   const rightPlayerName = document.getElementById('rightPlayerName');
+  
+  // Queue Status Element
   const queueStatus = document.createElement('div');
   queueStatus.id = 'queue-status';
+  queueStatus.style.margin = '10px 0';
+  queueStatus.style.color = '#FFC107';
   gameInfo.parentNode.insertBefore(queueStatus, gameInfo.nextSibling);
 
   // Spielzustand
@@ -23,9 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
     currentGame: null,
     playerSide: null,
     opponentName: '',
-    lastUpdate: Date.now(),
-    gameActive: false,
-    playerName: ''
+    playerName: '',
+    gameActive: false
   };
 
   // Socket.io Verbindung
@@ -40,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Verbunden mit Server:', socket.id);
     connectionStatus.innerHTML = '🟢 ONLINE';
     connectionStatus.className = 'online';
-    queueStatus.textContent = 'Verbindung hergestellt';
+    gameInfo.textContent = 'Bereit zum Spielen';
   });
 
   socket.on('disconnect', (reason) => {
@@ -48,33 +51,32 @@ document.addEventListener('DOMContentLoaded', () => {
     connectionStatus.innerHTML = '🔴 OFFLINE';
     connectionStatus.className = 'offline';
     gameState.gameActive = false;
-    
-    if (reason === 'io server disconnect') {
-      queueStatus.textContent = 'Server neu gestartet - bitte neu verbinden';
-    } else {
-      queueStatus.textContent = 'Verbindung verloren - versuche erneut...';
-    }
+    queueStatus.textContent = reason === 'io server disconnect' 
+      ? 'Server neu gestartet - bitte Seite neu laden' 
+      : 'Verbindung verloren - versuche erneut...';
   });
 
   socket.on('connect_error', (err) => {
-    console.error('Verbindungsfehler:', err.message);
+    console.error('Verbindungsfehler:', err);
     queueStatus.textContent = 'Verbindungsfehler - versuche erneut...';
   });
 
   // Warteschlangen-Update
   socket.on('queue_update', (data) => {
-    console.log(`Warteschlangenposition: ${data.position}, Geschätzte Zeit: ${data.estimatedTime}s`);
-    queueStatus.textContent = `Warteposition: ${data.position} (ca. ${data.estimatedTime}s)`;
+    console.log('Warteschlangen-Update:', data);
+    queueStatus.textContent = `Warteposition: ${data.position} (ca. ${data.estimatedWait}s)`;
     gameInfo.textContent = 'Suche nach Gegner...';
   });
 
   // Spielstart
   socket.on('game_start', (data) => {
+    console.log('Spielstart:', data);
     gameState.currentGame = data.gameId;
     gameState.playerSide = data.playerSide;
     gameState.opponentName = data.opponent;
     gameState.gameActive = true;
     
+    // Spielernamen anzeigen
     if (gameState.playerSide === 'left') {
       leftPlayerName.textContent = gameState.playerName || 'Du';
       rightPlayerName.textContent = data.opponent;
@@ -83,6 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
       rightPlayerName.textContent = gameState.playerName || 'Du';
     }
     
+    // Spielerliste aktualisieren
     playerList.innerHTML = `
       <li class="playing">
         Gegen ${data.opponent}
@@ -94,37 +97,41 @@ document.addEventListener('DOMContentLoaded', () => {
     gameInfo.textContent = 'Spiel läuft!';
     queueStatus.textContent = '';
     
-    console.log(`Spiel gestartet als ${data.playerSide} gegen ${data.opponent}`);
+    // Scores zurücksetzen
+    gameState.scores = { left: 0, right: 0 };
+    leftScore.textContent = '0';
+    rightScore.textContent = '0';
+    
     render();
   });
 
-  // Spielupdate vom Gegner
+  // Spielupdate
   socket.on('game_update', (data) => {
     if (!gameState.gameActive) return;
     
-    // Gegnerisches Paddle aktualisieren
+    // Gegner-Paddle aktualisieren
     if (gameState.playerSide === 'left') {
       gameState.rightPaddle.y = data.paddleY;
     } else {
       gameState.leftPaddle.y = data.paddleY;
     }
     
-    // Ballposition aktualisieren (falls vom Host gesendet)
+    // Ballposition (falls vorhanden)
     if (data.ball) {
       gameState.ball = data.ball;
     }
     
-    // Punktestand aktualisieren
+    // Punktestand
     if (data.scores) {
       gameState.scores = data.scores;
-      leftScoreElement.textContent = gameState.scores.left;
-      rightScoreElement.textContent = gameState.scores.right;
+      leftScore.textContent = gameState.scores.left;
+      rightScore.textContent = gameState.scores.right;
     }
   });
 
   // Spielende
   socket.on('game_ended', (data) => {
-    console.log('Spiel beendet:', data.reason);
+    console.log('Spiel beendet:', data);
     gameState.gameActive = false;
     gameCanvas.style.cursor = 'default';
     
@@ -137,10 +144,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Spielen-Button
   playButton.addEventListener('click', () => {
     if (socket.connected) {
-      gameState.playerName = prompt('Gib deinen Spielernamen ein:', `Spieler_${Math.floor(Math.random()*1000)}`);
+      gameState.playerName = prompt('Dein Spielername:', `Spieler_${Math.floor(Math.random()*1000)}`);
       const nameToSend = gameState.playerName || `Spieler_${socket.id.substr(0, 4)}`;
       
-      socket.emit('join', nameToSend);
+      socket.emit('join_queue', nameToSend);
       playerList.innerHTML = '<li class="empty">Suche nach Gegner...</li>';
       gameInfo.textContent = 'Verbinde...';
     } else {
@@ -169,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Touch-Support für Mobile
+  // Touch-Support
   gameCanvas.addEventListener('touchmove', (e) => {
     if (!gameState.gameActive) return;
     e.preventDefault();
@@ -241,6 +248,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialisierung
   playButton.style.display = 'block';
-  queueStatus.style.margin = '10px 0';
-  queueStatus.style.color = '#FFC107';
 });
