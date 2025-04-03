@@ -364,6 +364,36 @@
         startGameLoop();
       });
 
+      // Paddle-Bewegung
+      socket.on('paddle_update', (data) => {
+        if (!gameState.gameActive || gameState.currentGame !== data.gameId) return;
+        
+        // Nur das gegnerische Paddle aktualisieren
+        if (gameState.playerSide === 'left') {
+          gameState.rightPaddle.y = data.y;
+        } else {
+          gameState.leftPaddle.y = data.y;
+        }
+      });
+
+      function handlePaddleMove(y) {
+        if (!gameState.gameActive) return;
+        
+        // Eigenes Paddle bewegen
+        if (gameState.playerSide === 'left') {
+          gameState.leftPaddle.y = y;
+        } else {
+          gameState.rightPaddle.y = y;
+        }
+        
+        // Update an Server senden
+        socket.emit('paddle_move', {
+          gameId: gameState.currentGame,
+          y: y,
+          playerSide: gameState.playerSide
+        });
+      }
+
       function startGameLoop() {
         let lastTime = performance.now();
         
@@ -495,64 +525,66 @@
       }
 
       function checkCollisions() {
+        // Präzisere Kollisionserkennung
+        const ballLeft = gameState.ball.x - gameState.ball.radius;
+        const ballRight = gameState.ball.x + gameState.ball.radius;
+        const ballTop = gameState.ball.y - gameState.ball.radius;
+        const ballBottom = gameState.ball.y + gameState.ball.radius;
+        
         // Wandkollision
-        if (gameState.ball.y - gameState.ball.radius <= 0 || 
-            gameState.ball.y + gameState.ball.radius >= 100) {
+        if (ballTop <= 0 || ballBottom >= 100) {
           gameState.ball.speedY *= -1;
-          // Position korrigieren
-          if (gameState.ball.y - gameState.ball.radius <= 0) {
-            gameState.ball.y = gameState.ball.radius;
-          } else {
-            gameState.ball.y = 100 - gameState.ball.radius;
-          }
+          gameState.ball.y = Math.max(gameState.ball.radius, Math.min(100 - gameState.ball.radius, gameState.ball.y));
         }
         
-        // Schlägerkollision (nur Host prüft)
-        if (gameState.isHost) {
-          // Linker Schläger
-          if (gameState.ball.x - gameState.ball.radius <= 20 + gameState.leftPaddle.width && 
-              gameState.ball.y >= gameState.leftPaddle.y - gameState.leftPaddle.height/2 &&
-              gameState.ball.y <= gameState.leftPaddle.y + gameState.leftPaddle.height/2) {
-            gameState.ball.x = 20 + gameState.leftPaddle.width + gameState.ball.radius;
-            gameState.ball.speedX = Math.abs(gameState.ball.speedX) * 1.05;
-            
-            // Winkel basierend auf Trefferposition
-            const relativeIntersectY = (gameState.leftPaddle.y - gameState.ball.y) / (gameState.leftPaddle.height/2);
-            gameState.ball.speedY = relativeIntersectY * gameState.ball.baseSpeed * -1;
-          }
+        // Linker Schläger
+        const paddleLeft = 20;
+        const paddleRight = 20 + gameState.leftPaddle.width;
+        const paddleTop = gameState.leftPaddle.y - gameState.leftPaddle.height/2;
+        const paddleBottom = gameState.leftPaddle.y + gameState.leftPaddle.height/2;
+        
+        if (ballLeft <= paddleRight && 
+            ballRight >= paddleLeft && 
+            ballTop <= paddleBottom && 
+            ballBottom >= paddleTop) {
+          gameState.ball.x = paddleRight + gameState.ball.radius;
+          gameState.ball.speedX = Math.abs(gameState.ball.speedX) * 1.05;
           
-          // Rechter Schläger
-          if (gameState.ball.x + gameState.ball.radius >= 100 - 20 - gameState.rightPaddle.width && 
-              gameState.ball.y >= gameState.rightPaddle.y - gameState.rightPaddle.height/2 &&
-              gameState.ball.y <= gameState.rightPaddle.y + gameState.rightPaddle.height/2) {
-            gameState.ball.x = 100 - 20 - gameState.rightPaddle.width - gameState.ball.radius;
-            gameState.ball.speedX = -Math.abs(gameState.ball.speedX) * 1.05;
-            
-            // Winkel basierend auf Trefferposition
-            const relativeIntersectY = (gameState.rightPaddle.y - gameState.ball.y) / (gameState.rightPaddle.height/2);
-            gameState.ball.speedY = relativeIntersectY * gameState.ball.baseSpeed * -1;
-          }
+          // Winkel basierend auf Trefferposition
+          const relativeIntersectY = (gameState.leftPaddle.y - gameState.ball.y) / (gameState.leftPaddle.height/2);
+          gameState.ball.speedY = relativeIntersectY * gameState.ball.baseSpeed * -1;
+        }
+        
+        // Rechter Schläger
+        const paddleRight2 = 100 - 20;
+        const paddleLeft2 = 100 - 20 - gameState.rightPaddle.width;
+        const paddleTop2 = gameState.rightPaddle.y - gameState.rightPaddle.height/2;
+        const paddleBottom2 = gameState.rightPaddle.y + gameState.rightPaddle.height/2;
+        
+        if (ballRight >= paddleLeft2 && 
+            ballLeft <= paddleRight2 && 
+            ballTop <= paddleBottom2 && 
+            ballBottom >= paddleTop2) {
+          gameState.ball.x = paddleLeft2 - gameState.ball.radius;
+          gameState.ball.speedX = -Math.abs(gameState.ball.speedX) * 1.05;
           
-          // Punkte
-          if (gameState.ball.x < 0 || gameState.ball.x > 100) {
-            if (gameState.ball.x < 0) {
-              gameState.scores.right++;
-              // Rechter Schläger wird größer
-              gameState.rightPaddle.baseHeight = Math.min(150, gameState.rightPaddle.baseHeight + 10);
-              gameState.rightPaddle.height = gameState.rightPaddle.baseHeight;
-            } else {
-              gameState.scores.left++;
-              // Linker Schläger wird größer
-              gameState.leftPaddle.baseHeight = Math.min(150, gameState.leftPaddle.baseHeight + 10);
-              gameState.leftPaddle.height = gameState.leftPaddle.baseHeight;
-            }
-            
-            // Scores aktualisieren
-            leftScore.textContent = gameState.scores.left;
-            rightScore.textContent = gameState.scores.right;
-            
-            resetBall();
+          // Winkel basierend auf Trefferposition
+          const relativeIntersectY = (gameState.rightPaddle.y - gameState.ball.y) / (gameState.rightPaddle.height/2);
+          gameState.ball.speedY = relativeIntersectY * gameState.ball.baseSpeed * -1;
+        }
+        
+        // Punkte
+        if (gameState.ball.x < 0 || gameState.ball.x > 100) {
+          if (gameState.ball.x < 0) {
+            gameState.scores.right++;
+            gameState.rightPaddle.baseHeight = Math.min(150, gameState.rightPaddle.baseHeight + 10);
+            gameState.rightPaddle.height = gameState.rightPaddle.baseHeight;
+          } else {
+            gameState.scores.left++;
+            gameState.leftPaddle.baseHeight = Math.min(150, gameState.leftPaddle.baseHeight + 10);
+            gameState.leftPaddle.height = gameState.leftPaddle.baseHeight;
           }
+          resetBall();
         }
       }
 
@@ -586,27 +618,8 @@
           rightScore.textContent = gameState.scores.right;
         }
         
-        if (data.leftPaddle && gameState.playerSide === 'right') {
-          gameState.leftPaddle = data.leftPaddle;
-        }
-        
-        if (data.rightPaddle && gameState.playerSide === 'left') {
-          gameState.rightPaddle = data.rightPaddle;
-        }
-        
         if (data.powerUps) {
           gameState.powerUps = data.powerUps;
-        }
-      });
-
-      // Paddle Bewegung Event
-      socket.on('paddle_move', (data) => {
-        if (!gameState.gameActive || gameState.currentGame !== data.gameId) return;
-        
-        if (gameState.playerSide === 'left') {
-          gameState.rightPaddle.y = data.y;
-        } else {
-          gameState.leftPaddle.y = data.y;
         }
       });
 
@@ -636,38 +649,20 @@
         }
       });
 
-      // Paddle-Bewegung
-      function handlePaddleMove(e) {
-        if (!gameState.gameActive) return;
-        
-        let y;
-        if (e.type === 'mousemove') {
-          const rect = gameCanvas.getBoundingClientRect();
-          y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / gameCanvas.height) * 100));
-        } else if (e.type === 'touchmove') {
-          e.preventDefault();
-          const touch = e.touches[0];
-          const rect = gameCanvas.getBoundingClientRect();
-          y = Math.max(0, Math.min(100, ((touch.clientY - rect.top) / gameCanvas.height) * 100));
-        }
-        
-        // Eigenes Paddle bewegen
-        if (gameState.playerSide === 'left') {
-          gameState.leftPaddle.y = y;
-        } else {
-          gameState.rightPaddle.y = y;
-        }
-        
-        // Update an Server senden
-        socket.emit('paddle_move', {
-          gameId: gameState.currentGame,
-          y: y
-        });
-      }
+      // Event-Listener für Paddle-Bewegung
+      gameCanvas.addEventListener('mousemove', (e) => {
+        const rect = gameCanvas.getBoundingClientRect();
+        const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / gameCanvas.height) * 100));
+        handlePaddleMove(y);
+      });
 
-      // Event-Listener
-      gameCanvas.addEventListener('mousemove', handlePaddleMove);
-      gameCanvas.addEventListener('touchmove', handlePaddleMove, { passive: false });
+      gameCanvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = gameCanvas.getBoundingClientRect();
+        const y = Math.max(0, Math.min(100, ((touch.clientY - rect.top) / gameCanvas.height) * 100));
+        handlePaddleMove(y);
+      }, { passive: false });
 
       // Render-Funktion
       function render() {
