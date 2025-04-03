@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAHP Bußgeldstatistik</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="x-icon" href="DOJ_logo.png">
+    <style>
+        body {
+            background-color: #121212;
+            color: white;
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        #header {
+            background-color: #1a1a1a;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        #logo {
+            height: 50px;
+        }
+
+    #title {
+        font-size: 24px;
+        font-weight: bold;
+        color: #65d3ff;
+        margin: 0 auto;
+        display: inline-block;
+		text-shadow: 0 0 10px rgba(101, 211, 255, 0.5);
+    }
+
+        #content {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+
+        .timeframe-selector {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .timeframe-btn {
+            padding: 10px 20px;
+            background-color: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-weight: bold;
+        }
+
+        .timeframe-btn:hover {
+            background-color: #444;
+        }
+
+        .timeframe-btn.active {
+            background-color: #65d3ff;
+            color: #121212;
+        }
+
+        .chart-container {
+            background-color: #1a1a1a;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .chart-title {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #65d3ff;
+            text-align: center;
+        }
+
+        .bar-chart {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .bar-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .bar-label {
+            width: 300px;
+            font-size: 14px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .bar-container {
+            flex-grow: 1;
+            height: 30px;
+            background-color: #333;
+            border-radius: 5px;
+            overflow: hidden;
+            min-width: 200px;
+        }
+
+        .bar {
+            height: 100%;
+            background: linear-gradient(90deg, #65d3ff, #0077cc);
+            border-radius: 5px;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 10px;
+            box-sizing: border-box;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .bar-count {
+            width: 80px;
+            text-align: right;
+            font-size: 14px;
+        }
+
+        .no-data {
+            text-align: center;
+            color: #777;
+            padding: 20px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #777;
+            font-size: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .bar-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+            
+            .bar-label {
+                width: 100%;
+            }
+            
+            .bar-container {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <div id="title">SAHP Bußgeldstatistik</div>
+    </div>
+
+    <div id="content">
+        <div class="timeframe-selector">
+            <button class="timeframe-btn active" onclick="showTimeframe('day')">Heute</button>
+            <button class="timeframe-btn" onclick="showTimeframe('week')">Diese Woche</button>
+            <button class="timeframe-btn" onclick="showTimeframe('month')">Dieser Monat</button>
+            <button class="timeframe-btn" onclick="showTimeframe('year')">Dieses Jahr</button>
+            <button class="timeframe-btn" onclick="showTimeframe('allTime')">Gesamt</button>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-title">Top 10 der häufigsten Strafen</div>
+            <div class="bar-chart" id="chart-day"></div>
+            <div class="bar-chart" id="chart-week" style="display: none;"></div>
+            <div class="bar-chart" id="chart-month" style="display: none;"></div>
+            <div class="bar-chart" id="chart-year" style="display: none;"></div>
+            <div class="bar-chart" id="chart-allTime" style="display: none;"></div>
+        </div>
+
+        <div class="footer">
+            Statistik wird automatisch aktualisiert | Stand: <span id="last-updated"></span>
+        </div>
+    </div>
+
+    <script>
+        // Daten aus dem localStorage laden
+        function loadStats() {
+            const stats = JSON.parse(localStorage.getItem('fineStats')) || {
+                day: {},
+                week: {},
+                month: {},
+                year: {},
+                allTime: {},
+                lastUpdated: new Date().toISOString()
+            };
+            return stats;
+        }
+
+        // Top 10 Strafen für einen Zeitraum ermitteln
+        function getTop10(data) {
+            return Object.entries(data)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10)
+                .map(([name, count]) => ({ name, count }));
+        }
+
+        // Diagramm aktualisieren
+        function updateChart(period) {
+            const stats = loadStats();
+            const chartElement = document.getElementById(`chart-${period}`);
+            const data = stats[period] || {};
+            const top10 = getTop10(data);
+            
+            chartElement.innerHTML = '';
+            
+            if (top10.length === 0) {
+                chartElement.innerHTML = '<div class="no-data">Keine Daten verfügbar</div>';
+                return;
+            }
+            
+            // Maximalen Wert für die Skalierung finden
+            const maxCount = Math.max(...top10.map(item => item.count));
+            
+            top10.forEach(item => {
+                const percentage = (item.count / maxCount) * 100;
+                
+                const barItem = document.createElement('div');
+                barItem.className = 'bar-item';
+                
+                // Kürze lange Textstellen
+                let displayName = item.name;
+                if (displayName.length > 50) {
+                    displayName = displayName.substring(0, 47) + '...';
+                }
+                
+                barItem.innerHTML = `
+                    <div class="bar-label" title="${item.name}">${displayName}</div>
+                    <div class="bar-container">
+                        <div class="bar" style="width: ${percentage}%">${item.count}</div>
+                    </div>
+                    <div class="bar-count">${item.count}x</div>
+                `;
+                
+                chartElement.appendChild(barItem);
+            });
+        }
+
+        // Zeitraum anzeigen
+        function showTimeframe(period) {
+            // Alle Charts ausblenden
+            document.querySelectorAll('.bar-chart').forEach(chart => {
+                chart.style.display = 'none';
+            });
+            
+            // Gewählten Chart anzeigen und aktualisieren
+            const chartElement = document.getElementById(`chart-${period}`);
+            chartElement.style.display = 'flex';
+            updateChart(period);
+            
+            // Buttons aktualisieren
+            document.querySelectorAll('.timeframe-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        // Seite initialisieren
+        document.addEventListener('DOMContentLoaded', function() {
+            const stats = loadStats();
+            const lastUpdated = new Date(stats.lastUpdated);
+            
+            // Aktualisierungsdatum anzeigen
+            document.getElementById('last-updated').textContent = 
+                lastUpdated.toLocaleDateString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            
+            // Standardmäßig "Heute" anzeigen
+            updateChart('day');
+        });
+    </script>
+</body>
+</html>
