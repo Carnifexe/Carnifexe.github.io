@@ -195,18 +195,35 @@
     </div>
 
     <script>
-        // Daten aus dem localStorage laden
-        function loadStats() {
-            const stats = JSON.parse(localStorage.getItem('fineStats')) || {
-                day: {},
-                week: {},
-                month: {},
-                year: {},
-                allTime: {},
-                lastUpdated: new Date().toISOString()
-            };
-            return stats;
-        }
+  const STATS_URL = 'https://raw.githubusercontent.com/<IHR-USERNAME>/sahp-stats/main/data/stats.json';
+
+  // Daten laden
+  async function loadStats() {
+    try {
+      const response = await fetch(STATS_URL + '?t=' + Date.now()); // Cache umgehen
+      return await response.json();
+    } catch (error) {
+      console.error("Fehler beim Laden:", error);
+      return {
+        day: {}, week: {}, month: {}, year: {}, allTime: {},
+        lastUpdated: new Date().toISOString()
+      };
+    }
+  }
+
+  // Daten "speichern" (manuell über GitHub)
+  function showUpdateInstructions() {
+    alert("Um Daten zu aktualisieren:\n1. Öffnen Sie stats.json auf GitHub\n2. Bearbeiten Sie die Datei\n3. Commit & Push");
+  }
+
+  // Initialisierung
+  document.addEventListener('DOMContentLoaded', async function() {
+    const stats = await loadStats();
+    document.getElementById('last-updated').textContent = 
+      new Date(stats.lastUpdated).toLocaleDateString('de-DE');
+    
+    updateChart('day');
+  });
 
         // Top 10 Strafen für einen Zeitraum ermitteln
         function getTop10(data) {
