@@ -3,12 +3,12 @@ const { createServer } = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 
-// 1. Server-Initialisierung mit erweitertem Logging
+// 1. Server-Initialisierung
 const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 10000;
 
-// 2. WebSocket-Konfiguration mit optimierten Einstellungen
+// 2. WebSocket-Konfiguration
 const io = new Server(httpServer, {
   cors: {
     origin: [
@@ -21,19 +21,19 @@ const io = new Server(httpServer, {
   },
   transports: ['websocket'],
   allowEIO3: true,
-  pingInterval: 10000,    // Verkürztes Intervall (10s)
-  pingTimeout: 20000,     // Kürzerer Timeout (20s)
+  pingInterval: 10000,
+  pingTimeout: 20000,
   cookie: false
 });
 
-// 3. Middleware mit Cache-Control
+// 3. Middleware
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res) => {
     res.set('Cache-Control', 'no-store');
   }
 }));
 
-// 4. Erweiterter Health Check
+// 4. Health Check Endpoint
 app.get('/health', (req, res) => {
   const memoryUsage = process.memoryUsage();
   res.status(200).json({
@@ -48,7 +48,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// 5. Debug-Endpoint mit Spielerliste
+// 5. Debug Endpoint
 app.get('/debug', (req, res) => {
   res.json({
     clients: Array.from(io.sockets.sockets.keys()),
@@ -66,20 +66,20 @@ app.get('/debug', (req, res) => {
   });
 });
 
-// 6. Spiel-Logik mit verbesserter Spielerverwaltung
+// 6. Spiel-Logik
 const players = {};
 const games = {};
 let playerCount = 0;
 const PLAYER_NAME_PREFIX = "Spieler";
+const INITIAL_BALL_SPEED = 1.5; // Reduzierte Geschwindigkeit
+const PADDLE_GROWTH_FACTOR = 0.2;
 
-// 7. Verbesserte Spieler-ID Generierung
 function generatePlayerId() {
   return `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
-// 8. WebSocket-Verbindungsmanagement
+// 7. WebSocket-Verbindungsmanagement
 io.on('connection', (socket) => {
-  // Spieler registrieren mit eindeutiger ID
   playerCount++;
   const playerId = generatePlayerId();
   const playerName = `${PLAYER_NAME_PREFIX} ${playerCount}`;
@@ -95,7 +95,7 @@ io.on('connection', (socket) => {
 
   console.log(`🔗 Neue Verbindung: ${playerName} (ID: ${playerId}) | ${playerCount} Spieler online`);
 
-  // Initiale Bestätigung senden
+  // Initiale Begrüßung
   socket.emit('welcome', {
     message: `Willkommen ${playerName}`,
     id: playerId,
@@ -103,7 +103,7 @@ io.on('connection', (socket) => {
     playerCount
   });
 
-  // Ping-Pong mit Aktivitätsupdate
+  // Ping-Pong
   socket.on('ping', (timestamp, callback) => {
     if (players[playerId]) {
       players[playerId].lastActive = Date.now();
@@ -143,40 +143,38 @@ io.on('connection', (socket) => {
     updatePaddlePosition(gameId, side, y);
   });
 
-  // Verbindungstrennung mit Aufräumen
   socket.on('disconnect', (reason) => {
     console.log(`❌ Verbindung getrennt: ${playerName} (${reason})`);
     cleanupPlayer(playerId);
   });
 
-  // Initiale Spielerliste senden
   updatePlayerList();
 });
 
-// 9. Verbesserte Spiel-Funktionen
+// 8. Spiel-Funktionen
 function startGame(gameId, player1, player2) {
   games[gameId] = {
     leftPlayer: player1,
     rightPlayer: player2,
     leftPaddleY: 50,
     rightPaddleY: 50,
+    leftPaddleSize: 1,
+    rightPaddleSize: 1,
     ballX: 50,
     ballY: 50,
-    ballSpeedX: (Math.random() > 0.5 ? 1 : -1) * 5,
-    ballSpeedY: (Math.random() > 0.5 ? 1 : -1) * 5,
+    ballSpeedX: (Math.random() > 0.5 ? 1 : -1) * INITIAL_BALL_SPEED,
+    ballSpeedY: (Math.random() > 0.5 ? 1 : -1) * INITIAL_BALL_SPEED,
     leftScore: 0,
     rightScore: 0,
     startTime: Date.now(),
     lastUpdate: Date.now()
   };
 
-  // Spielerstatus aktualisieren
   players[player1].status = 'playing';
   players[player2].status = 'playing';
 
   console.log(`🎮 Spiel gestartet: ${gameId} | ${players[player1].name} vs ${players[player2].name}`);
 
-  // Spiel starten
   io.to(players[player1].socketId).emit('game_start', {
     gameId,
     playerSide: 'left',
@@ -208,6 +206,8 @@ function broadcastGameState(gameId) {
   const gameState = {
     leftPaddleY: game.leftPaddleY,
     rightPaddleY: game.rightPaddleY,
+    leftPaddleSize: game.leftPaddleSize,
+    rightPaddleSize: game.rightPaddleSize,
     ballX: game.ballX,
     ballY: game.ballY,
     leftScore: game.leftScore,
@@ -233,7 +233,6 @@ function updatePlayerList() {
 function cleanupPlayer(playerId) {
   if (!players[playerId]) return;
 
-  // Aktive Spiele des Spielers beenden
   for (const gameId in games) {
     const game = games[gameId];
     if (game.leftPlayer === playerId || game.rightPlayer === playerId) {
@@ -241,10 +240,9 @@ function cleanupPlayer(playerId) {
     }
   }
 
-  // Spieler entfernen und Zähler aktualisieren
   console.log(`♻️ Spieler aufgeräumt: ${players[playerId].name}`);
   delete players[playerId];
-  playerCount = Math.max(0, playerCount - 1); // Sicherstellen, dass der Zähler nicht negativ wird
+  playerCount = Math.max(0, playerCount - 1);
   
   updatePlayerList();
 }
@@ -257,17 +255,15 @@ function endGame(gameId, disconnectedPlayerId = null) {
     ? game.rightPlayer 
     : game.leftPlayer;
 
-  // Benachrichtigungen senden
   if (disconnectedPlayerId) {
     io.to(players[otherPlayerId]?.socketId).emit('game_ended', {
       reason: 'opponent_disconnected'
     });
   } else {
-    io.to(game.leftPlayer).emit('game_ended', { reason: 'normal' });
-    io.to(game.rightPlayer).emit('game_ended', { reason: 'normal' });
+    io.to(players[game.leftPlayer].socketId).emit('game_ended', { reason: 'normal' });
+    io.to(players[game.rightPlayer].socketId).emit('game_ended', { reason: 'normal' });
   }
 
-  // Spielerstatus zurücksetzen
   [game.leftPlayer, game.rightPlayer].forEach(id => {
     if (players[id]) {
       players[id].status = 'waiting';
@@ -278,7 +274,7 @@ function endGame(gameId, disconnectedPlayerId = null) {
   delete games[gameId];
 }
 
-// 10. Spiel-Loop mit verbesserten Kollisionen
+// 9. Spiel-Loop mit optimierter Physik
 setInterval(() => {
   const now = Date.now();
   for (const gameId in games) {
@@ -290,13 +286,12 @@ function updateGamePhysics(gameId, timestamp) {
   const game = games[gameId];
   if (!game) return;
 
-  // Zeitbasierte Updates für konsistente Geschwindigkeit
   const deltaTime = (timestamp - game.lastUpdate) / 1000;
   game.lastUpdate = timestamp;
 
-  // Ballbewegung
-  game.ballX += game.ballSpeedX * deltaTime * 60; // Normalisiert auf 60 FPS
-  game.ballY += game.ballSpeedY * deltaTime * 60;
+  // Ballbewegung mit reduzierter Geschwindigkeit
+  game.ballX += game.ballSpeedX * deltaTime * 30;
+  game.ballY += game.ballSpeedY * deltaTime * 30;
 
   // Wandkollisionen
   if (game.ballY <= 0 || game.ballY >= 100) {
@@ -304,20 +299,30 @@ function updateGamePhysics(gameId, timestamp) {
     game.ballY = Math.max(0, Math.min(100, game.ballY));
   }
 
-  // Schlägerkollisionen
-  if (game.ballX <= 5 && Math.abs(game.ballY - game.leftPaddleY) < 15) {
+  // Schlägerkollisionen mit Größenberücksichtigung
+  const leftPaddleHeight = 15 * game.leftPaddleSize;
+  const rightPaddleHeight = 15 * game.rightPaddleSize;
+  
+  if (game.ballX <= 5 && Math.abs(game.ballY - game.leftPaddleY) < leftPaddleHeight/2) {
     game.ballSpeedX = Math.abs(game.ballSpeedX) * 1.05;
-    game.ballX = 5; // Position korrigieren
+    game.ballX = 5;
   }
-  if (game.ballX >= 95 && Math.abs(game.ballY - game.rightPaddleY) < 15) {
+  if (game.ballX >= 95 && Math.abs(game.ballY - game.rightPaddleY) < rightPaddleHeight/2) {
     game.ballSpeedX = -Math.abs(game.ballSpeedX) * 1.05;
     game.ballX = 95;
   }
 
-  // Punkte
+  // Punkte mit Schlägergrößenanpassung
   if (game.ballX < 0 || game.ballX > 100) {
-    if (game.ballX < 0) game.rightScore++;
-    else game.leftScore++;
+    if (game.ballX < 0) {
+      game.rightScore++;
+      game.leftPaddleSize = Math.min(2, game.leftPaddleSize + PADDLE_GROWTH_FACTOR);
+      game.rightPaddleSize = 1;
+    } else {
+      game.leftScore++;
+      game.rightPaddleSize = Math.min(2, game.rightPaddleSize + PADDLE_GROWTH_FACTOR);
+      game.leftPaddleSize = 1;
+    }
     resetBall(game);
   }
 
@@ -327,22 +332,22 @@ function updateGamePhysics(gameId, timestamp) {
 function resetBall(game) {
   game.ballX = 50;
   game.ballY = 50;
-  game.ballSpeedX = (Math.random() > 0.5 ? 1 : -1) * 5;
-  game.ballSpeedY = (Math.random() * 2 - 1) * 5;
+  game.ballSpeedX = (Math.random() > 0.5 ? 1 : -1) * INITIAL_BALL_SPEED;
+  game.ballSpeedY = (Math.random() * 2 - 1) * INITIAL_BALL_SPEED;
 }
 
-// 11. Inaktive Spieler bereinigen
+// 10. Inaktive Spieler bereinigen
 setInterval(() => {
   const now = Date.now();
   Object.keys(players).forEach(playerId => {
-    if (now - players[playerId].lastActive > 30000) { // 30 Sekunden inaktiv
+    if (now - players[playerId].lastActive > 30000) {
       const socket = io.sockets.sockets.get(players[playerId].socketId);
       if (socket) socket.disconnect();
     }
   });
 }, 10000);
 
-// 12. Serverstart mit erweitertem Logging
+// 11. Serverstart
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`
   ==========================================
@@ -354,7 +359,7 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   `);
 });
 
-// 13. Graceful Shutdown
+// 12. Graceful Shutdown
 process.on('SIGTERM', () => {
   console.log('🛑 Server wird heruntergefahren...');
   io.emit('server_shutdown');
