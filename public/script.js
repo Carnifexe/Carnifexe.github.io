@@ -2,12 +2,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // DOM-Elemente
   const gameCanvas = document.getElementById('gameCanvas');
   const ctx = gameCanvas.getContext('2d');
-  const playerList = document.getElementById('playerList');
-  const connectionStatus = document.getElementById('connectionStatus');
   const playButton = document.getElementById('playButton');
   const gameInfo = document.getElementById('gameInfo');
-  const leftScore = document.getElementById('leftScore').querySelector('span:last-child');
-  const rightScore = document.getElementById('rightScore').querySelector('span:last-child');
   const leftPlayerName = document.getElementById('leftPlayerName');
   const rightPlayerName = document.getElementById('rightPlayerName');
   
@@ -50,15 +46,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Verbindungsstatus
   socket.on('connect', () => {
     console.log('Verbunden mit Server:', socket.id);
-    connectionStatus.innerHTML = '🟢 ONLINE';
-    connectionStatus.className = 'online';
     gameInfo.textContent = 'Bereit zum Spielen';
   });
 
   socket.on('disconnect', (reason) => {
     console.log('Verbindung getrennt:', reason);
-    connectionStatus.innerHTML = '🔴 OFFLINE';
-    connectionStatus.className = 'offline';
     gameState.gameActive = false;
     queueStatus.textContent = reason === 'io server disconnect' 
       ? 'Server neu gestartet - bitte Seite neu laden' 
@@ -87,12 +79,16 @@ document.addEventListener('DOMContentLoaded', () => {
     gameState.isHost = data.playerSide === 'left';
     
     // Initialzustand übernehmen
-    if (data.initialState) {
-      gameState.ball = data.initialState.ball;
-      gameState.scores = data.initialState.scores;
-      gameState.leftPaddle.y = data.initialState.leftPaddleY;
-      gameState.rightPaddle.y = data.initialState.rightPaddleY;
-    }
+    gameState.ball = {
+      x: data.initialState.ball.x,
+      y: data.initialState.ball.y,
+      speedX: data.initialState.ball.speedX,
+      speedY: data.initialState.ball.speedY,
+      radius: 5
+    };
+    gameState.scores = data.initialState.scores;
+    gameState.leftPaddle.y = data.initialState.leftPaddleY;
+    gameState.rightPaddle.y = data.initialState.rightPaddleY;
     
     // Spielernamen anzeigen
     if (gameState.playerSide === 'left') {
@@ -103,29 +99,11 @@ document.addEventListener('DOMContentLoaded', () => {
       rightPlayerName.textContent = gameState.playerName || 'Du';
     }
     
-    // Spielerliste aktualisieren
-    playerList.innerHTML = `
-      <li class="playing">
-        Gegen ${data.opponent}
-        <span class="status">(${gameState.playerSide === 'left' ? 'Links' : 'Rechts'})</span>
-      </li>
-    `;
-    
-    gameCanvas.style.cursor = 'none';
     gameInfo.textContent = 'Spiel läuft!';
     queueStatus.textContent = '';
     
-    // Scores zurücksetzen
-    gameState.scores = { left: 0, right: 0 };
-    leftScore.textContent = '0';
-    rightScore.textContent = '0';
-    
-    // Game Loop starten (nur Host)
-    if (gameState.isHost) {
-      startGameLoop();
-    } else {
-      render();
-    }
+    // Game Loop starten
+    startGameLoop();
   });
 
   function startGameLoop() {
@@ -196,25 +174,12 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on('game_update', (data) => {
     if (!gameState.gameActive) return;
     
-    // Gegner-Paddle aktualisieren
-    if (data.paddleY !== undefined) {
-      if (gameState.playerSide === 'left') {
-        gameState.rightPaddle.y = data.paddleY;
-      } else {
-        gameState.leftPaddle.y = data.paddleY;
-      }
-    }
-    
-    // Ballposition (falls vorhanden)
     if (data.ball) {
       gameState.ball = data.ball;
     }
     
-    // Punktestand
     if (data.scores) {
       gameState.scores = data.scores;
-      leftScore.textContent = gameState.scores.left;
-      rightScore.textContent = gameState.scores.right;
     }
   });
 
@@ -225,8 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
     gameCanvas.style.cursor = 'default';
     
     if (data.reason === 'opponent_disconnected') {
-      playerList.innerHTML = '<li class="empty">Gegner hat das Spiel verlassen</li>';
-      gameInfo.textContent = 'Spiel beendet';
+      gameInfo.textContent = 'Gegner hat das Spiel verlassen';
     }
   });
 
@@ -237,8 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const nameToSend = gameState.playerName || `Spieler_${socket.id.substr(0, 4)}`;
       
       socket.emit('join_queue', nameToSend);
-      playerList.innerHTML = '<li class="empty">Suche nach Gegner...</li>';
-      gameInfo.textContent = 'Verbinde...';
+      gameInfo.textContent = 'Suche nach Gegner...';
     } else {
       alert('Keine Serververbindung!');
     }
@@ -259,27 +222,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Update an Server senden
-    socket.emit('game_update', {
-      gameId: gameState.currentGame,
-      paddleY: y
-    });
-  });
-
-  // Touch-Support
-  gameCanvas.addEventListener('touchmove', (e) => {
-    if (!gameState.gameActive) return;
-    e.preventDefault();
-    
-    const touch = e.touches[0];
-    const rect = gameCanvas.getBoundingClientRect();
-    const y = Math.max(0, Math.min(100, ((touch.clientY - rect.top) / gameCanvas.height) * 100));
-    
-    if (gameState.playerSide === 'left') {
-      gameState.leftPaddle.y = y;
-    } else {
-      gameState.rightPaddle.y = y;
-    }
-    
     socket.emit('game_update', {
       gameId: gameState.currentGame,
       paddleY: y
@@ -332,15 +274,16 @@ document.addEventListener('DOMContentLoaded', () => {
     );
     ctx.fill();
     
-    // Scores anzeigen
-    leftScore.textContent = gameState.scores.left;
-    rightScore.textContent = gameState.scores.right;
+    // Spielernamen anzeigen
+    ctx.fillStyle = '#FFF';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(leftPlayerName.textContent, gameCanvas.width * 0.25, 30);
+    ctx.fillText(rightPlayerName.textContent, gameCanvas.width * 0.75, 30);
     
-    if (!gameState.isHost) {
-      requestAnimationFrame(render);
-    }
+    // Punktestand anzeigen
+    ctx.font = '24px Arial';
+    ctx.fillText(gameState.scores.left, gameCanvas.width * 0.25, 60);
+    ctx.fillText(gameState.scores.right, gameCanvas.width * 0.75, 60);
   }
-
-  // Initialisierung
-  playButton.style.display = 'block';
 });
