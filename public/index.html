@@ -240,16 +240,27 @@
 
       // Spielzustand
       const gameState = {
-        leftPaddle: { y: 50, width: 15, height: 100 },
-        rightPaddle: { y: 50, width: 15, height: 100 },
-        ball: { x: 50, y: 50, radius: 8, speedX: 0, speedY: 0 },
+        leftPaddle: { y: 50, width: 15, height: 100, baseHeight: 100 },
+        rightPaddle: { y: 50, width: 15, height: 100, baseHeight: 100 },
+        ball: { 
+          x: 50, 
+          y: 50, 
+          radius: 8, 
+          speedX: 0, 
+          speedY: 0,
+          baseSpeed: 0.5,
+          type: 'normal',
+          color: '#FFFFFF'
+        },
         scores: { left: 0, right: 0 },
+        powerUps: [],
         currentGame: null,
         playerSide: null,
         opponentName: '',
         playerName: '',
         gameActive: false,
-        isHost: false
+        isHost: false,
+        lastPowerUpSpawn: 0
       };
 
       // Canvas Größe anpassen
@@ -314,9 +325,12 @@
         gameState.ball = {
           x: data.initialState.ball.x,
           y: data.initialState.ball.y,
-          speedX: data.initialState.ball.speedX,
-          speedY: data.initialState.ball.speedY,
-          radius: 8
+          radius: 8,
+          speedX: data.initialState.ball.speedX * 0.5, // Geschwindigkeit reduziert
+          speedY: data.initialState.ball.speedY * 0.5,
+          baseSpeed: 0.5,
+          type: 'normal',
+          color: '#FFFFFF'
         };
         gameState.scores = data.initialState.scores;
         gameState.leftPaddle.y = data.initialState.leftPaddleY;
@@ -350,13 +364,28 @@
       });
 
       function startGameLoop() {
-        function gameLoop() {
+        let lastTime = performance.now();
+        
+        function gameLoop(timestamp) {
           if (!gameState.gameActive) return;
+          
+          const deltaTime = timestamp - lastTime;
+          lastTime = timestamp;
           
           // Ballbewegung nur vom Host berechnen
           if (gameState.isHost) {
-            gameState.ball.x += gameState.ball.speedX;
-            gameState.ball.y += gameState.ball.speedY;
+            // Ball bewegen
+            gameState.ball.x += gameState.ball.speedX * (deltaTime / 16);
+            gameState.ball.y += gameState.ball.speedY * (deltaTime / 16);
+            
+            // PowerUps spawnen
+            if (timestamp - gameState.lastPowerUpSpawn > 10000 && Math.random() < 0.01) {
+              spawnPowerUp();
+              gameState.lastPowerUpSpawn = timestamp;
+            }
+            
+            // PowerUps aktualisieren
+            updatePowerUps();
             
             // Kollisionen prüfen
             checkCollisions();
@@ -366,6 +395,9 @@
               gameId: gameState.currentGame,
               ball: gameState.ball,
               scores: gameState.scores,
+              leftPaddle: gameState.leftPaddle,
+              rightPaddle: gameState.rightPaddle,
+              powerUps: gameState.powerUps,
               isHost: true
             });
           }
@@ -373,7 +405,92 @@
           render();
           requestAnimationFrame(gameLoop);
         }
-        gameLoop();
+        gameLoop(lastTime);
+      }
+
+      function spawnPowerUp() {
+        const types = ['bigPaddle', 'smallPaddle', 'fastBall', 'slowBall'];
+        const type = types[Math.floor(Math.random() * types.length)];
+        
+        gameState.powerUps.push({
+          x: 10 + Math.random() * 80,
+          y: 10 + Math.random() * 80,
+          radius: 5,
+          type: type,
+          color: getPowerUpColor(type)
+        });
+      }
+
+      function getPowerUpColor(type) {
+        switch(type) {
+          case 'bigPaddle': return '#4CAF50';
+          case 'smallPaddle': return '#F44336';
+          case 'fastBall': return '#FFC107';
+          case 'slowBall': return '#2196F3';
+          default: return '#FFFFFF';
+        }
+      }
+
+      function updatePowerUps() {
+        // PowerUps mit Ball kollidieren
+        gameState.powerUps = gameState.powerUps.filter(powerUp => {
+          const distance = Math.sqrt(
+            Math.pow(gameState.ball.x - powerUp.x, 2) + 
+            Math.pow(gameState.ball.y - powerUp.y, 2)
+          );
+          
+          if (distance < gameState.ball.radius + powerUp.radius) {
+            activatePowerUp(powerUp.type);
+            return false;
+          }
+          return true;
+        });
+      }
+
+      function activatePowerUp(type) {
+        // PowerUp Effekte
+        switch(type) {
+          case 'bigPaddle':
+            if (gameState.playerSide === 'left') {
+              gameState.leftPaddle.height = gameState.leftPaddle.baseHeight * 1.5;
+            } else {
+              gameState.rightPaddle.height = gameState.rightPaddle.baseHeight * 1.5;
+            }
+            setTimeout(resetPaddles, 5000);
+            break;
+            
+          case 'smallPaddle':
+            if (gameState.playerSide === 'left') {
+              gameState.rightPaddle.height = gameState.rightPaddle.baseHeight * 0.7;
+            } else {
+              gameState.leftPaddle.height = gameState.leftPaddle.baseHeight * 0.7;
+            }
+            setTimeout(resetPaddles, 5000);
+            break;
+            
+          case 'fastBall':
+            gameState.ball.speedX *= 1.5;
+            gameState.ball.speedY *= 1.5;
+            setTimeout(() => {
+              gameState.ball.speedX = Math.sign(gameState.ball.speedX) * gameState.ball.baseSpeed;
+              gameState.ball.speedY = Math.sign(gameState.ball.speedY) * gameState.ball.baseSpeed;
+            }, 5000);
+            break;
+            
+          case 'slowBall':
+            gameState.ball.speedX *= 0.5;
+            gameState.ball.speedY *= 0.5;
+            setTimeout(() => {
+              gameState.ball.speedX = Math.sign(gameState.ball.speedX) * gameState.ball.baseSpeed;
+              gameState.ball.speedY = Math.sign(gameState.ball.speedY) * gameState.ball.baseSpeed;
+            }, 5000);
+            break;
+        }
+      }
+
+      function resetPaddles() {
+        gameState.leftPaddle.height = gameState.leftPaddle.baseHeight;
+        gameState.rightPaddle.height = gameState.rightPaddle.baseHeight;
       }
 
       function checkCollisions() {
@@ -385,19 +502,44 @@
         
         // Schlägerkollision (nur Host prüft)
         if (gameState.isHost) {
-          if (gameState.ball.x - gameState.ball.radius <= 20 + 15 && 
-              Math.abs(gameState.ball.y - gameState.leftPaddle.y) < 15) {
+          // Linker Schläger
+          if (gameState.ball.x - gameState.ball.radius <= 20 + gameState.leftPaddle.width && 
+              Math.abs(gameState.ball.y - gameState.leftPaddle.y) < gameState.leftPaddle.height/2) {
             gameState.ball.speedX = Math.abs(gameState.ball.speedX) * 1.05;
+            
+            // Ball abhängig von Trefferposition ablenken
+            const relativeIntersectY = (gameState.leftPaddle.y - gameState.ball.y) / (gameState.leftPaddle.height/2);
+            gameState.ball.speedY = relativeIntersectY * gameState.ball.baseSpeed * -1;
           }
-          if (gameState.ball.x + gameState.ball.radius >= gameCanvas.width - 20 - 15 && 
-              Math.abs(gameState.ball.y - gameState.rightPaddle.y) < 15) {
+          
+          // Rechter Schläger
+          if (gameState.ball.x + gameState.ball.radius >= 100 - 20 - gameState.rightPaddle.width && 
+              Math.abs(gameState.ball.y - gameState.rightPaddle.y) < gameState.rightPaddle.height/2) {
             gameState.ball.speedX = -Math.abs(gameState.ball.speedX) * 1.05;
+            
+            // Ball abhängig von Trefferposition ablenken
+            const relativeIntersectY = (gameState.rightPaddle.y - gameState.ball.y) / (gameState.rightPaddle.height/2);
+            gameState.ball.speedY = relativeIntersectY * gameState.ball.baseSpeed * -1;
           }
           
           // Punkte
           if (gameState.ball.x < 0 || gameState.ball.x > 100) {
-            if (gameState.ball.x < 0) gameState.scores.right++;
-            else gameState.scores.left++;
+            if (gameState.ball.x < 0) {
+              gameState.scores.right++;
+              // Rechter Schläger wird größer
+              gameState.rightPaddle.baseHeight = Math.min(150, gameState.rightPaddle.baseHeight + 10);
+              gameState.rightPaddle.height = gameState.rightPaddle.baseHeight;
+            } else {
+              gameState.scores.left++;
+              // Linker Schläger wird größer
+              gameState.leftPaddle.baseHeight = Math.min(150, gameState.leftPaddle.baseHeight + 10);
+              gameState.leftPaddle.height = gameState.leftPaddle.baseHeight;
+            }
+            
+            // Scores aktualisieren
+            leftScore.textContent = gameState.scores.left;
+            rightScore.textContent = gameState.scores.right;
+            
             resetBall();
           }
         }
@@ -407,10 +549,16 @@
         gameState.ball = { 
           x: 50, 
           y: 50,
-          speedX: (Math.random() > 0.5 ? 1 : -1) * 2,
-          speedY: (Math.random() * 2 - 1) * 2,
-          radius: 8
+          radius: 8,
+          speedX: (Math.random() > 0.5 ? 1 : -1) * gameState.ball.baseSpeed,
+          speedY: (Math.random() * 2 - 1) * gameState.ball.baseSpeed,
+          baseSpeed: gameState.ball.baseSpeed,
+          type: 'normal',
+          color: '#FFFFFF'
         };
+        
+        // PowerUps zurücksetzen
+        gameState.powerUps = [];
       }
 
       // Spielupdate
@@ -427,12 +575,16 @@
           rightScore.textContent = gameState.scores.right;
         }
         
-        if (data.paddleY !== undefined) {
-          if (gameState.playerSide === 'left') {
-            gameState.rightPaddle.y = data.paddleY;
-          } else {
-            gameState.leftPaddle.y = data.paddleY;
-          }
+        if (data.leftPaddle) {
+          gameState.leftPaddle = data.leftPaddle;
+        }
+        
+        if (data.rightPaddle) {
+          gameState.rightPaddle = data.rightPaddle;
+        }
+        
+        if (data.powerUps) {
+          gameState.powerUps = data.powerUps;
         }
       });
 
@@ -539,7 +691,22 @@
           gameState.rightPaddle.height
         );
         
-        // Ball
+        // PowerUps zeichnen
+        gameState.powerUps.forEach(powerUp => {
+          ctx.fillStyle = powerUp.color;
+          ctx.beginPath();
+          ctx.arc(
+            (powerUp.x/100)*gameCanvas.width,
+            (powerUp.y/100)*gameCanvas.height,
+            powerUp.radius * 2,
+            0,
+            Math.PI*2
+          );
+          ctx.fill();
+        });
+        
+        // Ball zeichnen
+        ctx.fillStyle = gameState.ball.color;
         ctx.beginPath();
         ctx.arc(
           (gameState.ball.x/100)*gameCanvas.width,
