@@ -20,16 +20,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Spielzustand
   const gameState = {
-    leftPaddle: { y: 50, width: 15, height: 100 },
-    rightPaddle: { y: 50, width: 15, height: 100 },
-    ball: { x: 50, y: 50, radius: 8 },
+    leftPaddle: { y: 50, width: 15, height: 20 },
+    rightPaddle: { y: 50, width: 15, height: 20 },
+    ball: { x: 50, y: 50, radius: 5, speedX: 0, speedY: 0 },
     scores: { left: 0, right: 0 },
     currentGame: null,
     playerSide: null,
     opponentName: '',
     playerName: '',
-    gameActive: false
+    gameActive: false,
+    isHost: false
   };
+
+  // Canvas Größe anpassen
+  function resizeCanvas() {
+    gameCanvas.width = gameCanvas.clientWidth;
+    gameCanvas.height = gameCanvas.clientHeight;
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
 
   // Socket.io Verbindung
   const socket = io('wss://carnifexe-github-io.onrender.com', {
@@ -75,6 +84,15 @@ document.addEventListener('DOMContentLoaded', () => {
     gameState.playerSide = data.playerSide;
     gameState.opponentName = data.opponent;
     gameState.gameActive = true;
+    gameState.isHost = data.playerSide === 'left';
+    
+    // Initialzustand übernehmen
+    if (data.initialState) {
+      gameState.ball = data.initialState.ball;
+      gameState.scores = data.initialState.scores;
+      gameState.leftPaddle.y = data.initialState.leftPaddleY;
+      gameState.rightPaddle.y = data.initialState.rightPaddleY;
+    }
     
     // Spielernamen anzeigen
     if (gameState.playerSide === 'left') {
@@ -102,18 +120,89 @@ document.addEventListener('DOMContentLoaded', () => {
     leftScore.textContent = '0';
     rightScore.textContent = '0';
     
-    render();
+    // Game Loop starten (nur Host)
+    if (gameState.isHost) {
+      startGameLoop();
+    } else {
+      render();
+    }
   });
+
+  function startGameLoop() {
+    function gameLoop() {
+      if (!gameState.gameActive) return;
+      
+      // Ballbewegung nur vom Host berechnen
+      if (gameState.isHost) {
+        gameState.ball.x += gameState.ball.speedX;
+        gameState.ball.y += gameState.ball.speedY;
+        
+        // Kollisionen prüfen
+        checkCollisions();
+        
+        // Update an Server senden
+        socket.emit('game_update', {
+          gameId: gameState.currentGame,
+          ball: gameState.ball,
+          scores: gameState.scores,
+          isHost: true
+        });
+      }
+      
+      render();
+      requestAnimationFrame(gameLoop);
+    }
+    gameLoop();
+  }
+
+  function checkCollisions() {
+    // Wandkollision
+    if (gameState.ball.y - gameState.ball.radius <= 0 || 
+        gameState.ball.y + gameState.ball.radius >= 100) {
+      gameState.ball.speedY *= -1;
+    }
+    
+    // Schlägerkollision (nur Host prüft)
+    if (gameState.isHost) {
+      if (gameState.ball.x - gameState.ball.radius <= 20 + 15 && 
+          Math.abs(gameState.ball.y - gameState.leftPaddle.y) < 15) {
+        gameState.ball.speedX = Math.abs(gameState.ball.speedX) * 1.05;
+      }
+      if (gameState.ball.x + gameState.ball.radius >= gameCanvas.width - 20 - 15 && 
+          Math.abs(gameState.ball.y - gameState.rightPaddle.y) < 15) {
+        gameState.ball.speedX = -Math.abs(gameState.ball.speedX) * 1.05;
+      }
+      
+      // Punkte
+      if (gameState.ball.x < 0 || gameState.ball.x > 100) {
+        if (gameState.ball.x < 0) gameState.scores.right++;
+        else gameState.scores.left++;
+        resetBall();
+      }
+    }
+  }
+
+  function resetBall() {
+    gameState.ball = { 
+      x: 50, 
+      y: 50,
+      speedX: (Math.random() > 0.5 ? 1 : -1) * 2,
+      speedY: (Math.random() * 2 - 1) * 2,
+      radius: 5
+    };
+  }
 
   // Spielupdate
   socket.on('game_update', (data) => {
     if (!gameState.gameActive) return;
     
     // Gegner-Paddle aktualisieren
-    if (gameState.playerSide === 'left') {
-      gameState.rightPaddle.y = data.paddleY;
-    } else {
-      gameState.leftPaddle.y = data.paddleY;
+    if (data.paddleY !== undefined) {
+      if (gameState.playerSide === 'left') {
+        gameState.rightPaddle.y = data.paddleY;
+      } else {
+        gameState.leftPaddle.y = data.paddleY;
+      }
     }
     
     // Ballposition (falls vorhanden)
@@ -243,7 +332,13 @@ document.addEventListener('DOMContentLoaded', () => {
     );
     ctx.fill();
     
-    requestAnimationFrame(render);
+    // Scores anzeigen
+    leftScore.textContent = gameState.scores.left;
+    rightScore.textContent = gameState.scores.right;
+    
+    if (!gameState.isHost) {
+      requestAnimationFrame(render);
+    }
   }
 
   // Initialisierung
