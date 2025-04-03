@@ -14,11 +14,6 @@
       --error: #CF6679;
       --text-primary: #FFFFFF;
       --text-secondary: rgba(255, 255, 255, 0.7);
-      --fire: #FF5722;
-      --ice: #00BCD4;
-      --earth: #795548;
-      --matter: #9C27B0;
-      --gold: #FFD700;
     }
 
     * {
@@ -108,8 +103,6 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      text-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
-      transition: all 0.3s ease;
     }
 
     #gameCanvas {
@@ -137,9 +130,6 @@
       color: var(--accent);
       margin-bottom: 15px;
       font-size: 1.5rem;
-      display: flex;
-      align-items: center;
-      gap: 10px;
     }
 
     #playerList {
@@ -153,34 +143,11 @@
       margin: 8px 0;
       border-radius: 6px;
       transition: all 0.3s ease;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    #playerList li.available {
-      background-color: rgba(76, 175, 80, 0.1);
-      border-left: 3px solid var(--primary);
-      cursor: pointer;
-    }
-
-    #playerList li.available:hover {
-      background-color: rgba(76, 175, 80, 0.2);
-      transform: translateX(5px);
     }
 
     #playerList li.playing {
-      color: var(--text-secondary);
-      background-color: rgba(33, 33, 33, 0.5);
-      border-left: 3px solid var(--text-secondary);
-      cursor: not-allowed;
-    }
-
-    #playerList li.pending {
-      background-color: rgba(255, 193, 7, 0.1);
-      border-left: 3px solid var(--accent);
-      color: var(--accent);
-      cursor: wait;
+      background-color: rgba(76, 175, 80, 0.1);
+      border-left: 3px solid var(--primary);
     }
 
     #playerList li.empty {
@@ -189,13 +156,21 @@
       font-style: italic;
     }
 
-    .player-name {
-      font-weight: 500;
+    #playButton {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 15px;
+      transition: all 0.2s ease;
     }
 
-    .status {
-      font-size: 0.85rem;
-      color: var(--text-secondary);
+    #playButton:hover {
+      background-color: var(--secondary);
+      transform: translateY(-2px);
     }
 
     #gameInfo {
@@ -208,204 +183,19 @@
       background-color: rgba(255, 193, 7, 0.1);
     }
 
-    #invitationModal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.9);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-      backdrop-filter: blur(5px);
-    }
-
-    #invitationContent {
-      background: var(--surface);
-      padding: 30px;
-      border-radius: 15px;
-      width: 90%;
-      max-width: 400px;
-      text-align: center;
-      box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
-      border-top: 5px solid var(--accent);
-      transform: scale(0.9);
-      opacity: 0;
-      animation: modalEnter 0.3s forwards 0.1s;
-    }
-
-    @keyframes modalEnter {
-      to {
-        transform: scale(1);
-        opacity: 1;
-      }
-    }
-
-    #invitationText {
-      font-size: 1.2rem;
-      margin-bottom: 25px;
-      line-height: 1.5;
-    }
-
-    .modalButtons {
-      display: flex;
-      justify-content: center;
-      gap: 15px;
-      margin-top: 20px;
-    }
-
-    .modalBtn {
-      padding: 12px 25px;
-      border: none;
-      border-radius: 6px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-size: 1rem;
-      flex: 1;
-    }
-
-    #acceptInvite {
-      background-color: var(--primary);
-      color: white;
-    }
-
-    #acceptInvite:hover {
-      background-color: var(--secondary);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
-    }
-
-    #declineInvite {
-      background-color: #5c2a2a;
-      color: white;
-    }
-
-    #declineInvite:hover {
-      background-color: var(--error);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(207, 102, 121, 0.3);
-    }
-
-    #gameEndModal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.9);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 1001;
-      backdrop-filter: blur(5px);
-    }
-
-    #gameEndContent {
-      background: var(--surface);
-      padding: 30px;
-      border-radius: 15px;
-      width: 90%;
-      max-width: 500px;
-      text-align: center;
-      box-shadow: 0 0 40px rgba(255, 215, 0, 0.5);
-      border-top: 5px solid var(--gold);
-    }
-
-    #gameEndText {
-      font-size: 1.8rem;
-      margin-bottom: 20px;
-      color: var(--gold);
-    }
-
-    footer {
-      margin-top: 30px;
-      color: var(--text-secondary);
-      font-size: 0.8rem;
-      text-align: center;
-      width: 100%;
-      padding: 20px;
-    }
-
     @media (max-width: 768px) {
       h1 {
         font-size: 2rem;
       }
       
+      #gameCanvas {
+        width: 100%;
+        height: 400px;
+      }
+      
       #scoreBoard {
         font-size: 1.2rem;
       }
-      
-      #playersPanel {
-        padding: 15px;
-      }
-      
-      .modalButtons {
-        flex-direction: column;
-        gap: 10px;
-      }
-      
-      .modalBtn {
-        width: 100%;
-      }
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
-    body {
-      animation: fadeIn 0.5s ease-out;
-    }
-
-    .power-up-indicator {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 5px 15px;
-      border-radius: 20px;
-      font-weight: bold;
-      text-align: center;
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-
-    .visible {
-      opacity: 1;
-    }
-
-    .fire-bg {
-      background-color: var(--fire);
-    }
-
-    .ice-bg {
-      background-color: var(--ice);
-    }
-
-    .earth-bg {
-      background-color: var(--earth);
-    }
-
-    .matter-bg {
-      background-color: var(--matter);
-    }
-
-    .gold-bg {
-      background-color: var(--gold);
-      color: #000;
-    }
-
-    .ball-trail {
-      position: absolute;
-      border-radius: 50%;
-      pointer-events: none;
-      transform: translate(-50%, -50%);
-      opacity: 0.7;
-      z-index: 10;
     }
   </style>
 </head>
@@ -413,420 +203,195 @@
   <header>
     <h1>Ultimate Pong</h1>
     <div id="connectionStatus">🟡 Verbinde mit Server...</div>
-    <div id="powerUpIndicator" class="power-up-indicator"></div>
   </header>
 
   <main id="gameContainer">
     <div id="scoreBoard">
-      <div id="leftScore"><span id="leftPlayerName">Spieler 1</span>: <span>0</span></div>
-      <div id="rightScore"><span id="rightPlayerName">Spieler 2</span>: <span>0</span></div>
+      <div id="leftScore"><span id="leftPlayerName">Du</span>: <span>0</span></div>
+      <div id="rightScore"><span id="rightPlayerName">Gegner</span>: <span>0</span></div>
     </div>
     
     <canvas id="gameCanvas" width="800" height="600"></canvas>
     
     <section id="playersPanel">
-      <h2>Spielerliste</h2>
+      <h2>Spielstatus</h2>
       <ul id="playerList">
         <li class="empty">Verbinde mit Server...</li>
       </ul>
-      <div id="gameInfo">Bitte warten, Spiel wird initialisiert...</div>
+      <button id="playButton">Jetzt spielen</button>
+      <div id="gameInfo">Bereit für ein Spiel?</div>
     </section>
   </main>
-
-  <!-- Einladungs-Modal -->
-  <div id="invitationModal">
-    <div id="invitationContent">
-      <p id="invitationText">Spieler möchte gegen dich spielen!</p>
-      <div class="modalButtons">
-        <button id="acceptInvite" class="modalBtn">Annehmen</button>
-        <button id="declineInvite" class="modalBtn">Ablehnen</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Gewinner-Modal -->
-  <div id="gameEndModal">
-    <div id="gameEndContent">
-      <p id="gameEndText">Herzlichen Glückwunsch <span id="winnerName">Gewinner</span>!</p>
-      <button id="restartButton" class="modalBtn" style="background-color: var(--gold); color: #000;">Neues Spiel</button>
-    </div>
-  </div>
-
-  <footer>
-    <p>Ultimate Pong | Hosted on Render.com | &copy; <span id="currentYear"></span></p>
-  </footer>
-
-  <!-- Audio elements -->
-  <audio id="pingSound" preload="auto"><source src="ping.mp3" type="audio/mpeg"></audio>
-  <audio id="pongSound" preload="auto"><source src="pong.mp3" type="audio/mpeg"></audio>
-  <audio id="bounceSound" preload="auto"><source src="bounce.mp3" type="audio/mpeg"></audio>
-  <audio id="scoreSound" preload="auto"><source src="score.mp3" type="audio/mpeg"></audio>
-  <audio id="winnerSound" preload="auto"><source src="winner.mp3" type="audio/mpeg"></audio>
-  <audio id="powerupSound" preload="auto"><source src="powerup.mp3" type="audio/mpeg"></audio>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // Game constants
-      const MAX_SCORE = 10;
-      const INITIAL_PADDLE_HEIGHT = 100;
-      const PADDLE_WIDTH = 15;
-      const INITIAL_BALL_SPEED = 1.5; // Reduzierte Startgeschwindigkeit
-      const BALL_SIZE = 10;
-      const POWERUP_CHANCE = 0.15;
-      const PADDLE_GROWTH_FACTOR = 0.2;
-      const MAX_PADDLE_MULTIPLIER = 1 + (PADDLE_GROWTH_FACTOR * 5);
-      const POWERUP_DURATION = 10000;
-
-      // DOM elements
+      // DOM Elemente
       const gameCanvas = document.getElementById('gameCanvas');
       const ctx = gameCanvas.getContext('2d');
+      const playerList = document.getElementById('playerList');
+      const connectionStatus = document.getElementById('connectionStatus');
+      const playButton = document.getElementById('playButton');
+      const gameInfo = document.getElementById('gameInfo');
       const leftScore = document.getElementById('leftScore').querySelector('span:last-child');
       const rightScore = document.getElementById('rightScore').querySelector('span:last-child');
       const leftPlayerName = document.getElementById('leftPlayerName');
       const rightPlayerName = document.getElementById('rightPlayerName');
-      const powerUpIndicator = document.getElementById('powerUpIndicator');
-      const gameEndModal = document.getElementById('gameEndModal');
-      const winnerText = document.getElementById('gameEndText');
-      const winnerName = document.getElementById('winnerName');
-      const restartButton = document.getElementById('restartButton');
 
-      // Audio elements
-      const pingSound = document.getElementById('pingSound');
-      const pongSound = document.getElementById('pongSound');
-      const bounceSound = document.getElementById('bounceSound');
-      const scoreSound = document.getElementById('scoreSound');
-      const winnerSound = document.getElementById('winnerSound');
-      const powerupSound = document.getElementById('powerupSound');
-
-      // Set current year in footer
-      document.getElementById('currentYear').textContent = new Date().getFullYear();
-
-      // Game state
+      // Spielzustand
       const gameState = {
-        leftPaddle: { y: 300, width: PADDLE_WIDTH, height: INITIAL_PADDLE_HEIGHT },
-        rightPaddle: { y: 300, width: PADDLE_WIDTH, height: INITIAL_PADDLE_HEIGHT },
-        ball: { 
-          x: 400, 
-          y: 300, 
-          radius: BALL_SIZE, 
-          speedX: INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1), 
-          speedY: INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1),
-          baseSpeed: INITIAL_BALL_SPEED
-        },
+        leftPaddle: { y: 50, width: 15, height: 100 },
+        rightPaddle: { y: 50, width: 15, height: 100 },
+        ball: { x: 50, y: 50, radius: 8 },
         scores: { left: 0, right: 0 },
         currentGame: null,
         playerSide: null,
-        playerId: null,
-        socketId: null,
+        opponentName: '',
         lastUpdate: Date.now(),
-        ping: 0,
-        powerUp: null,
-        leftPaddleSizeMultiplier: 1,
-        rightPaddleSizeMultiplier: 1,
-        trails: [],
-        powerUpEndTime: 0,
         gameActive: false
       };
 
-      // Power-up types
-      const POWERUPS = {
-        FIRE: { 
-          name: "Feuerball", 
-          color: '#FF5722', 
-          effect: 'speed', 
-          speedMultiplier: 1.2,
-          description: "20% schneller mit jedem Aufprall"
-        },
-        ICE: { 
-          name: "Eisball", 
-          color: '#00BCD4', 
-          effect: 'split', 
-          description: "Teilt sich beim Schlägertreffer"
-        },
-        EARTH: { 
-          name: "Erdball", 
-          color: '#795548', 
-          effect: 'size', 
-          sizeMultiplier: 4,
-          description: "4x größer als normal"
-        },
-        MATTER: { 
-          name: "Materieball", 
-          color: '#9C27B0', 
-          effect: 'direction', 
-          speedMultiplier: 1.15,
-          description: "Zufällige Richtungsänderungen"
-        },
-        GOLD: { 
-          name: "Goldball", 
-          color: '#FFD700', 
-          effect: 'fast', 
-          speedMultiplier: 2,
-          sizeMultiplier: 0.5,
-          description: "100% schneller, 50% kleiner"
-        }
-      };
-
-      // Trail effect
-      function addTrail(x, y, color) {
-        gameState.trails.push({
-          x, y, 
-          color,
-          alpha: 1,
-          radius: gameState.ball.radius * (gameState.powerUp?.effect === 'size' ? 4 : 
-                                        (gameState.powerUp?.effect === 'fast' ? 0.5 : 1))
-        });
-        
-        // Limit number of trails
-        if (gameState.trails.length > 20) {
-          gameState.trails.shift();
-        }
-      }
-
-      // Show power-up indicator
-      function showPowerUp(powerUp) {
-        powerUpIndicator.textContent = `${powerUp.name}: ${powerUp.description}`;
-        powerUpIndicator.className = `power-up-indicator ${powerUp.name.toLowerCase()}-bg visible`;
-        
-        setTimeout(() => {
-          powerUpIndicator.classList.remove('visible');
-        }, 3000);
-      }
-
-      // Reset ball to center
-      function resetBall() {
-        gameState.ball.x = gameCanvas.width / 2;
-        gameState.ball.y = gameCanvas.height / 2;
-        gameState.ball.speedX = gameState.ball.baseSpeed * (Math.random() > 0.5 ? 1 : -1);
-        gameState.ball.speedY = gameState.ball.baseSpeed * (Math.random() > 0.5 ? 1 : -1);
-        
-        // 15% chance for power-up
-        if (Math.random() < POWERUP_CHANCE) {
-          const powerUpKeys = Object.keys(POWERUPS);
-          const randomPowerUp = POWERUPS[powerUpKeys[Math.floor(Math.random() * powerUpKeys.length)]];
-          gameState.powerUp = randomPowerUp;
-          gameState.powerUpEndTime = Date.now() + POWERUP_DURATION;
-          powerupSound.play();
-          showPowerUp(randomPowerUp);
-        } else {
-          gameState.powerUp = null;
-        }
-      }
-
-      // Check paddle collision
-      function checkPaddleCollision() {
-        // Left paddle
-        if (gameState.ball.x - gameState.ball.radius <= 20 + PADDLE_WIDTH && 
-            gameState.ball.y >= gameState.leftPaddle.y - (gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier)/2 && 
-            gameState.ball.y <= gameState.leftPaddle.y + (gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier)/2) {
-          
-          // Play sound
-          pingSound.currentTime = 0;
-          pingSound.play();
-          
-          // Calculate angle based on where ball hits paddle
-          const relativeIntersectY = (gameState.leftPaddle.y - gameState.ball.y) / 
-                                   (gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier / 2);
-          const bounceAngle = relativeIntersectY * (Math.PI/4); // Max 45 degrees
-          
-          // Increase speed by 5%
-          gameState.ball.baseSpeed *= 1.05;
-          
-          // Apply power-up effects
-          if (gameState.powerUp) {
-            switch (gameState.powerUp.effect) {
-              case 'speed':
-                gameState.ball.baseSpeed *= gameState.powerUp.speedMultiplier;
-                break;
-              case 'split':
-                // Implement split ball logic
-                break;
-              case 'direction':
-                gameState.ball.speedY *= -1;
-                gameState.ball.baseSpeed *= gameState.powerUp.speedMultiplier;
-                break;
-            }
-          }
-          
-          gameState.ball.speedX = Math.abs(gameState.ball.baseSpeed * Math.cos(bounceAngle));
-          gameState.ball.speedY = -gameState.ball.baseSpeed * Math.sin(bounceAngle);
-          
-          // Add trail with power-up color or white
-          addTrail(gameState.ball.x, gameState.ball.y, gameState.powerUp?.color || '#FFF');
-        }
-        
-        // Right paddle
-        if (gameState.ball.x + gameState.ball.radius >= gameCanvas.width - 20 - PADDLE_WIDTH && 
-            gameState.ball.y >= gameState.rightPaddle.y - (gameState.rightPaddle.height * gameState.rightPaddleSizeMultiplier)/2 && 
-            gameState.ball.y <= gameState.rightPaddle.y + (gameState.rightPaddle.height * gameState.rightPaddleSizeMultiplier)/2) {
-          
-          // Play sound
-          pongSound.currentTime = 0;
-          pongSound.play();
-          
-          // Calculate angle based on where ball hits paddle
-          const relativeIntersectY = (gameState.rightPaddle.y - gameState.ball.y) / 
-                                   (gameState.rightPaddle.height * gameState.rightPaddleSizeMultiplier / 2);
-          const bounceAngle = relativeIntersectY * (Math.PI/4); // Max 45 degrees
-          
-          // Increase speed by 5%
-          gameState.ball.baseSpeed *= 1.05;
-          
-          // Apply power-up effects
-          if (gameState.powerUp) {
-            switch (gameState.powerUp.effect) {
-              case 'speed':
-                gameState.ball.baseSpeed *= gameState.powerUp.speedMultiplier;
-                break;
-              case 'split':
-                // Implement split ball logic
-                break;
-              case 'direction':
-                gameState.ball.speedY *= -1;
-                gameState.ball.baseSpeed *= gameState.powerUp.speedMultiplier;
-                break;
-            }
-          }
-          
-          gameState.ball.speedX = -Math.abs(gameState.ball.baseSpeed * Math.cos(bounceAngle));
-          gameState.ball.speedY = -gameState.ball.baseSpeed * Math.sin(bounceAngle);
-          
-          // Add trail with power-up color or white
-          addTrail(gameState.ball.x, gameState.ball.y, gameState.powerUp?.color || '#FFF');
-        }
-      }
-
-      // Check wall collision
-      function checkWallCollision() {
-        // Top and bottom walls
-        if (gameState.ball.y - gameState.ball.radius <= 0 || 
-            gameState.ball.y + gameState.ball.radius >= gameCanvas.height) {
-          gameState.ball.speedY *= -1;
-          bounceSound.currentTime = 0;
-          bounceSound.play();
-          
-          // For fire power-up, increase speed on wall bounce too
-          if (gameState.powerUp?.effect === 'speed') {
-            gameState.ball.baseSpeed *= gameState.powerUp.speedMultiplier;
-          }
-        }
-      }
-
-      // Check for score
-      function checkScore() {
-        // Left player scores
-        if (gameState.ball.x + gameState.ball.radius >= gameCanvas.width) {
-          scoreSound.play();
-          gameState.scores.left++;
-          leftScore.textContent = gameState.scores.left;
-          
-          // Vergrößere rechtes Paddel (bis zu MAX_PADDLE_MULTIPLIER)
-          if (gameState.rightPaddleSizeMultiplier < MAX_PADDLE_MULTIPLIER) {
-            gameState.rightPaddleSizeMultiplier += PADDLE_GROWTH_FACTOR;
-          }
-          
-          // Setze linkes Paddel auf Normalgröße zurück
-          gameState.leftPaddleSizeMultiplier = 1;
-          
-          resetBall();
-          
-          // Check for winner
-          if (gameState.scores.left >= MAX_SCORE) {
-            endGame('left');
-          }
-        }
-        
-        // Right player scores
-        if (gameState.ball.x - gameState.ball.radius <= 0) {
-          scoreSound.play();
-          gameState.scores.right++;
-          rightScore.textContent = gameState.scores.right;
-          
-          // Vergrößere linkes Paddel (bis zu MAX_PADDLE_MULTIPLIER)
-          if (gameState.leftPaddleSizeMultiplier < MAX_PADDLE_MULTIPLIER) {
-            gameState.leftPaddleSizeMultiplier += PADDLE_GROWTH_FACTOR;
-          }
-          
-          // Setze rechtes Paddel auf Normalgröße zurück
-          gameState.rightPaddleSizeMultiplier = 1;
-          
-          resetBall();
-          
-          // Check for winner
-          if (gameState.scores.right >= MAX_SCORE) {
-            endGame('right');
-          }
-        }
-      }
-
-      // End game
-      function endGame(winner) {
-        gameState.gameActive = false;
-        winnerName.textContent = winner === 'left' ? leftPlayerName.textContent : rightPlayerName.textContent;
-        gameEndModal.style.display = 'flex';
-        winnerSound.play();
-      }
-
-      // Restart game
-      restartButton.addEventListener('click', () => {
-        gameState.scores = { left: 0, right: 0 };
-        leftScore.textContent = '0';
-        rightScore.textContent = '0';
-        gameState.leftPaddleSizeMultiplier = 1;
-        gameState.rightPaddleSizeMultiplier = 1;
-        gameState.ball.baseSpeed = INITIAL_BALL_SPEED;
-        resetBall();
-        gameEndModal.style.display = 'none';
-        gameState.gameActive = true;
+      // Socket.io Verbindung
+      const socket = io('wss://carnifexe-github-io.onrender.com', {
+        transports: ['websocket']
       });
 
-      // Update game state
-      function update() {
+      // Verbindungsstatus
+      socket.on('connect', () => {
+        connectionStatus.innerHTML = '🟢 ONLINE';
+        connectionStatus.className = 'online';
+        gameInfo.textContent = 'Bereit für ein Spiel!';
+      });
+
+      socket.on('disconnect', () => {
+        connectionStatus.innerHTML = '🔴 OFFLINE';
+        connectionStatus.className = 'offline';
+        gameInfo.textContent = 'Verbindung verloren';
+      });
+
+      // Spielstart
+      socket.on('game_start', (data) => {
+        gameState.currentGame = data.gameId;
+        gameState.playerSide = data.playerSide;
+        gameState.opponentName = data.opponentName;
+        gameState.gameActive = true;
+        
+        if (gameState.playerSide === 'left') {
+          leftPlayerName.textContent = 'Du';
+          rightPlayerName.textContent = data.opponentName;
+        } else {
+          leftPlayerName.textContent = data.opponentName;
+          rightPlayerName.textContent = 'Du';
+        }
+        
+        playerList.innerHTML = `
+          <li class="playing">
+            Gegen ${data.opponentName}
+            <span class="status">(${gameState.playerSide === 'left' ? 'Links' : 'Rechts'})</span>
+          </li>
+        `;
+        
+        gameCanvas.style.cursor = 'none';
+        gameInfo.textContent = 'Spiel läuft!';
+        render();
+      });
+
+      // Spielupdate vom Gegner
+      socket.on('game_update', (data) => {
+        if (data.isOpponent) {
+          if (gameState.playerSide === 'left') {
+            gameState.rightPaddle.y = data.paddleY;
+          } else {
+            gameState.leftPaddle.y = data.paddleY;
+          }
+          
+          if (data.ball) {
+            gameState.ball = data.ball;
+          }
+          
+          if (data.scores) {
+            gameState.scores = data.scores;
+            leftScore.textContent = gameState.scores.left;
+            rightScore.textContent = gameState.scores.right;
+          }
+        }
+      });
+
+      // Spielende
+      socket.on('game_ended', (data) => {
+        gameState.currentGame = null;
+        gameState.gameActive = false;
+        gameCanvas.style.cursor = 'default';
+        
+        if (data && data.reason === 'opponent_disconnected') {
+          playerList.innerHTML = '<li class="empty">Gegner hat das Spiel verlassen!</li>';
+          gameInfo.textContent = 'Spiel beendet';
+        }
+      });
+
+      // Spielen-Button
+      playButton.addEventListener('click', () => {
+        if (socket.connected) {
+          const playerName = prompt('Wähle deinen Spielernamen:', `Spieler_${Math.floor(Math.random()*1000)}`);
+          if (playerName) {
+            socket.emit('join_queue', playerName);
+            playerList.innerHTML = '<li class="empty">Suche nach Gegner...</li>';
+            gameInfo.textContent = 'Warte auf Gegner...';
+          }
+        } else {
+          alert('Keine Serververbindung!');
+        }
+      });
+
+      // Paddle Bewegung
+      gameCanvas.addEventListener('mousemove', (e) => {
         if (!gameState.gameActive) return;
         
-        // Move ball with time-based movement
-        const now = Date.now();
-        const deltaTime = (now - gameState.lastUpdate) / 1000;
-        gameState.lastUpdate = now;
+        const rect = gameCanvas.getBoundingClientRect();
+        const y = ((e.clientY - rect.top) / gameCanvas.height) * 100;
         
-        gameState.ball.x += gameState.ball.speedX * deltaTime * 60;
-        gameState.ball.y += gameState.ball.speedY * deltaTime * 60;
-        
-        // Check collisions
-        checkPaddleCollision();
-        checkWallCollision();
-        checkScore();
-        
-        // Check if power-up expired
-        if (gameState.powerUp && Date.now() > gameState.powerUpEndTime) {
-          gameState.powerUp = null;
+        if (gameState.playerSide === 'left') {
+          gameState.leftPaddle.y = y;
+        } else {
+          gameState.rightPaddle.y = y;
         }
-      }
-
-      // Render function
-      function render() {
-        // Clear canvas
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
-
-        // Draw trails
-        gameState.trails.forEach((trail, index) => {
-          trail.alpha -= 0.05;
-          ctx.globalAlpha = trail.alpha;
-          ctx.fillStyle = trail.color;
-          ctx.beginPath();
-          ctx.arc(trail.x, trail.y, trail.radius, 0, Math.PI * 2);
-          ctx.fill();
-          
-          // Remove faded trails
-          if (trail.alpha <= 0) {
-            gameState.trails.splice(index, 1);
-          }
+        
+        socket.emit('game_update', {
+          gameId: gameState.currentGame,
+          paddleY: y
         });
-        ctx.globalAlpha = 1;
+      });
 
-        // Draw center line
+      // Touch-Support
+      gameCanvas.addEventListener('touchmove', (e) => {
+        if (!gameState.gameActive) return;
+        e.preventDefault();
+        
+        const touch = e.touches[0];
+        const rect = gameCanvas.getBoundingClientRect();
+        const y = ((touch.clientY - rect.top) / gameCanvas.height) * 100;
+        
+        if (gameState.playerSide === 'left') {
+          gameState.leftPaddle.y = y;
+        } else {
+          gameState.rightPaddle.y = y;
+        }
+        
+        socket.emit('game_update', {
+          gameId: gameState.currentGame,
+          paddleY: y
+        });
+      });
+
+      // Render-Funktion
+      function render() {
+        if (!gameState.gameActive) return;
+        
+        // Hintergrund
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+        
+        // Mittellinie
         ctx.setLineDash([15, 15]);
         ctx.strokeStyle = '#333';
         ctx.lineWidth = 3;
@@ -835,96 +400,38 @@
         ctx.lineTo(gameCanvas.width/2, gameCanvas.height);
         ctx.stroke();
         ctx.setLineDash([]);
-
-        // Draw paddles with size multipliers
-        ctx.fillStyle = '#FFF';
         
-        // Left paddle
+        // Schläger
+        ctx.fillStyle = '#FFF';
+        // Linker Schläger
         ctx.fillRect(
           20, 
-          gameState.leftPaddle.y - (gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier)/2, 
+          (gameState.leftPaddle.y/100)*gameCanvas.height - gameState.leftPaddle.height/2, 
           gameState.leftPaddle.width, 
-          gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier
+          gameState.leftPaddle.height
         );
-        
-        // Right paddle
+        // Rechter Schläger
         ctx.fillRect(
           gameCanvas.width - 20 - gameState.rightPaddle.width, 
-          gameState.rightPaddle.y - (gameState.rightPaddle.height * gameState.rightPaddleSizeMultiplier)/2, 
+          (gameState.rightPaddle.y/100)*gameCanvas.height - gameState.rightPaddle.height/2, 
           gameState.rightPaddle.width, 
-          gameState.rightPaddle.height * gameState.rightPaddleSizeMultiplier
+          gameState.rightPaddle.height
         );
-
-        // Draw ball with power-up effects
-        if (gameState.powerUp) {
-          ctx.shadowBlur = 20;
-          ctx.shadowColor = gameState.powerUp.color;
-          ctx.fillStyle = gameState.powerUp.color;
-        } else {
-          ctx.shadowBlur = 10;
-          ctx.shadowColor = '#FFF';
-          ctx.fillStyle = '#FFF';
-        }
         
+        // Ball
         ctx.beginPath();
         ctx.arc(
-          gameState.ball.x,
-          gameState.ball.y,
-          gameState.ball.radius * (gameState.powerUp?.effect === 'size' ? 4 : 
-                                 (gameState.powerUp?.effect === 'fast' ? 0.5 : 1)),
+          (gameState.ball.x/100)*gameCanvas.width,
+          (gameState.ball.y/100)*gameCanvas.height,
+          gameState.ball.radius,
           0,
-          Math.PI * 2
+          Math.PI*2
         );
         ctx.fill();
-        ctx.shadowBlur = 0;
-
+        
         requestAnimationFrame(render);
       }
-
-      // Paddle movement
-      gameCanvas.addEventListener('mousemove', (e) => {
-        if (!gameState.gameActive) return;
-        
-        const rect = gameCanvas.getBoundingClientRect();
-        const y = e.clientY - rect.top;
-        
-        // Constrain paddle to canvas
-        const paddleHeight = gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier;
-        gameState.leftPaddle.y = Math.max(paddleHeight/2, Math.min(gameCanvas.height - paddleHeight/2, y));
-        gameState.rightPaddle.y = Math.max(paddleHeight/2, Math.min(gameCanvas.height - paddleHeight/2, y));
-      });
-
-      // Touch support
-      gameCanvas.addEventListener('touchmove', (e) => {
-        if (!gameState.gameActive) return;
-        e.preventDefault();
-        
-        const rect = gameCanvas.getBoundingClientRect();
-        const touch = e.touches[0];
-        const y = touch.clientY - rect.top;
-        
-        // Constrain paddle to canvas
-        const paddleHeight = gameState.leftPaddle.height * gameState.leftPaddleSizeMultiplier;
-        gameState.leftPaddle.y = Math.max(paddleHeight/2, Math.min(gameCanvas.height - paddleHeight/2, y));
-        gameState.rightPaddle.y = Math.max(paddleHeight/2, Math.min(gameCanvas.height - paddleHeight/2, y));
-      });
-
-      // Initialize game
-      function initGame() {
-        gameState.ball.baseSpeed = INITIAL_BALL_SPEED;
-        resetBall();
-        gameState.gameActive = true;
-        render();
-        
-        // Game loop
-        setInterval(update, 1000/60);
-      }
-
-      // Start the game
-      initGame();
     });
   </script>
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="script.js"></script>
 </body>
 </html>
