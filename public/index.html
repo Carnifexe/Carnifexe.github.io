@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ultimate Pong | carnifexe-github-io.onrender.com</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
   <style>
     :root {
       --primary: #4CAF50;
@@ -422,7 +424,7 @@
       <div id="rightScore"><span id="rightPlayerName">Spieler 2</span>: <span>0</span></div>
     </div>
     
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <canvas id="gameCanvas" width="1024" height="768"></canvas>
     
     <section id="playersPanel">
       <h2>Spielerliste</h2>
@@ -924,7 +926,5 @@
       // For now we're just implementing the local game mechanics
     });
   </script>
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="script.js"></script>
 </body>
 </html>
