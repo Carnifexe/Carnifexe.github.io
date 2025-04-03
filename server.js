@@ -2,160 +2,176 @@ const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 
-// Server Initialisierung
 const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 10000;
 
-// Socket.io Konfiguration
+// Konfiguration für Production und Development
 const io = new Server(httpServer, {
   cors: {
-    origin: [
-      'https://carnifexe-github-io.onrender.com',
-      'https://carnifexe.github.io',
-      'http://localhost:10000'
-    ],
+    origin: process.env.NODE_ENV === 'production' 
+      ? ['https://carnifexe-github-io.onrender.com'] 
+      : ['http://localhost:10000'],
     methods: ["GET", "POST"]
   },
   transports: ['websocket']
 });
 
-// Middleware für statische Dateien
+// Statische Dateien mit Cache-Control
 app.use(express.static(path.join(__dirname, 'public'), {
-  setHeaders: (res) => {
-    res.set('Cache-Control', 'no-store');
+  setHeaders: (res, path) => {
+    if (path.endsWith('.html')) {
+      res.set('Cache-Control', 'no-store');
+    } else {
+      res.set('Cache-Control', 'public, max-age=86400');
+    }
   }
 });
 
 // API Endpoints
-app.get('/health', (req, res) => {
-  res.status(200).json({
+app.get('/api/status', (req, res) => {
+  res.json({
     status: 'online',
     players: waitingQueue.length,
-    activeGames: activeGames.size
+    games: activeGames.size,
+    uptime: process.uptime()
   });
 });
 
-// Fallback für SPA Routing
+// SPA Fallback
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  if (!req.path.startsWith('/api')) {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
 });
 
-// Spieler-Warteschlange
+// Matchmaking System
 const waitingQueue = [];
 const activeGames = new Map();
 
-// Socket.io Verbindungsmanagement
 io.on('connection', (socket) => {
-  console.log(`Neue Verbindung: ${socket.id}`);
+  console.log(`[${new Date().toISOString()}] Connected: ${socket.id}`);
 
-  socket.on('join_queue', (playerName) => {
+  socket.on('join_queue', (playerData) => {
     const player = {
       socket,
-      name: playerName || `Spieler_${Math.floor(Math.random() * 1000)}`,
+      id: socket.id,
+      name: playerData?.name || `Player_${Math.floor(Math.random() * 1000)}`,
       joinedAt: Date.now()
     };
-    
+
     waitingQueue.push(player);
     tryMatchPlayers();
     
-    console.log(`Spieler in Warteschlange: ${player.name}`);
+    socket.emit('queue_update', {
+      position: waitingQueue.length,
+      estimatedWait: Math.floor(waitingQueue.length * 1.5) // Geschätzte Wartezeit in Sekunden
+    });
   });
 
-  socket.on('game_update', (data) => {
-    const game = activeGames.get(data.gameId);
+  socket.on('game_input', (inputData) => {
+    const game = activeGames.get(inputData.gameId);
     if (!game) return;
 
-    const opponent = game.players.find(p => p.socket.id !== socket.id);
+    const opponent = game.players.find(p => p.id !== socket.id);
     if (opponent) {
       opponent.socket.emit('game_update', {
-        ...data,
-        isOpponent: true
+        type: 'input',
+        ...inputData
       });
     }
   });
 
   socket.on('disconnect', () => {
     cleanupPlayer(socket.id);
-    console.log(`Verbindung getrennt: ${socket.id}`);
+    console.log(`[${new Date().toISOString()}] Disconnected: ${socket.id}`);
   });
 });
 
-// Matchmaking Funktion
+// Helper Functions
 function tryMatchPlayers() {
   while (waitingQueue.length >= 2) {
     const player1 = waitingQueue.shift();
     const player2 = waitingQueue.shift();
-    const gameId = `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const gameId = generateGameId();
 
     activeGames.set(gameId, {
       players: [player1, player2],
-      createdAt: Date.now()
+      state: {
+        ball: { x: 50, y: 50 },
+        scores: { left: 0, right: 0 },
+        lastUpdate: Date.now()
+      }
     });
 
-    player1.socket.emit('game_start', {
-      gameId,
-      playerSide: 'left',
-      opponentName: player2.name
+    [player1, player2].forEach((player, index) => {
+      player.socket.emit('game_start', {
+        gameId,
+        playerSide: index === 0 ? 'left' : 'right',
+        opponentName: index === 0 ? player2.name : player1.name,
+        initialState: activeGames.get(gameId).state
+      });
     });
 
-    player2.socket.emit('game_start', {
-      gameId,
-      playerSide: 'right',
-      opponentName: player1.name
-    });
-
-    console.log(`Neues Spiel gestartet: ${gameId}`);
-    console.log(`Spieler: ${player1.name} vs ${player2.name}`);
+    logGameStart(gameId, player1.name, player2.name);
   }
 }
 
-// Spieler Cleanup
-function cleanupPlayer(socketId) {
-  // Aus Warteschlange entfernen
-  const queueIndex = waitingQueue.findIndex(p => p.socket.id === socketId);
-  if (queueIndex !== -1) {
-    waitingQueue.splice(queueIndex, 1);
-  }
+function cleanupPlayer(playerId) {
+  // Remove from queue
+  waitingQueue.splice(waitingQueue.findIndex(p => p.id === playerId), 1);
 
-  // Aktive Spiele beenden
+  // End active games
   activeGames.forEach((game, gameId) => {
-    const playerIndex = game.players.findIndex(p => p.socket.id === socketId);
+    const playerIndex = game.players.findIndex(p => p.id === playerId);
     if (playerIndex !== -1) {
       game.players.forEach(player => {
         player.socket.emit('game_ended', {
-          reason: 'opponent_disconnected'
+          reason: 'opponent_disconnected',
+          gameId
         });
       });
       activeGames.delete(gameId);
     }
+  });
+}
+
+function generateGameId() {
+  return `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+}
+
+function logGameStart(gameId, player1, player2) {
+  const logEntry = `[${new Date().toISOString()}] Game ${gameId}: ${player1} vs ${player2}\n`;
+  fs.appendFile('games.log', logEntry, (err) => {
+    if (err) console.error('Log error:', err);
   });
 }
 
 // Server Start
-httpServer.listen(PORT, '0.0.0.0', () => {
+httpServer.listen(PORT, () => {
   console.log(`
-  ==========================================
-  🚀 Server gestartet auf Port ${PORT}
-  📡 WebSocket: wss://carnifexe-github-io.onrender.com
-  🕹️  Bereit für Verbindungen
-  ⏱  ${new Date().toLocaleString()}
-  ==========================================
+  ====================================
+  🚀 Server running on port ${PORT}
+  ⚡ Environment: ${process.env.NODE_ENV || 'development'}
+  🕒 Started at: ${new Date().toLocaleString()}
+  ====================================
   `);
 });
 
-// Inaktive Spiele bereinigen (alle 30 Minuten)
+// Cleanup old games every hour
 setInterval(() => {
   const now = Date.now();
   activeGames.forEach((game, gameId) => {
-    if (now - game.createdAt > 1800000) { // 30 Minuten
+    if (now - game.state.lastUpdate > 3600000) { // 1 hour
       game.players.forEach(player => {
         player.socket.emit('game_ended', {
-          reason: 'session_expired'
+          reason: 'inactivity',
+          gameId
         });
       });
       activeGames.delete(gameId);
     }
   });
-}, 1800000);
+}, 3600000);
