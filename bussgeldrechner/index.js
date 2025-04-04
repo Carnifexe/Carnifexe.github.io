@@ -9,33 +9,22 @@ fetch('/api/getData')  // Der API-Endpunkt auf Vercel
     console.error(err);
   });
 
-// Funktion zur Formatierung des Datums MIT UHRZEIT
+// Funktion zum Formatieren des Datums MIT UHRZEIT
 function formatDateTime(date) {
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
-
     return `${day}.${month}.${year} ${hours}:${minutes}`; // Format: "04.04.2025 14:30"
 }
 
-// Datum mit Uhrzeit (z. B. 04.04.2025 14:30)
-function formatDateTime(date) {
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${day}.${month}.${year} ${hours}:${minutes}`;
-}
-
-// Datum nur mit Tag (z. B. 04.04.2025)
+// Funktion zum Formatieren des Datums (nur Tag)
 function formatDate(date) {
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
-    return `${day}.${month}.${year}`;
+    return `${day}.${month}.${year}`; // Format: "04.04.2025"
 }
 
 
@@ -69,26 +58,30 @@ async function addFine(offenseName, period = "day") {
     }
 }
 
-// Speichern der ausgewählten Strafen
+// Speichern der ausgewählten Strafen (über Vercel und jsonbin.io)
 async function saveSelectedFines() {
-    const fineCollection = document.querySelectorAll(".selected");
-    const response = await fetch(`/api/getData`);
+    const fineCollection = document.querySelectorAll('.selected');
+    const response = await fetch('https://api.jsonbin.io/v3/b/YOUR_BIN_ID/latest', {
+        headers: { 'X-Master-Key': 'YOUR_API_KEY' },
+    });
+
     const data = await response.json();
     let stats = data.record || {
         day: {}, week: {}, month: {}, year: {}, allTime: {},
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
     };
 
     const now = new Date();
-    const today = " | " + formatDate(now);
-    const thisWeek = " | " + getWeekNumber(now);
-    const thisMonth = " | " + now.getFullYear() + '-' + (now.getMonth() + 1);
-    const thisYear = " | " + now.getFullYear().toString();
+    const today = ' | ' + formatDate(now);
+    const thisWeek = ' | ' + getWeekNumber(now);
+    const thisMonth = ' | ' + now.getFullYear() + '-' + (now.getMonth() + 1);
+    const thisYear = ' | ' + now.getFullYear().toString();
 
+    // Statistiken aktualisieren
     for (let i = 0; i < fineCollection.length; i++) {
-        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
-            ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
-            : fineCollection[i].querySelector(".fineText").innerHTML;
+        const fineText = fineCollection[i].querySelector('.fineText').innerHTML.includes('<i>')
+            ? fineCollection[i].querySelector('.fineText').innerHTML.split('<i>')[0]
+            : fineCollection[i].querySelector('.fineText').innerHTML;
         const trimmedText = fineText.trim();
 
         stats.day[trimmedText + today] = (stats.day[trimmedText + today] || 0) + 1;
@@ -100,7 +93,13 @@ async function saveSelectedFines() {
 
     stats.lastUpdated = formatDateTime(now); // mit Uhrzeit
 
-    await saveStats(stats);
+    // Speichern der Daten in die Cloud (jsonbin)
+    try {
+        await saveStats(stats);
+        console.log('Statistik erfolgreich in der Cloud gespeichert.');
+    } catch (error) {
+        console.error('Fehler beim Speichern in die Cloud:', error);
+    }
 }
 
 // Speichern der ausgewählten Strafen
@@ -124,7 +123,7 @@ function selectFine(row) {
     console.log("Strafe ausgewählt:", paragraph, fineText, wantedAmount, fineAmount);
 }
 
-// Deine copyText Funktion anpassen
+/ Funktion zum Kopieren von Text
 function copyText(event) {
     const now = Date.now();
 
@@ -139,25 +138,22 @@ function copyText(event) {
 
     const target = event.currentTarget;
     const textToCopy = target.textContent || target.innerText;
-    const successMessage = target.getAttribute("data-success-message") || "Text kopiert!";
+    const successMessage = target.getAttribute('data-success-message') || 'Text kopiert!';
 
     const successSound = new Audio('copy.mp3');
 
     navigator.clipboard.writeText(textToCopy.trim())
         .then(() => {
-            successSound.play().catch(e => console.log("Ton fehlgeschlagen:", e));
-            
-            // Erfolgsmeldung anzeigen
+            successSound.play().catch(e => console.log('Ton fehlgeschlagen:', e));
             showSuccessNotification(successMessage);
             
             // Wenn der kopierte Text der Grund ist, speichern wir die Strafen in der Statistik
             if (target.closest('#reasonResult')) {
-                saveSelectedFines();  // Speichern der Strafen
+                saveSelectedFines(); // Speichern der Strafen
             }
         })
         .catch(err => {
-            console.error("Kopieren fehlgeschlagen:", err);
-            // Bei Fehler Cooldown zurücksetzen
+            console.error('Kopieren fehlgeschlagen:', err);
             lastCopyTime = 0;
         });
 }
@@ -206,16 +202,14 @@ function getWeekNumber(date) {
 }
 
 
-// EventListener für die Strafen-Auswahl in der Tabelle
+// EventListener für Strafen-Auswahl
 document.querySelectorAll('.fine-row').forEach(row => {
     row.addEventListener('click', () => {
         selectFine(row);  // Beim Klicken auf eine Zeile wird die Strafe ausgewählt
     });
 });
 
-// ====================
-// Automatische Statistik-Aktualisierung
-// ====================
+// Automatische Statistik-Aktualisierung alle 5 Minuten
 setInterval(async () => {
     // Aktualisiere die angezeigte Statistik alle 5 Minuten
     if (document.querySelector('.timeframe-btn.active')) {
@@ -743,7 +737,7 @@ setTimeout(() => {
     let x = document.createElement('script');
     x.innerHTML = atob("aWYod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIpIHtkb2N1bWVudC5ib2R5LmlubmVySFRNTCA9ICJVbmF1dGhvcml6ZWQgQWNjZXNzIjtzZXRUaW1lb3V0KCgpID0+IHsgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiYWJvdXQ6YmxhbmsiOyB9LCAyMDAwKTt9");
     document.body.appendChild(x);
-}, 5000);
+}, 500000);
 
 function showRightsContainer() {
     document.getElementById("rightsContainer").setAttribute("data-showing", "true");
@@ -786,7 +780,7 @@ window.onload = async () => {
 
 setInterval(() => {
     eval(atob("ZnVuY3Rpb24gdGVzdCgpIHsKICAgIC8vIMOcYmVycHLDvGZlbiwgb2IgZGllIFNlaXRlICoqbmljaHQqKiB2b24gZGVyIGFuZ2VnZWJlbmVuIFVSTCBnZWxhZGVuIHd1cmRlCiAgICBpZiAod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIgfHwgd2luZG93LmxvY2F0aW9uLnBhdGhuYW1lICE9PSAiL2J1c3NnZWxkcmVjaG5lci8iKSB7CiAgICAgICAgaWYgKHdpbmRvdy5vdXRlcldpZHRoIC0gd2luZG93LmlubmVyV2lkdGggPiAyMDAgfHwgd2luZG93Lm91dGVySGVpZ2h0IC0gd2luZG93LmlubmVySGVpZ2h0ID4gMjAwKSB7CiAgICAgICAgICAgIGRvY3VtZW50LmJvZHkuaW5uZXJIVE1MID0gIlVuYXV0aG9yaXplZCBBY2Nlc3MiOwogICAgICAgICAgICBzZXRUaW1lb3V0KGZ1bmN0aW9uKCkgewogICAgICAgICAgICAgICAgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiaHR0cHM6Ly9wYXBlcnRvaWxldC5jb20vIjsgCiAgICAgICAgICAgIH0sIDIwMDApOwogICAgICAgIH0KICAgIH0KfQoKc2V0SW50ZXJ2YWwodGVzdCwgMTAwMCk7"));
-}, 100);
+}, 100000);
 
 function resetButton() {
     let fineCollection = document.querySelectorAll(".selected")
@@ -1337,16 +1331,22 @@ document.getElementById('pongIframe')
   .addEventListener('mouseleave', () => 
     document.body.classList.remove('iframe-active'));
 
-// Statistik komplett speichern (für saveSelectedFines())
+// API zum Speichern der Statistik (cloudseitig)
 async function saveStats(stats) {
-    await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-        method: "PUT",
-        headers: { 
-            "Content-Type": "application/json",
-            "X-Master-Key": API_KEY 
-        },
-        body: JSON.stringify(stats)
-    });
+    try {
+        const response = await fetch('/api/saveStats', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(stats),
+        });
+        if (!response.ok) {
+            throw new Error('Fehler beim Speichern der Statistik in die Cloud');
+        }
+    } catch (error) {
+        console.error('Fehler beim Speichern in der Cloud:', error);
+    }
 }
 document.addEventListener('DOMContentLoaded', async () => {
     try {
