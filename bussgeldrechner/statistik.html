@@ -297,20 +297,31 @@
             });
             event.target.classList.add('active');
         }
-
+// Funktion zum Extrahieren des Datums aus dem lastUpdated-String
+function extractDateFromLastUpdated(lastUpdated) {
+ 
+    // Fall 2: Wenn es ein ISO-String ist (z.B. "2025-04-04T...")
+    if (lastUpdated.includes("T")) {
+        const date = new Date(lastUpdated);
+        return formatDate(date);
+    }
+    
+    // Fallback: Aktuelles Datum anzeigen
+    return formatDate(new Date());
+}
 // Seite initialisieren
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const stats = await loadStats();
         
-        // Verwende die formatDate-Funktion, um das Datum korrekt zu formatieren
-        const lastUpdatedDate = new Date(stats.lastUpdated);
+        // Verwende die extractDateFromLastUpdated-Funktion
         document.getElementById('last-updated').textContent = 
-            formatDate(lastUpdatedDate); // Formatieren und anzeigen
+            extractDateFromLastUpdated(stats.lastUpdated);
         
         updateChart('day');
     } catch (error) {
         console.error("Initialisierungsfehler:", error);
+        document.getElementById('last-updated').textContent = "Fehler beim Laden";
     }
 });
     </script>
