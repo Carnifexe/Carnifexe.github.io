@@ -110,7 +110,6 @@ function copyText(event) {
         });
 }
 
-// Funktion, um die ausgewählten Strafen an JSONBin zu senden
 async function saveSelectedFines() {
     const fineCollection = document.querySelectorAll(".selected");
     
@@ -124,23 +123,41 @@ async function saveSelectedFines() {
         lastUpdated: new Date().toISOString()
     };
 
-    // 2. Neue Strafen hinzufügen
+    // 2. Zeitstempel für Zeiträume generieren (mit Leerzeichen)
+    const now = new Date();
+    const today = " " + now.toISOString().split('T')[0];               // " 2025-04-04"
+    const thisWeek = " " + getWeekNumber(now);                         // " 2025-14"
+    const thisMonth = " " + now.getFullYear() + '-' + (now.getMonth() + 1); // " 2025-4"
+    const thisYear = " " + now.getFullYear().toString();               // " 2025"
+
+    // 3. Neue Strafen hinzufügen
     for (let i = 0; i < fineCollection.length; i++) {
         const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
             ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
             : fineCollection[i].querySelector(".fineText").innerHTML;
         const trimmedText = fineText.trim();
 
-        // Aktualisiere alle Zeiträume
-        ["day", "week", "month", "year", "allTime"].forEach(period => {
-            stats[period][trimmedText] = (stats[period][trimmedText] || 0) + 1;
-        });
+        // Aktualisiere alle Zeiträume (mit Leerzeichen im Key)
+        stats.day[trimmedText + today] = (stats.day[trimmedText + today] || 0) + 1;
+        stats.week[trimmedText + thisWeek] = (stats.week[trimmedText + thisWeek] || 0) + 1;
+        stats.month[trimmedText + thisMonth] = (stats.month[trimmedText + thisMonth] || 0) + 1;
+        stats.year[trimmedText + thisYear] = (stats.year[trimmedText + thisYear] || 0) + 1;
+        stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
     }
 
     stats.lastUpdated = new Date().toISOString();
 
-    // 3. Statistik NUR an JSONBin.io senden (kein localStorage)
+    // 4. Statistik an JSONBin.io senden
     await saveStats(stats); 
+}
+
+// Hilfsfunktion für Kalenderwoche (unverändert)
+function getWeekNumber(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+    const week1 = new Date(d.getFullYear(), 0, 4);
+    return d.getFullYear() + '-' + Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
 }
 
 // EventListener für die Strafen-Auswahl in der Tabelle
