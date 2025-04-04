@@ -123,7 +123,7 @@ function selectFine(row) {
     console.log("Strafe ausgewählt:", paragraph, fineText, wantedAmount, fineAmount);
 }
 
-/ Funktion zum Kopieren von Text
+// Funktion zum Kopieren von Text
 function copyText(event) {
     const now = Date.now();
 
