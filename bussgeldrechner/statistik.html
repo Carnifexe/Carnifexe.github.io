@@ -204,14 +204,50 @@
         const BIN_ID = "67ef04308960c979a57dd947";
         const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62";
 
-        // Statistik laden
-        async function loadStats() {
-            const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-                headers: { "X-Master-Key": API_KEY }
-            });
-            const data = await response.json();
-            return data.record;
+    // Funktion zum Formatieren des Datums mit Uhrzeit
+    function formatDateTime(dateString) {
+        try {
+            // Extrahiere das Datum aus verschiedenen möglichen Formaten
+            let date;
+            
+            // Fall 1: ISO-Format (2025-04-04T...)
+            if (dateString.includes("T")) {
+                date = new Date(dateString);
+            } 
+            // Fall 2: Format wie "Raub2025-04-04"
+            else {
+                const dateMatch = dateString.match(/(\d{4}-\d{2}-\d{2})/);
+                if (dateMatch) {
+                    date = new Date(dateMatch[0]);
+                } else {
+                    // Fallback: Aktuelles Datum
+                    date = new Date();
+                }
+            }
+            
+            // Formatierung in dd.mm.yyyy HH:MM
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            
+            return ` | ${day}.${month}.${year} ${hours}:${minutes}`;
+            
+        } catch (e) {
+            console.error("Fehler bei Datumsformatierung:", e);
+            return " | " + new Date().toLocaleString(); // Fallback
         }
+    }
+
+    // Statistik laden
+    async function loadStats() {
+        const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+            headers: { "X-Master-Key": API_KEY }
+        });
+        const data = await response.json();
+        return data.record;
+    }
 
         // Statistik speichern
         async function saveStats(stats) {
@@ -297,33 +333,21 @@
             });
             event.target.classList.add('active');
         }
-// Funktion zum Extrahieren des Datums aus dem lastUpdated-String
-function extractDateFromLastUpdated(lastUpdated) {
- 
-    // Fall 2: Wenn es ein ISO-String ist (z.B. "2025-04-04T...")
-    if (lastUpdated.includes("T")) {
-        const date = new Date(lastUpdated);
-        return formatDate(date);
-    }
-    
-    // Fallback: Aktuelles Datum anzeigen
-    return formatDate(new Date());
-}
-// Seite initialisieren
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        const stats = await loadStats();
-        
-        // Verwende die extractDateFromLastUpdated-Funktion
-        document.getElementById('last-updated').textContent = 
-            extractDateFromLastUpdated(stats.lastUpdated);
-        
-        updateChart('day');
-    } catch (error) {
-        console.error("Initialisierungsfehler:", error);
-        document.getElementById('last-updated').textContent = "Fehler beim Laden";
-    }
-});
+    // Seite initialisieren
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const stats = await loadStats();
+            
+            // Datum mit Uhrzeit formatieren
+            document.getElementById('last-updated').textContent = 
+                formatDateTime(stats.lastUpdated || new Date().toISOString());
+            
+            updateChart('day');
+        } catch (error) {
+            console.error("Initialisierungsfehler:", error);
+            document.getElementById('last-updated').textContent = " | Fehler beim Laden";
+        }
+    });
     </script>
 </body>
 </html>
