@@ -4,6 +4,15 @@
 const BIN_ID = "67ef04308960c979a57dd947"; // Ihre Bin-ID
 const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62"; // Ihr API-Key
 
+// Funktion zur Formatierung des Datums
+function formatDate(date) {
+    const day = String(date.getDate()).padStart(2, '0');   // Tag immer 2-stellig
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // Monat immer 2-stellig
+    const year = date.getFullYear();  // Jahr
+
+    return `${day}.${month}.${year}`;  // Format: "04.04.2025"
+}
+
 // Statistik zum Server senden
 async function addFine(offenseName, period = "day") {
     try {
@@ -20,7 +29,10 @@ async function addFine(offenseName, period = "day") {
         // Statistik aktualisieren
         stats[period][offenseName] = (stats[period][offenseName] || 0) + 1;
         stats.allTime[offenseName] = (stats.allTime[offenseName] || 0) + 1;
-        stats.lastUpdated = new Date().toISOString();
+
+        // Formatierung des Datums für 'lastUpdated'
+        const now = new Date();
+        stats.lastUpdated = formatDate(now);  // Hier wird das Datum formatiert
 
         // Aktualisierte Statistik speichern
         await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
@@ -36,17 +48,18 @@ async function addFine(offenseName, period = "day") {
     }
 }
 
+
 // ====================
 // Angepasste saveSelectedFines()
 // ====================
 async function saveSelectedFines() {
     const fineCollection = document.querySelectorAll(".selected");
-    
+
     for (let i = 0; i < fineCollection.length; i++) {
         const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
             ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
             : fineCollection[i].querySelector(".fineText").innerHTML;
-        
+
         await addFine(fineText.trim(), "day");
     }
 }
@@ -75,7 +88,7 @@ function selectFine(row) {
 // Deine copyText Funktion anpassen
 function copyText(event) {
     const now = Date.now();
-    
+
     // Cooldown prüfen
     if (now - lastCopyTime < COPY_COOLDOWN) {
         showCooldownMessage(COPY_COOLDOWN - (now - lastCopyTime));
@@ -112,8 +125,8 @@ function copyText(event) {
 
 async function saveSelectedFines() {
     const fineCollection = document.querySelectorAll(".selected");
-    
-    // 1. Aktuelle Statistik laden
+
+    // 1. Aktuelle Statistik von JSONBin.io laden
     const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
         headers: { "X-Master-Key": API_KEY }
     });
@@ -123,53 +136,32 @@ async function saveSelectedFines() {
         lastUpdated: new Date().toISOString()
     };
 
-    // 2. Datumsformatierung
-    const formatDate = (date) => {
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        return `${day}.${month}.${date.getFullYear()}`; // 04.04.2025
-    };
-
-    const formatWeek = (date) => {
-        const d = new Date(date);
-        d.setHours(0, 0, 0, 0);
-        d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
-        const week1 = new Date(d.getFullYear(), 0, 4);
-        const weekNum = Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
-        return `${String(weekNum).padStart(2, '0')}.${d.getFullYear()}`; // 14.2025
-    };
-
-    // 3. Aktuelle Zeitstempel
+    // 2. Zeitstempel für Zeiträume generieren (mit Leerzeichen)
     const now = new Date();
-    const todayStamp = ` | ${formatDate(now)}`;
-    const weekStamp = ` | ${formatWeek(now)}`;
-    const monthStamp = ` | ${formatDate(now).slice(3)}`; // 04.2025
-    const yearStamp = ` | ${now.getFullYear()}`;
+    const today = " " + formatDate(now); // Formatiertes Datum für "Heute" (z.B. " 04.04.2025")
+    const thisWeek = " " + getWeekNumber(now); // " 2025-14"
+    const thisMonth = " " + now.getFullYear() + '-' + (now.getMonth() + 1); // " 2025-4"
+    const thisYear = " " + now.getFullYear().toString(); // " 2025"
 
-    // 4. Strafen verarbeiten
+    // 3. Neue Strafen hinzufügen
     for (let i = 0; i < fineCollection.length; i++) {
-        let fineText = fineCollection[i].querySelector(".fineText").textContent.trim();
-        
-        // Formatierung anwenden
-        stats.day[fineText + todayStamp] = (stats.day[fineText + todayStamp] || 0) + 1;
-        stats.week[fineText + weekStamp] = (stats.week[fineText + weekStamp] || 0) + 1;
-        stats.month[fineText + monthStamp] = (stats.month[fineText + monthStamp] || 0) + 1;
-        stats.year[fineText + yearStamp] = (stats.year[fineText + yearStamp] || 0) + 1;
-        stats.allTime[fineText] = (stats.allTime[fineText] || 0) + 1;
+        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
+            ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
+            : fineCollection[i].querySelector(".fineText").innerHTML;
+        const trimmedText = fineText.trim();
+
+        // Aktualisiere alle Zeiträume (mit Leerzeichen im Key)
+        stats.day[trimmedText + today] = (stats.day[trimmedText + today] || 0) + 1;
+        stats.week[trimmedText + thisWeek] = (stats.week[trimmedText + thisWeek] || 0) + 1;
+        stats.month[trimmedText + thisMonth] = (stats.month[trimmedText + thisMonth] || 0) + 1;
+        stats.year[trimmedText + thisYear] = (stats.year[trimmedText + thisYear] || 0) + 1;
+        stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
     }
 
-    stats.lastUpdated = new Date().toISOString();
-    await saveStats(stats);
-}
+    stats.lastUpdated = formatDate(now); // Formatiertes Datum für 'lastUpdated'
 
-// Hilfsfunktion für Kalenderwoche (angepasst für "WW.JJJJ")
-function getWeekNumber(date) {
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
-    const week1 = new Date(d.getFullYear(), 0, 4);
-    const weekNum = Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
-    return `${String(weekNum).padStart(2, '0')}.${d.getFullYear()}`; // "14.2025"
+    // 4. Statistik an JSONBin.io senden
+    await saveStats(stats); 
 }
 
 // Hilfsfunktion für Kalenderwoche (unverändert)
