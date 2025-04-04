@@ -1,5 +1,4 @@
-// Holt Daten von der Serverless API (Vercel function)
-fetch('/api/getData')
+fetch('/api/getData')  // Der API-Endpunkt auf Vercel
   .then(res => res.json())
   .then(data => {
     const output = document.getElementById('output');
@@ -9,7 +8,6 @@ fetch('/api/getData')
     document.getElementById('output').textContent = 'Fehler beim Laden der Daten';
     console.error(err);
   });
-
 
 // Funktion zur Formatierung des Datums MIT UHRZEIT
 function formatDateTime(date) {
@@ -22,11 +20,28 @@ function formatDateTime(date) {
     return `${day}.${month}.${year} ${hours}:${minutes}`; // Format: "04.04.2025 14:30"
 }
 
+// Datum mit Uhrzeit (z. B. 04.04.2025 14:30)
+function formatDateTime(date) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${day}.${month}.${year} ${hours}:${minutes}`;
+}
+
+// Datum nur mit Tag (z. B. 04.04.2025)
+function formatDate(date) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+}
+
+
 async function addFine(offenseName, period = "day") {
     try {
-        const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-            headers: { "X-Master-Key": API_KEY }
-        });
+        const response = await fetch(`/api/getData`);
         const data = await response.json();
         let stats = data.record || {
             day: {}, week: {}, month: {}, year: {}, allTime: {},
@@ -42,11 +57,10 @@ async function addFine(offenseName, period = "day") {
         stats.lastUpdated = formatDateTime(now);  // Hier wird das neue Format verwendet
 
         // Aktualisierte Statistik speichern
-        await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+        await fetch(`/api/saveStats`, {
             method: "PUT",
             headers: { 
                 "Content-Type": "application/json",
-                "X-Master-Key": API_KEY 
             },
             body: JSON.stringify(stats)
         });
@@ -55,12 +69,10 @@ async function addFine(offenseName, period = "day") {
     }
 }
 
-
+// Speichern der ausgewählten Strafen
 async function saveSelectedFines() {
     const fineCollection = document.querySelectorAll(".selected");
-    const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-        headers: { "X-Master-Key": API_KEY }
-    });
+    const response = await fetch(`/api/getData`);
     const data = await response.json();
     let stats = data.record || {
         day: {}, week: {}, month: {}, year: {}, allTime: {},
@@ -68,10 +80,10 @@ async function saveSelectedFines() {
     };
 
     const now = new Date();
-    const today = " " + formatDateTime(now); // Geändert zu formatDateTime
-    const thisWeek = " " + getWeekNumber(now);
-    const thisMonth = " " + now.getFullYear() + '-' + (now.getMonth() + 1);
-    const thisYear = " " + now.getFullYear().toString();
+    const today = " | " + formatDate(now);
+    const thisWeek = " | " + getWeekNumber(now);
+    const thisMonth = " | " + now.getFullYear() + '-' + (now.getMonth() + 1);
+    const thisYear = " | " + now.getFullYear().toString();
 
     for (let i = 0; i < fineCollection.length; i++) {
         const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
@@ -86,9 +98,11 @@ async function saveSelectedFines() {
         stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
     }
 
-    stats.lastUpdated = formatDateTime(now); // Geändert zu formatDateTime
+    stats.lastUpdated = formatDateTime(now); // mit Uhrzeit
+
     await saveStats(stats);
 }
+
 // Speichern der ausgewählten Strafen
 let selectedFines = [];
 
@@ -190,6 +204,7 @@ function getWeekNumber(date) {
     const week1 = new Date(d.getFullYear(), 0, 4);
     return d.getFullYear() + '-' + Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
 }
+
 
 // EventListener für die Strafen-Auswahl in der Tabelle
 document.querySelectorAll('.fine-row').forEach(row => {
