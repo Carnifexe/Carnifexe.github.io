@@ -4,11 +4,20 @@
 const BIN_ID = "67ef04308960c979a57dd947"; // Ihre Bin-ID
 const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62"; // Ihr API-Key
 
-// Statistik zum Server senden
+// Funktion zur Formatierung des Datums MIT UHRZEIT
+function formatDateTime(date) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+
+    return ${day}.${month}.${year} ${hours}:${minutes}; // Format: "04.04.2025 14:30"
+}
+
 async function addFine(offenseName, period = "day") {
     try {
-        // Aktuelle Statistik laden
-        const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+        const response = await fetch(https://api.jsonbin.io/v3/b/${BIN_ID}/latest, {
             headers: { "X-Master-Key": API_KEY }
         });
         const data = await response.json();
@@ -20,10 +29,13 @@ async function addFine(offenseName, period = "day") {
         // Statistik aktualisieren
         stats[period][offenseName] = (stats[period][offenseName] || 0) + 1;
         stats.allTime[offenseName] = (stats.allTime[offenseName] || 0) + 1;
-        stats.lastUpdated = new Date().toISOString();
+
+        // Formatierung des Datums für 'lastUpdated' MIT UHRZEIT
+        const now = new Date();
+        stats.lastUpdated = formatDateTime(now);  // Hier wird das neue Format verwendet
 
         // Aktualisierte Statistik speichern
-        await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+        await fetch(https://api.jsonbin.io/v3/b/${BIN_ID}, {
             method: "PUT",
             headers: { 
                 "Content-Type": "application/json",
@@ -36,27 +48,65 @@ async function addFine(offenseName, period = "day") {
     }
 }
 
-// ====================
-// Angepasste saveSelectedFines()
-// ====================
+
 async function saveSelectedFines() {
     const fineCollection = document.querySelectorAll(".selected");
-    
+    const response = await fetch(https://api.jsonbin.io/v3/b/${BIN_ID}/latest, {
+        headers: { "X-Master-Key": API_KEY }
+    });
+    const data = await response.json();
+    let stats = data.record || {
+        day: {}, week: {}, month: {}, year: {}, allTime: {},
+        lastUpdated: new Date().toISOString()
+    };
+
+    const now = new Date();
+    const today = " " + formatDateTime(now); // Geändert zu formatDateTime
+    const thisWeek = " " + getWeekNumber(now);
+    const thisMonth = " " + now.getFullYear() + '-' + (now.getMonth() + 1);
+    const thisYear = " " + now.getFullYear().toString();
+
     for (let i = 0; i < fineCollection.length; i++) {
         const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
             ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
             : fineCollection[i].querySelector(".fineText").innerHTML;
-        
-        await addFine(fineText.trim(), "day");
+        const trimmedText = fineText.trim();
+
+        stats.day[trimmedText + today] = (stats.day[trimmedText + today] || 0) + 1;
+        stats.week[trimmedText + thisWeek] = (stats.week[trimmedText + thisWeek] || 0) + 1;
+        stats.month[trimmedText + thisMonth] = (stats.month[trimmedText + thisMonth] || 0) + 1;
+        stats.year[trimmedText + thisYear] = (stats.year[trimmedText + thisYear] || 0) + 1;
+        stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
     }
+
+    stats.lastUpdated = formatDateTime(now); // Geändert zu formatDateTime
+    await saveStats(stats);
+}
+// Speichern der ausgewählten Strafen
+let selectedFines = [];
+
+// Diese Funktion wird verwendet, um eine Strafe auszuwählen und die Daten zu speichern.
+function selectFine(row) {
+    const paragraph = row.querySelector('.paragraph').textContent.trim();
+    const fineText = row.querySelector('.fineText').textContent.trim();
+    const wantedAmount = row.querySelector('.wantedAmount').textContent.trim();
+    const fineAmount = row.querySelector('.fineAmount').textContent.trim();
+
+    // Füge die ausgewählte Strafe zur Liste hinzu
+    selectedFines.push({
+        paragraph: paragraph,
+        fineText: fineText,
+        wantedAmount: wantedAmount,
+        fineAmount: fineAmount
+    });
+
+    console.log("Strafe ausgewählt:", paragraph, fineText, wantedAmount, fineAmount);
 }
 
-// ====================
-// Angepasste copyText()
-// ====================
+// Deine copyText Funktion anpassen
 function copyText(event) {
     const now = Date.now();
-    
+
     // Cooldown prüfen
     if (now - lastCopyTime < COPY_COOLDOWN) {
         showCooldownMessage(COPY_COOLDOWN - (now - lastCopyTime));
@@ -79,9 +129,9 @@ function copyText(event) {
             // Erfolgsmeldung anzeigen
             showSuccessNotification(successMessage);
             
-            // Wenn der kopierte Text der Grund ist, Statistik speichern
+            // Wenn der kopierte Text der Grund ist, speichern wir die Strafen in der Statistik
             if (target.closest('#reasonResult')) {
-                saveSelectedFines();
+                saveSelectedFines();  // Speichern der Strafen
             }
         })
         .catch(err => {
@@ -90,6 +140,56 @@ function copyText(event) {
             lastCopyTime = 0;
         });
 }
+
+async function saveSelectedFines() {
+    const fineCollection = document.querySelectorAll(".selected");
+    const response = await fetch(https://api.jsonbin.io/v3/b/${BIN_ID}/latest, {
+        headers: { "X-Master-Key": API_KEY }
+    });
+    const data = await response.json();
+    let stats = data.record || {
+        day: {}, week: {}, month: {}, year: {}, allTime: {},
+        lastUpdated: new Date().toISOString()
+    };
+
+    const now = new Date();
+    const today = " " + formatDate(now);
+    const thisWeek = " " + getWeekNumber(now);
+    const thisMonth = " " + now.getFullYear() + '-' + (now.getMonth() + 1);
+    const thisYear = " " + now.getFullYear().toString();
+
+    for (let i = 0; i < fineCollection.length; i++) {
+        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
+            ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
+            : fineCollection[i].querySelector(".fineText").innerHTML;
+        const trimmedText = fineText.trim();
+
+        stats.day[trimmedText + today] = (stats.day[trimmedText + today] || 0) + 1;
+        stats.week[trimmedText + thisWeek] = (stats.week[trimmedText + thisWeek] || 0) + 1;
+        stats.month[trimmedText + thisMonth] = (stats.month[trimmedText + thisMonth] || 0) + 1;
+        stats.year[trimmedText + thisYear] = (stats.year[trimmedText + thisYear] || 0) + 1;
+        stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
+    }
+
+    stats.lastUpdated = formatDate(now);
+    await saveStats(stats);
+}
+
+// Hilfsfunktion für Kalenderwoche (unverändert)
+function getWeekNumber(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+    const week1 = new Date(d.getFullYear(), 0, 4);
+    return d.getFullYear() + '-' + Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
+}
+
+// EventListener für die Strafen-Auswahl in der Tabelle
+document.querySelectorAll('.fine-row').forEach(row => {
+    row.addEventListener('click', () => {
+        selectFine(row);  // Beim Klicken auf eine Zeile wird die Strafe ausgewählt
+    });
+});
 
 // ====================
 // Automatische Statistik-Aktualisierung
@@ -134,10 +234,10 @@ function searchFine() {
 }
 
 // Funktion zum Speichern der ausgewählten Strafen im localStorage
-function saveSelectedFines() {
+async function saveSelectedFines() {
     let fineCollection = document.querySelectorAll(".selected");
     
-    // Aktuelle Statistik aus dem localStorage laden oder leeres Objekt erstellen
+    // Lokale Stats laden oder neu erstellen
     let stats = JSON.parse(localStorage.getItem('fineStats')) || {
         day: {},
         week: {},
@@ -147,14 +247,12 @@ function saveSelectedFines() {
         lastUpdated: new Date().toISOString()
     };
 
-    // Aktuelles Datum für die Zeiträume
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     const thisWeek = getWeekNumber(now);
     const thisMonth = now.getFullYear() + '-' + (now.getMonth() + 1);
     const thisYear = now.getFullYear().toString();
 
-    // Hilfsfunktion zum Inkrementieren der Zähler
     const incrementCounter = (period, key) => {
         if (!stats[period][key]) {
             stats[period][key] = 0;
@@ -162,26 +260,31 @@ function saveSelectedFines() {
         stats[period][key]++;
     };
 
-    // Durch alle ausgewählten Strafen iterieren
-    for (var i = 0; i < fineCollection.length; i++) { 
-        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
+    for (let i = 0; i < fineCollection.length; i++) {
+        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>")
             ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
             : fineCollection[i].querySelector(".fineText").innerHTML;
         const trimmedText = fineText.trim();
 
-        // Zähler für alle Zeiträume erhöhen
         incrementCounter('allTime', trimmedText);
         incrementCounter('year', trimmedText);
         incrementCounter('month', trimmedText);
-        incrementCounter('week', trimmedText + thisWeek); // Wochenspezifisch
-        incrementCounter('day', trimmedText + today); // Tagspezifisch
+        incrementCounter('week', trimmedText + thisWeek);
+        incrementCounter('day', trimmedText + today);
     }
 
-    // Aktualisierungsdatum setzen
     stats.lastUpdated = now.toISOString();
 
-    // Statistik zurück in den localStorage speichern
+    // 1. Lokal speichern
     localStorage.setItem('fineStats', JSON.stringify(stats));
+
+    // 2. In der Cloud speichern (jsonbin.io)
+    try {
+        await saveStats(stats); // ⬅️ Hier wird an dein Backend gesendet
+        console.log("Statistik erfolgreich in der Cloud gespeichert.");
+    } catch (err) {
+        console.error("Fehler beim Speichern in die Cloud:", err);
+    }
 }
 
 // Hilfsfunktion zur Berechnung der Kalenderwoche
