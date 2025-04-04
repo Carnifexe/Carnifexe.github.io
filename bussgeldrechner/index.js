@@ -113,7 +113,7 @@ function copyText(event) {
 async function saveSelectedFines() {
     const fineCollection = document.querySelectorAll(".selected");
     
-    // 1. Aktuelle Statistik von JSONBin.io laden
+    // 1. Aktuelle Statistik laden
     const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
         headers: { "X-Master-Key": API_KEY }
     });
@@ -123,32 +123,46 @@ async function saveSelectedFines() {
         lastUpdated: new Date().toISOString()
     };
 
-    // 2. Zeitstempel für Zeiträume generieren (mit Leerzeichen)
+    // 2. Datumsformatierung für DE (TT.MM.JJJJ)
+    const formatGermanDate = (date) => {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        return `${day}.${month}.${date.getFullYear()}`;
+    };
+
+    // 3. Zeitstempel mit | Trenner
     const now = new Date();
-    const today = " " + now.toISOString().split('T')[0];               // " 2025-04-04"
-    const thisWeek = " " + getWeekNumber(now);                         // " 2025-14"
-    const thisMonth = " " + now.getFullYear() + '-' + (now.getMonth() + 1); // " 2025-4"
-    const thisYear = " " + now.getFullYear().toString();               // " 2025"
+    const separator = " | ";  // Leerzeichen + Pipe + Leerzeichen
+    
+    const today = separator + formatGermanDate(now);
+    const thisWeek = separator + getWeekNumber(now);
+    const thisMonth = separator + formatGermanDate(now).slice(3); // Nur MM.JJJJ
+    const thisYear = separator + now.getFullYear();
 
-    // 3. Neue Strafen hinzufügen
+    // 4. Strafen verarbeiten
     for (let i = 0; i < fineCollection.length; i++) {
-        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
-            ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
-            : fineCollection[i].querySelector(".fineText").innerHTML;
-        const trimmedText = fineText.trim();
-
-        // Aktualisiere alle Zeiträume (mit Leerzeichen im Key)
-        stats.day[trimmedText + today] = (stats.day[trimmedText + today] || 0) + 1;
-        stats.week[trimmedText + thisWeek] = (stats.week[trimmedText + thisWeek] || 0) + 1;
-        stats.month[trimmedText + thisMonth] = (stats.month[trimmedText + thisMonth] || 0) + 1;
-        stats.year[trimmedText + thisYear] = (stats.year[trimmedText + thisYear] || 0) + 1;
-        stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
+        let fineText = fineCollection[i].querySelector(".fineText").innerHTML;
+        fineText = fineText.replace(/<[^>]*>/g, "").trim();  // HTML-Tags entfernen
+        
+        // Format: "Raub | 04.04.2025"
+        stats.day[fineText + today] = (stats.day[fineText + today] || 0) + 1;
+        stats.week[fineText + thisWeek] = (stats.week[fineText + thisWeek] || 0) + 1;
+        stats.month[fineText + thisMonth] = (stats.month[fineText + thisMonth] || 0) + 1;
+        stats.year[fineText + thisYear] = (stats.year[fineText + thisYear] || 0) + 1;
+        stats.allTime[fineText] = (stats.allTime[fineText] || 0) + 1; // Ohne Datum
     }
 
     stats.lastUpdated = new Date().toISOString();
+    await saveStats(stats);
+}
 
-    // 4. Statistik an JSONBin.io senden
-    await saveStats(stats); 
+// Hilfsfunktion für Kalenderwoche (unverändert)
+function getWeekNumber(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+    const week1 = new Date(d.getFullYear(), 0, 4);
+    return d.getFullYear() + '-' + Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
 }
 
 // Hilfsfunktion für Kalenderwoche (unverändert)
