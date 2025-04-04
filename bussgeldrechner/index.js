@@ -4,19 +4,19 @@
 const BIN_ID = "67ef04308960c979a57dd947"; // Ihre Bin-ID
 const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62"; // Ihr API-Key
 
-// Funktion zur Formatierung des Datums
-function formatDate(date) {
-    const day = String(date.getDate()).padStart(2, '0');   // Tag immer 2-stellig
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Monat immer 2-stellig
-    const year = date.getFullYear();  // Jahr
+// Funktion zur Formatierung des Datums MIT UHRZEIT
+function formatDateTime(date) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
 
-    return `${day}.${month}.${year}`;  // Format: "04.04.2025"
+    return `${day}.${month}.${year} ${hours}:${minutes}`; // Format: "04.04.2025 14:30"
 }
 
-// Statistik zum Server senden
 async function addFine(offenseName, period = "day") {
     try {
-        // Aktuelle Statistik laden
         const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
             headers: { "X-Master-Key": API_KEY }
         });
@@ -30,9 +30,9 @@ async function addFine(offenseName, period = "day") {
         stats[period][offenseName] = (stats[period][offenseName] || 0) + 1;
         stats.allTime[offenseName] = (stats.allTime[offenseName] || 0) + 1;
 
-        // Formatierung des Datums für 'lastUpdated'
+        // Formatierung des Datums für 'lastUpdated' MIT UHRZEIT
         const now = new Date();
-        stats.lastUpdated = formatDate(now);  // Hier wird das Datum formatiert
+        stats.lastUpdated = formatDateTime(now);  // Hier wird das neue Format verwendet
 
         // Aktualisierte Statistik speichern
         await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
@@ -49,21 +49,39 @@ async function addFine(offenseName, period = "day") {
 }
 
 
-// ====================
-// Angepasste saveSelectedFines()
-// ====================
 async function saveSelectedFines() {
     const fineCollection = document.querySelectorAll(".selected");
+    const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+        headers: { "X-Master-Key": API_KEY }
+    });
+    const data = await response.json();
+    let stats = data.record || {
+        day: {}, week: {}, month: {}, year: {}, allTime: {},
+        lastUpdated: new Date().toISOString()
+    };
+
+    const now = new Date();
+    const today = " " + formatDateTime(now); // Geändert zu formatDateTime
+    const thisWeek = " " + getWeekNumber(now);
+    const thisMonth = " " + now.getFullYear() + '-' + (now.getMonth() + 1);
+    const thisYear = " " + now.getFullYear().toString();
 
     for (let i = 0; i < fineCollection.length; i++) {
         const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
             ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
             : fineCollection[i].querySelector(".fineText").innerHTML;
+        const trimmedText = fineText.trim();
 
-        await addFine(fineText.trim(), "day");
+        stats.day[trimmedText + today] = (stats.day[trimmedText + today] || 0) + 1;
+        stats.week[trimmedText + thisWeek] = (stats.week[trimmedText + thisWeek] || 0) + 1;
+        stats.month[trimmedText + thisMonth] = (stats.month[trimmedText + thisMonth] || 0) + 1;
+        stats.year[trimmedText + thisYear] = (stats.year[trimmedText + thisYear] || 0) + 1;
+        stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
     }
-}
 
+    stats.lastUpdated = formatDateTime(now); // Geändert zu formatDateTime
+    await saveStats(stats);
+}
 // Speichern der ausgewählten Strafen
 let selectedFines = [];
 
