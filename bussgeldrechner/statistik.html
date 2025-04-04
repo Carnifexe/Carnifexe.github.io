@@ -205,40 +205,43 @@
         const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62";
 
     // Funktion zum Formatieren des Datums mit Uhrzeit
-    function formatDateTime(dateString) {
-        try {
-            // Extrahiere das Datum aus verschiedenen möglichen Formaten
-            let date;
-            
-            // Fall 1: ISO-Format (2025-04-04T...)
-            if (dateString.includes("T")) {
-                date = new Date(dateString);
-            } 
-            // Fall 2: Format wie "Raub2025-04-04"
-            else {
-                const dateMatch = dateString.match(/(\d{4}-\d{2}-\d{2})/);
-                if (dateMatch) {
-                    date = new Date(dateMatch[0]);
-                } else {
-                    // Fallback: Aktuelles Datum
-                    date = new Date();
-                }
-            }
-            
-            // Formatierung in dd.mm.yyyy HH:MM
-            const day = String(date.getDate()).padStart(2, '0');
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const year = date.getFullYear();
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            
-            return ` | ${day}.${month}.${year} ${hours}:${minutes}`;
-            
-        } catch (e) {
-            console.error("Fehler bei Datumsformatierung:", e);
-            return " | " + new Date().toLocaleString(); // Fallback
+function formatDateTime(dateString) {
+    try {
+        // Versuche, das Datum aus verschiedenen Formaten zu extrahieren
+        let date;
+        
+        // Fall 1: Bereits im richtigen Format "dd.mm.yyyy HH:MM"
+        if (/^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/.test(dateString)) {
+            return dateString;
         }
+        
+        // Fall 2: ISO-Format
+        if (dateString.includes("T")) {
+            date = new Date(dateString);
+        } 
+        // Fall 3: "Raub2025-04-04" Format
+        else {
+            const dateMatch = dateString.match(/(\d{4}-\d{2}-\d{2})/);
+            if (dateMatch) {
+                date = new Date(dateMatch[0]);
+            } else {
+                date = new Date(); // Fallback
+            }
+        }
+        
+        // Formatierung
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        
+        return `${day}.${month}.${year} ${hours}:${minutes}`;
+    } catch (e) {
+        console.error("Fehler bei Datumsformatierung:", e);
+        return new Date().toLocaleString(); // Fallback
     }
+}
 
     // Statistik laden
     async function loadStats() {
