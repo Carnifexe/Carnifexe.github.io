@@ -1,8 +1,15 @@
-// ====================
-// JSONBin.io Integration
-// ====================
-const BIN_ID = "67ef04308960c979a57dd947"; // Ihre Bin-ID
-const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62"; // Ihr API-Key
+// Holt Daten von der Serverless API (Vercel function)
+fetch('/api/getData')
+  .then(res => res.json())
+  .then(data => {
+    const output = document.getElementById('output');
+    output.textContent = JSON.stringify(data, null, 2);
+  })
+  .catch(err => {
+    document.getElementById('output').textContent = 'Fehler beim Laden der Daten';
+    console.error(err);
+  });
+
 
 // Funktion zur Formatierung des Datums MIT UHRZEIT
 function formatDateTime(date) {
