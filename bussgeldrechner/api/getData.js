@@ -1,5 +1,6 @@
+// api/getData.js
 export default async function handler(req, res) {
-  // CORS-Header für GitHub Pages Zugriff
+  // CORS für GitHub Pages erlauben
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -14,15 +15,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  // Umgebungsvariablen (in Vercel gesetzt)
-  const BIN_ID = process.env.JSONBIN_BIN_ID; // Empfohlener Variablenname
-  const API_KEY = process.env.JSONBIN_MASTER_KEY; // Konsistent mit saveStats.js
+  // Umgebungsvariablen aus Vercel lesen
+  const BIN_ID = process.env.BIN_ID; 
+  const API_KEY = process.env.API_KEY; 
 
   if (!BIN_ID || !API_KEY) {
-    console.error('Fehler: BIN_ID oder API_KEY nicht gesetzt!');
-    return res.status(500).json({ 
-      error: 'Server-Konfigurationsfehler' 
-    });
+    console.error('Fehler: BIN_ID oder API_KEY nicht in Vercel gesetzt!');
+    return res.status(500).json({ error: 'Server-Konfigurationsfehler' });
   }
 
   try {
@@ -35,20 +34,14 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      throw new Error(`API-Fehler: ${response.status}`);
+      throw new Error(`JSONBin.io-Fehler: ${response.status}`);
     }
 
     const data = await response.json();
     
-    // Antwort formatieren (kompatibel mit statistik.html)
+    // Antwort für statistik.html formatieren
     return res.status(200).json({
-      record: data.record || { 
-        day: {}, 
-        week: {}, 
-        month: {}, 
-        year: {}, 
-        allTime: {} 
-      }
+      record: data.record || { day: {}, week: {}, month: {}, year: {}, allTime: {} }
     });
 
   } catch (error) {
