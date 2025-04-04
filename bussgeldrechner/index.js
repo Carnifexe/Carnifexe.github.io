@@ -134,10 +134,10 @@ function searchFine() {
 }
 
 // Funktion zum Speichern der ausgewählten Strafen im localStorage
-function saveSelectedFines() {
+async function saveSelectedFines() {
     let fineCollection = document.querySelectorAll(".selected");
     
-    // Aktuelle Statistik aus dem localStorage laden oder leeres Objekt erstellen
+    // Lokale Stats laden oder neu erstellen
     let stats = JSON.parse(localStorage.getItem('fineStats')) || {
         day: {},
         week: {},
@@ -147,14 +147,12 @@ function saveSelectedFines() {
         lastUpdated: new Date().toISOString()
     };
 
-    // Aktuelles Datum für die Zeiträume
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     const thisWeek = getWeekNumber(now);
     const thisMonth = now.getFullYear() + '-' + (now.getMonth() + 1);
     const thisYear = now.getFullYear().toString();
 
-    // Hilfsfunktion zum Inkrementieren der Zähler
     const incrementCounter = (period, key) => {
         if (!stats[period][key]) {
             stats[period][key] = 0;
@@ -162,26 +160,31 @@ function saveSelectedFines() {
         stats[period][key]++;
     };
 
-    // Durch alle ausgewählten Strafen iterieren
-    for (var i = 0; i < fineCollection.length; i++) { 
-        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
+    for (let i = 0; i < fineCollection.length; i++) {
+        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>")
             ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
             : fineCollection[i].querySelector(".fineText").innerHTML;
         const trimmedText = fineText.trim();
 
-        // Zähler für alle Zeiträume erhöhen
         incrementCounter('allTime', trimmedText);
         incrementCounter('year', trimmedText);
         incrementCounter('month', trimmedText);
-        incrementCounter('week', trimmedText + thisWeek); // Wochenspezifisch
-        incrementCounter('day', trimmedText + today); // Tagspezifisch
+        incrementCounter('week', trimmedText + thisWeek);
+        incrementCounter('day', trimmedText + today);
     }
 
-    // Aktualisierungsdatum setzen
     stats.lastUpdated = now.toISOString();
 
-    // Statistik zurück in den localStorage speichern
+    // 1. Lokal speichern
     localStorage.setItem('fineStats', JSON.stringify(stats));
+
+    // 2. In der Cloud speichern (jsonbin.io)
+    try {
+        await saveStats(stats); // ⬅️ Hier wird an dein Backend gesendet
+        console.log("Statistik erfolgreich in der Cloud gespeichert.");
+    } catch (err) {
+        console.error("Fehler beim Speichern in die Cloud:", err);
+    }
 }
 
 // Hilfsfunktion zur Berechnung der Kalenderwoche
