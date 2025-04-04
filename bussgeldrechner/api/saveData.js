@@ -1,27 +1,38 @@
+import fetch from 'node-fetch';
+
 export default async function handler(req, res) {
-  const BIN_ID = process.env.BIN_ID;
-  const API_KEY = process.env.API_KEY;
+    if (req.method === 'PUT') {
+        const { stats } = req.body;
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Nur POST erlaubt' });
-  }
+        // Hole den Bin ID und den Master Key aus den Umgebungsvariablen
+        const binId = process.env.BIN_ID;
+        const masterKey = process.env.MASTER_KEY;
 
-  try {
-    const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-      method: 'PUT',
-      headers: {
-        'X-Master-Key': API_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(req.body)
-    });
+        if (!binId || !masterKey) {
+            return res.status(400).json({ error: 'Bin ID oder Master Key fehlen.' });
+        }
 
-    if (!response.ok) throw new Error("Fehler beim Speichern");
+        try {
+            // Sende eine Anfrage an JSONBin, um die Statistik zu speichern
+            const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Master-Key': masterKey,
+                },
+                body: JSON.stringify(stats), // Die zu speichernden Statistiken
+            });
 
-    const result = await response.json();
-    res.status(200).json(result);
-  } catch (error) {
-    console.error("Fehler beim Speichern:", error);
-    res.status(500).json({ error: 'Fehler beim Speichern der Daten' });
-  }
+            if (!response.ok) {
+                throw new Error('Fehler beim Speichern der Statistik.');
+            }
+
+            const data = await response.json();
+            return res.status(200).json(data);
+        } catch (error) {
+            return res.status(500).json({ error: error.message });
+        }
+    } else {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+    }
 }
