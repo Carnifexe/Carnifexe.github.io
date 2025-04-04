@@ -51,9 +51,28 @@ async function saveSelectedFines() {
     }
 }
 
-// ====================
-// Angepasste copyText()
-// ====================
+// Speichern der ausgewählten Strafen
+let selectedFines = [];
+
+// Diese Funktion wird verwendet, um eine Strafe auszuwählen und die Daten zu speichern.
+function selectFine(row) {
+    const paragraph = row.querySelector('.paragraph').textContent.trim();
+    const fineText = row.querySelector('.fineText').textContent.trim();
+    const wantedAmount = row.querySelector('.wantedAmount').textContent.trim();
+    const fineAmount = row.querySelector('.fineAmount').textContent.trim();
+
+    // Füge die ausgewählte Strafe zur Liste hinzu
+    selectedFines.push({
+        paragraph: paragraph,
+        fineText: fineText,
+        wantedAmount: wantedAmount,
+        fineAmount: fineAmount
+    });
+
+    console.log("Strafe ausgewählt:", paragraph, fineText, wantedAmount, fineAmount);
+}
+
+// Deine copyText Funktion anpassen
 function copyText(event) {
     const now = Date.now();
     
@@ -79,9 +98,9 @@ function copyText(event) {
             // Erfolgsmeldung anzeigen
             showSuccessNotification(successMessage);
             
-            // Wenn der kopierte Text der Grund ist, Statistik speichern
+            // Wenn der kopierte Text der Grund ist, speichern wir die Strafen in der Statistik
             if (target.closest('#reasonResult')) {
-                saveSelectedFines();
+                saveSelectedFines();  // Speichern der Strafen
             }
         })
         .catch(err => {
@@ -90,6 +109,54 @@ function copyText(event) {
             lastCopyTime = 0;
         });
 }
+
+// Funktion, um die ausgewählten Strafen an JSONBin zu senden
+async function saveSelectedFines() {
+    // Überprüfen, ob es ausgewählte Strafen gibt
+    if (selectedFines.length === 0) {
+        console.log("Keine Strafen ausgewählt.");
+        return;
+    }
+
+    // JSON-Format für die zu sendenden Daten
+    const finesData = selectedFines.map(fine => ({
+        paragraph: fine.paragraph,
+        fineText: fine.fineText,
+        wantedAmount: fine.wantedAmount,
+        fineAmount: fine.fineAmount
+    }));
+
+    // URL und API-Key für JSONBin
+    const apiUrl = "https://api.jsonbin.io/v3/b/DEIN_BIN_ID";  // Ersetze DEIN_BIN_ID mit deinem JSONBin-ID
+    const apiKey = "DEIN_API_KEY";  // Ersetze DEIN_API_KEY mit deinem JSONBin API-Schlüssel
+
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'PUT',  // Oder 'POST' je nach Wunsch
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Master-Key': apiKey,
+            },
+            body: JSON.stringify(finesData),
+        });
+
+        if (response.ok) {
+            console.log("Strafen erfolgreich an JSONBin gesendet!");
+            selectedFines = [];  // Nach dem Senden, die ausgewählten Strafen zurücksetzen
+        } else {
+            console.error("Fehler beim Hochladen der Strafen:", await response.text());
+        }
+    } catch (error) {
+        console.error("Fehler bei der Kommunikation mit JSONBin:", error);
+    }
+}
+
+// EventListener für die Strafen-Auswahl in der Tabelle
+document.querySelectorAll('.fine-row').forEach(row => {
+    row.addEventListener('click', () => {
+        selectFine(row);  // Beim Klicken auf eine Zeile wird die Strafe ausgewählt
+    });
+});
 
 // ====================
 // Automatische Statistik-Aktualisierung
