@@ -1281,3 +1281,20 @@ document.getElementById('pongIframe')
 document.getElementById('pongIframe')
   .addEventListener('mouseleave', () => 
     document.body.classList.remove('iframe-active'));
+
+// Statistik komplett speichern (für saveSelectedFines())
+async function saveStats(stats) {
+    try {
+        await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+            method: "PUT",
+            headers: { 
+                "Content-Type": "application/json",
+                "X-Master-Key": API_KEY 
+            },
+            body: JSON.stringify(stats)
+        });
+        console.log("Statistik erfolgreich gespeichert!");
+    } catch (error) {
+        console.error("Fehler beim Speichern der Statistik:", error);
+    }
+}
