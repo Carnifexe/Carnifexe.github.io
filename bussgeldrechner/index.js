@@ -1,52 +1,16 @@
-fetch('/api/getData')  // Der API-Endpunkt auf Vercel
-  .then(res => res.json())
-  .then(data => {
-    const output = document.getElementById('output');
-    output.textContent = JSON.stringify(data, null, 2);
-  })
-  .catch(err => {
-    document.getElementById('output').textContent = 'Fehler beim Laden der Daten';
-    console.error(err);
-  });
+// ====================
+// JSONBin.io Integration
+// ====================
+const BIN_ID = "67ef04308960c979a57dd947"; // Ihre Bin-ID
+const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62"; // Ihr API-Key
 
-// Funktion zum Formatieren des Datums MIT UHRZEIT
-function formatDateTime(date) {
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${day}.${month}.${year} ${hours}:${minutes}`; // Format: "04.04.2025 14:30"
-}
-
-// Funktion zum Formatieren des Datums (nur Tag)
-function formatDate(date) {
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}.${month}.${year}`; // Format: "04.04.2025"
-}
-
-// API zum Speichern der Statistik (cloudseitig)
-async function saveStats(stats) {
-    try {
-        const response = await fetch('/api/saveStats', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(stats),
-        });
-        if (!response.ok) {
-            throw new Error('Fehler beim Speichern der Statistik in die Cloud');
-        }
-    } catch (error) {
-        console.error('Fehler beim Speichern in der Cloud:', error);
-    }
-}
+// Statistik zum Server senden
 async function addFine(offenseName, period = "day") {
     try {
-        const response = await fetch(`/api/getData`);
+        // Aktuelle Statistik laden
+        const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+            headers: { "X-Master-Key": API_KEY }
+        });
         const data = await response.json();
         let stats = data.record || {
             day: {}, week: {}, month: {}, year: {}, allTime: {},
@@ -56,16 +20,14 @@ async function addFine(offenseName, period = "day") {
         // Statistik aktualisieren
         stats[period][offenseName] = (stats[period][offenseName] || 0) + 1;
         stats.allTime[offenseName] = (stats.allTime[offenseName] || 0) + 1;
-
-        // Formatierung des Datums für 'lastUpdated' MIT UHRZEIT
-        const now = new Date();
-        stats.lastUpdated = formatDateTime(now);  // Hier wird das neue Format verwendet
+        stats.lastUpdated = new Date().toISOString();
 
         // Aktualisierte Statistik speichern
-        await fetch(`/api/saveStats`, {
+        await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
             method: "PUT",
             headers: { 
                 "Content-Type": "application/json",
+                "X-Master-Key": API_KEY 
             },
             body: JSON.stringify(stats)
         });
@@ -74,72 +36,27 @@ async function addFine(offenseName, period = "day") {
     }
 }
 
-// Speichern der ausgewählten Strafen (über Vercel und jsonbin.io)
+// ====================
+// Angepasste saveSelectedFines()
+// ====================
 async function saveSelectedFines() {
-    const fineCollection = document.querySelectorAll('.selected');
-    const response = await fetch('https://api.jsonbin.io/v3/b/YOUR_BIN_ID/latest', {
-        headers: { 'X-Master-Key': 'YOUR_API_KEY' },
-    });
-
-    const data = await response.json();
-    let stats = data.record || {
-        day: {}, week: {}, month: {}, year: {}, allTime: {},
-        lastUpdated: new Date().toISOString(),
-    };
-
-    const now = new Date();
-    const today = ' | ' + formatDate(now);
-    const thisWeek = ' | ' + getWeekNumber(now);
-    const thisMonth = ' | ' + now.getFullYear() + '-' + (now.getMonth() + 1);
-    const thisYear = ' | ' + now.getFullYear().toString();
-
-    // Statistiken aktualisieren
+    const fineCollection = document.querySelectorAll(".selected");
+    
     for (let i = 0; i < fineCollection.length; i++) {
-        const fineText = fineCollection[i].querySelector('.fineText').innerHTML.includes('<i>')
-            ? fineCollection[i].querySelector('.fineText').innerHTML.split('<i>')[0]
-            : fineCollection[i].querySelector('.fineText').innerHTML;
-        const trimmedText = fineText.trim();
-
-        stats.day[trimmedText + today] = (stats.day[trimmedText + today] || 0) + 1;
-        stats.week[trimmedText + thisWeek] = (stats.week[trimmedText + thisWeek] || 0) + 1;
-        stats.month[trimmedText + thisMonth] = (stats.month[trimmedText + thisMonth] || 0) + 1;
-        stats.year[trimmedText + thisYear] = (stats.year[trimmedText + thisYear] || 0) + 1;
-        stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
-    }
-
-    stats.lastUpdated = formatDateTime(now); // mit Uhrzeit
-
-    // Speichern der Daten in die Cloud (jsonbin)
-    try {
-        await saveStats(stats);
-        console.log('Statistik erfolgreich in der Cloud gespeichert.');
-    } catch (error) {
-        console.error('Fehler beim Speichern in die Cloud:', error);
+        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
+            ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
+            : fineCollection[i].querySelector(".fineText").innerHTML;
+        
+        await addFine(fineText.trim(), "day");
     }
 }
 
-// Funktion zum Auswählen von Strafen
-function selectFine(row) {
-    const paragraph = row.querySelector('.paragraph').textContent.trim();
-    const fineText = row.querySelector('.fineText').textContent.trim();
-    const wantedAmount = row.querySelector('.wantedAmount').textContent.trim();
-    const fineAmount = row.querySelector('.fineAmount').textContent.trim();
-
-    // Ausgewählte Strafe speichern
-    selectedFines.push({
-        paragraph: paragraph,
-        fineText: fineText,
-        wantedAmount: wantedAmount,
-        fineAmount: fineAmount,
-    });
-
-    console.log('Strafe ausgewählt:', paragraph, fineText, wantedAmount, fineAmount);
-}
-
-// Funktion zum Kopieren von Text
+// ====================
+// Angepasste copyText()
+// ====================
 function copyText(event) {
     const now = Date.now();
-
+    
     // Cooldown prüfen
     if (now - lastCopyTime < COPY_COOLDOWN) {
         showCooldownMessage(COPY_COOLDOWN - (now - lastCopyTime));
@@ -151,91 +68,32 @@ function copyText(event) {
 
     const target = event.currentTarget;
     const textToCopy = target.textContent || target.innerText;
-    const successMessage = target.getAttribute('data-success-message') || 'Text kopiert!';
+    const successMessage = target.getAttribute("data-success-message") || "Text kopiert!";
 
     const successSound = new Audio('copy.mp3');
 
     navigator.clipboard.writeText(textToCopy.trim())
         .then(() => {
-            successSound.play().catch(e => console.log('Ton fehlgeschlagen:', e));
+            successSound.play().catch(e => console.log("Ton fehlgeschlagen:", e));
+            
+            // Erfolgsmeldung anzeigen
             showSuccessNotification(successMessage);
             
-            // Wenn der kopierte Text der Grund ist, speichern wir die Strafen in der Statistik
+            // Wenn der kopierte Text der Grund ist, Statistik speichern
             if (target.closest('#reasonResult')) {
-                saveSelectedFines(); // Speichern der Strafen
+                saveSelectedFines();
             }
         })
         .catch(err => {
-            console.error('Kopieren fehlgeschlagen:', err);
+            console.error("Kopieren fehlgeschlagen:", err);
+            // Bei Fehler Cooldown zurücksetzen
             lastCopyTime = 0;
         });
 }
 
-// Speichern der ausgewählten Strafen (über Vercel und jsonbin.io)
-async function saveSelectedFines() {
-    const fineCollection = document.querySelectorAll('.selected');
-    const response = await fetch('https://api.jsonbin.io/v3/b/YOUR_BIN_ID/latest', {
-        headers: { 'X-Master-Key': 'YOUR_API_KEY' },
-    });
-
-    const data = await response.json();
-    let stats = data.record || {
-        day: {}, week: {}, month: {}, year: {}, allTime: {},
-        lastUpdated: new Date().toISOString(),
-    };
-
-    const now = new Date();
-    const today = ' | ' + formatDate(now);
-    const thisWeek = ' | ' + getWeekNumber(now);
-    const thisMonth = ' | ' + now.getFullYear() + '-' + (now.getMonth() + 1);
-    const thisYear = ' | ' + now.getFullYear().toString();
-
-    // Statistiken aktualisieren
-    for (let i = 0; i < fineCollection.length; i++) {
-        const fineText = fineCollection[i].querySelector('.fineText').innerHTML.includes('<i>')
-            ? fineCollection[i].querySelector('.fineText').innerHTML.split('<i>')[0]
-            : fineCollection[i].querySelector('.fineText').innerHTML;
-        const trimmedText = fineText.trim();
-
-        stats.day[trimmedText + today] = (stats.day[trimmedText + today] || 0) + 1;
-        stats.week[trimmedText + thisWeek] = (stats.week[trimmedText + thisWeek] || 0) + 1;
-        stats.month[trimmedText + thisMonth] = (stats.month[trimmedText + thisMonth] || 0) + 1;
-        stats.year[trimmedText + thisYear] = (stats.year[trimmedText + thisYear] || 0) + 1;
-        stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
-    }
-
-    stats.lastUpdated = formatDateTime(now); // mit Uhrzeit
-
-    // Speichern der Daten in die Cloud (jsonbin)
-    try {
-        await saveStats(stats);
-        console.log('Statistik erfolgreich in der Cloud gespeichert.');
-    } catch (error) {
-        console.error('Fehler beim Speichern in die Cloud:', error);
-    }
-}
-
-
-
-// Hilfsfunktion für Kalenderwoche
-function getWeekNumber(date) {
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
-    const week1 = new Date(d.getFullYear(), 0, 4);
-    return d.getFullYear() + '-' + Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
-}
-
-
-// EventListener für Strafen-Auswahl
-document.querySelectorAll('.fine-row').forEach(row => {
-    row.addEventListener('click', () => {
-        selectFine(row);  // Beim Klicken auf eine Zeile wird die Strafe ausgewählt
-    });
-});
-
-
-// Automatische Statistik-Aktualisierung alle 5 Minuten
+// ====================
+// Automatische Statistik-Aktualisierung
+// ====================
 setInterval(async () => {
     // Aktualisiere die angezeigte Statistik alle 5 Minuten
     if (document.querySelector('.timeframe-btn.active')) {
@@ -276,10 +134,10 @@ function searchFine() {
 }
 
 // Funktion zum Speichern der ausgewählten Strafen im localStorage
-async function saveSelectedFines() {
+function saveSelectedFines() {
     let fineCollection = document.querySelectorAll(".selected");
     
-    // Lokale Stats laden oder neu erstellen
+    // Aktuelle Statistik aus dem localStorage laden oder leeres Objekt erstellen
     let stats = JSON.parse(localStorage.getItem('fineStats')) || {
         day: {},
         week: {},
@@ -289,12 +147,14 @@ async function saveSelectedFines() {
         lastUpdated: new Date().toISOString()
     };
 
+    // Aktuelles Datum für die Zeiträume
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     const thisWeek = getWeekNumber(now);
     const thisMonth = now.getFullYear() + '-' + (now.getMonth() + 1);
     const thisYear = now.getFullYear().toString();
 
+    // Hilfsfunktion zum Inkrementieren der Zähler
     const incrementCounter = (period, key) => {
         if (!stats[period][key]) {
             stats[period][key] = 0;
@@ -302,31 +162,26 @@ async function saveSelectedFines() {
         stats[period][key]++;
     };
 
-    for (let i = 0; i < fineCollection.length; i++) {
-        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>")
+    // Durch alle ausgewählten Strafen iterieren
+    for (var i = 0; i < fineCollection.length; i++) { 
+        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
             ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
             : fineCollection[i].querySelector(".fineText").innerHTML;
         const trimmedText = fineText.trim();
 
+        // Zähler für alle Zeiträume erhöhen
         incrementCounter('allTime', trimmedText);
         incrementCounter('year', trimmedText);
         incrementCounter('month', trimmedText);
-        incrementCounter('week', trimmedText + thisWeek);
-        incrementCounter('day', trimmedText + today);
+        incrementCounter('week', trimmedText + thisWeek); // Wochenspezifisch
+        incrementCounter('day', trimmedText + today); // Tagspezifisch
     }
 
+    // Aktualisierungsdatum setzen
     stats.lastUpdated = now.toISOString();
 
-    // 1. Lokal speichern
+    // Statistik zurück in den localStorage speichern
     localStorage.setItem('fineStats', JSON.stringify(stats));
-
-    // 2. In der Cloud speichern (jsonbin.io)
-    try {
-        await saveStats(stats); // ⬅️ Hier wird an dein Backend gesendet
-        console.log("Statistik erfolgreich in der Cloud gespeichert.");
-    } catch (err) {
-        console.error("Fehler beim Speichern in die Cloud:", err);
-    }
 }
 
 // Hilfsfunktion zur Berechnung der Kalenderwoche
@@ -763,7 +618,7 @@ setTimeout(() => {
     let x = document.createElement('script');
     x.innerHTML = atob("aWYod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIpIHtkb2N1bWVudC5ib2R5LmlubmVySFRNTCA9ICJVbmF1dGhvcml6ZWQgQWNjZXNzIjtzZXRUaW1lb3V0KCgpID0+IHsgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiYWJvdXQ6YmxhbmsiOyB9LCAyMDAwKTt9");
     document.body.appendChild(x);
-}, 500000);
+}, 5000);
 
 function showRightsContainer() {
     document.getElementById("rightsContainer").setAttribute("data-showing", "true");
@@ -806,7 +661,7 @@ window.onload = async () => {
 
 setInterval(() => {
     eval(atob("ZnVuY3Rpb24gdGVzdCgpIHsKICAgIC8vIMOcYmVycHLDvGZlbiwgb2IgZGllIFNlaXRlICoqbmljaHQqKiB2b24gZGVyIGFuZ2VnZWJlbmVuIFVSTCBnZWxhZGVuIHd1cmRlCiAgICBpZiAod2luZG93LmxvY2F0aW9uLmhvc3RuYW1lICE9PSAiY2FybmlmZXhlLmdpdGh1Yi5pbyIgfHwgd2luZG93LmxvY2F0aW9uLnBhdGhuYW1lICE9PSAiL2J1c3NnZWxkcmVjaG5lci8iKSB7CiAgICAgICAgaWYgKHdpbmRvdy5vdXRlcldpZHRoIC0gd2luZG93LmlubmVyV2lkdGggPiAyMDAgfHwgd2luZG93Lm91dGVySGVpZ2h0IC0gd2luZG93LmlubmVySGVpZ2h0ID4gMjAwKSB7CiAgICAgICAgICAgIGRvY3VtZW50LmJvZHkuaW5uZXJIVE1MID0gIlVuYXV0aG9yaXplZCBBY2Nlc3MiOwogICAgICAgICAgICBzZXRUaW1lb3V0KGZ1bmN0aW9uKCkgewogICAgICAgICAgICAgICAgd2luZG93LmxvY2F0aW9uLmhyZWYgPSAiaHR0cHM6Ly9wYXBlcnRvaWxldC5jb20vIjsgCiAgICAgICAgICAgIH0sIDIwMDApOwogICAgICAgIH0KICAgIH0KfQoKc2V0SW50ZXJ2YWwodGVzdCwgMTAwMCk7"));
-}, 100000);
+}, 100);
 
 function resetButton() {
     let fineCollection = document.querySelectorAll(".selected")
@@ -1356,31 +1211,3 @@ document.getElementById('pongIframe')
 document.getElementById('pongIframe')
   .addEventListener('mouseleave', () => 
     document.body.classList.remove('iframe-active'));
-
-// API zum Speichern der Statistik (cloudseitig)
-async function saveStats(stats) {
-    try {
-        const response = await fetch('/api/saveStats', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(stats),
-        });
-        if (!response.ok) {
-            throw new Error('Fehler beim Speichern der Statistik in die Cloud');
-        }
-    } catch (error) {
-        console.error('Fehler beim Speichern in der Cloud:', error);
-    }
-}
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        const stats = await loadStats();
-        const lastUpdatedDate = new Date(stats.lastUpdated);
-        document.getElementById('last-updated').textContent = formatDate(lastUpdatedDate);
-        updateChart('day');
-    } catch (error) {
-        console.error("Initialisierungsfehler:", error);
-    }
-});
