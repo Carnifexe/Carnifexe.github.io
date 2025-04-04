@@ -123,46 +123,54 @@ async function saveSelectedFines() {
         lastUpdated: new Date().toISOString()
     };
 
-    // 2. Datumsformatierung für DE (TT.MM.JJJJ)
+    // 2. Hilfsfunktionen für Datumsformatierung
     const formatGermanDate = (date) => {
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
         return `${day}.${month}.${date.getFullYear()}`;
     };
 
-    // 3. Zeitstempel mit | Trenner
-    const now = new Date();
-    const separator = " | ";  // Leerzeichen + Pipe + Leerzeichen
-    
-    const today = separator + formatGermanDate(now);
-    const thisWeek = separator + getWeekNumber(now);
-    const thisMonth = separator + formatGermanDate(now).slice(3); // Nur MM.JJJJ
-    const thisYear = separator + now.getFullYear();
+    const formatGermanWeek = (date) => {
+        const weekNum = getWeekNumber(date).split('-')[1]; // Nur die Wochennummer (z.B. "14")
+        const year = date.getFullYear();
+        return `${weekNum}.${year}`; // Format: "14.2025"
+    };
 
-    // 4. Strafen verarbeiten
+    // 3. Trenner definieren
+    const separator = " | ";
+    const now = new Date();
+
+    // 4. Zeitstempel mit deutschem Format
+    const today = separator + formatGermanDate(now);    // " | 04.04.2025"
+    const thisWeek = separator + formatGermanWeek(now); // " | 14.2025"
+    const thisMonth = separator + formatGermanDate(now).slice(3); // " | 04.2025"
+    const thisYear = separator + now.getFullYear();     // " | 2025"
+
+    // 5. Strafen verarbeiten
     for (let i = 0; i < fineCollection.length; i++) {
         let fineText = fineCollection[i].querySelector(".fineText").innerHTML;
-        fineText = fineText.replace(/<[^>]*>/g, "").trim();  // HTML-Tags entfernen
+        fineText = fineText.replace(/<[^>]*>/g, "").trim();
         
-        // Format: "Raub | 04.04.2025"
+        // Keys im gewünschten Format
         stats.day[fineText + today] = (stats.day[fineText + today] || 0) + 1;
         stats.week[fineText + thisWeek] = (stats.week[fineText + thisWeek] || 0) + 1;
         stats.month[fineText + thisMonth] = (stats.month[fineText + thisMonth] || 0) + 1;
         stats.year[fineText + thisYear] = (stats.year[fineText + thisYear] || 0) + 1;
-        stats.allTime[fineText] = (stats.allTime[fineText] || 0) + 1; // Ohne Datum
+        stats.allTime[fineText] = (stats.allTime[fineText] || 0) + 1;
     }
 
     stats.lastUpdated = new Date().toISOString();
     await saveStats(stats);
 }
 
-// Hilfsfunktion für Kalenderwoche (unverändert)
+// Hilfsfunktion für Kalenderwoche (angepasst für "WW.JJJJ")
 function getWeekNumber(date) {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
     d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
     const week1 = new Date(d.getFullYear(), 0, 4);
-    return d.getFullYear() + '-' + Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
+    const weekNum = Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
+    return `${String(weekNum).padStart(2, '0')}.${d.getFullYear()}`; // "14.2025"
 }
 
 // Hilfsfunktion für Kalenderwoche (unverändert)
