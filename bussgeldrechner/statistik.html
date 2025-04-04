@@ -232,12 +232,11 @@ async function addFine(offenseName) {
   await saveStats(stats);
 }
 
-// Initialisierung
 document.addEventListener('DOMContentLoaded', async () => {
-  const stats = await loadStats();
-  document.getElementById('last-updated').textContent = 
-    new Date(stats.lastUpdated).toLocaleString('de-DE');
-  updateChart('day');
+    const stats = await loadStats();
+    document.getElementById('last-updated').textContent = 
+        new Date(stats.lastUpdated).toLocaleString('de-DE');
+    await updateChart('day'); // ← async beachten!
 });
 
         // Top 10 Strafen für einen Zeitraum ermitteln
