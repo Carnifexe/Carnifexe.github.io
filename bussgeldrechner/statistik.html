@@ -297,14 +297,6 @@
             });
             event.target.classList.add('active');
         }
-// Funktion zum Formatieren des Datums im Format dd.mm.yyyy
-function formatDate(date) {
-    const day = String(date.getDate()).padStart(2, '0');   // Tag immer 2-stellig
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Monat immer 2-stellig
-    const year = date.getFullYear();  // Jahr
-
-    return `${day}.${month}.${year}`;  // Format: "04.04.2025"
-}
 
 // Seite initialisieren
 document.addEventListener('DOMContentLoaded', async () => {
