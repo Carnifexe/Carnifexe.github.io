@@ -267,23 +267,21 @@ async function loadStats() {
         };
     }
 }
-    // Statistik speichern
-    async function saveStats(stats) {
-        try {
-            stats.lastUpdated = new Date().toISOString();
-            await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-                method: "PUT",
-                headers: { 
-                    "Content-Type": "application/json",
-                    "X-Master-Key": API_KEY,
-                    "X-Bin-Versioning": "false"
-                },
-                body: JSON.stringify(stats)
-            });
-        } catch (error) {
-            console.error("Fehler beim Speichern der Statistik:", error);
-        }
+// Statistik speichern
+async function saveStats(stats) {
+    try {
+        stats.lastUpdated = new Date().toISOString();
+        await fetch('https://carnifexe-github-io.vercel.app/api/saveData', {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(stats)
+        });
+    } catch (error) {
+        console.error("Fehler beim Speichern der Statistik:", error);
     }
+}
     // Top 10 Strafen für einen Zeitraum ermitteln
     function getTop10(data) {
         return Object.entries(data)
