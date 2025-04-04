@@ -201,16 +201,6 @@
     </div>
 
     <script>
-fetch('/api/getData')  // Der API-Endpunkt auf Vercel
-  .then(res => res.json())
-  .then(data => {
-    const output = document.getElementById('output');
-    output.textContent = JSON.stringify(data, null, 2);
-  })
-  .catch(err => {
-    document.getElementById('output').textContent = 'Fehler beim Laden der Daten';
-    console.error(err);
-  });
     // Verbesserte Datumsformatierung
     function formatDateTime(dateString) {
         try {
