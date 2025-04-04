@@ -125,8 +125,6 @@ function copyText(event) {
 
 async function saveSelectedFines() {
     const fineCollection = document.querySelectorAll(".selected");
-
-    // 1. Aktuelle Statistik von JSONBin.io laden
     const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
         headers: { "X-Master-Key": API_KEY }
     });
@@ -136,21 +134,18 @@ async function saveSelectedFines() {
         lastUpdated: new Date().toISOString()
     };
 
-    // 2. Zeitstempel für Zeiträume generieren (mit Leerzeichen)
     const now = new Date();
-    const today = " " + formatDate(now); // Formatiertes Datum für "Heute" (z.B. " 04.04.2025")
-    const thisWeek = " " + getWeekNumber(now); // " 2025-14"
-    const thisMonth = " " + now.getFullYear() + '-' + (now.getMonth() + 1); // " 2025-4"
-    const thisYear = " " + now.getFullYear().toString(); // " 2025"
+    const today = " " + formatDate(now);
+    const thisWeek = " " + getWeekNumber(now);
+    const thisMonth = " " + now.getFullYear() + '-' + (now.getMonth() + 1);
+    const thisYear = " " + now.getFullYear().toString();
 
-    // 3. Neue Strafen hinzufügen
     for (let i = 0; i < fineCollection.length; i++) {
         const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
             ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
             : fineCollection[i].querySelector(".fineText").innerHTML;
         const trimmedText = fineText.trim();
 
-        // Aktualisiere alle Zeiträume (mit Leerzeichen im Key)
         stats.day[trimmedText + today] = (stats.day[trimmedText + today] || 0) + 1;
         stats.week[trimmedText + thisWeek] = (stats.week[trimmedText + thisWeek] || 0) + 1;
         stats.month[trimmedText + thisMonth] = (stats.month[trimmedText + thisMonth] || 0) + 1;
@@ -158,10 +153,8 @@ async function saveSelectedFines() {
         stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
     }
 
-    stats.lastUpdated = formatDate(now); // Formatiertes Datum für 'lastUpdated'
-
-    // 4. Statistik an JSONBin.io senden
-    await saveStats(stats); 
+    stats.lastUpdated = formatDate(now);
+    await saveStats(stats);
 }
 
 // Hilfsfunktion für Kalenderwoche (unverändert)
@@ -1306,17 +1299,22 @@ document.getElementById('pongIframe')
 
 // Statistik komplett speichern (für saveSelectedFines())
 async function saveStats(stats) {
-    try {
-        await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-            method: "PUT",
-            headers: { 
-                "Content-Type": "application/json",
-                "X-Master-Key": API_KEY 
-            },
-            body: JSON.stringify(stats)
-        });
-        console.log("Statistik erfolgreich gespeichert!");
-    } catch (error) {
-        console.error("Fehler beim Speichern der Statistik:", error);
-    }
+    await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+        method: "PUT",
+        headers: { 
+            "Content-Type": "application/json",
+            "X-Master-Key": API_KEY 
+        },
+        body: JSON.stringify(stats)
+    });
 }
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const stats = await loadStats();
+        const lastUpdatedDate = new Date(stats.lastUpdated);
+        document.getElementById('last-updated').textContent = formatDate(lastUpdatedDate);
+        updateChart('day');
+    } catch (error) {
+        console.error("Initialisierungsfehler:", error);
+    }
+});
