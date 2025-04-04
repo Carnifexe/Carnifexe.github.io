@@ -112,43 +112,35 @@ function copyText(event) {
 
 // Funktion, um die ausgewählten Strafen an JSONBin zu senden
 async function saveSelectedFines() {
-    // Überprüfen, ob es ausgewählte Strafen gibt
-    if (selectedFines.length === 0) {
-        console.log("Keine Strafen ausgewählt.");
-        return;
-    }
+    const fineCollection = document.querySelectorAll(".selected");
+    
+    // 1. Aktuelle Statistik von JSONBin.io laden
+    const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+        headers: { "X-Master-Key": API_KEY }
+    });
+    const data = await response.json();
+    let stats = data.record || {
+        day: {}, week: {}, month: {}, year: {}, allTime: {},
+        lastUpdated: new Date().toISOString()
+    };
 
-    // JSON-Format für die zu sendenden Daten
-    const finesData = selectedFines.map(fine => ({
-        paragraph: fine.paragraph,
-        fineText: fine.fineText,
-        wantedAmount: fine.wantedAmount,
-        fineAmount: fine.fineAmount
-    }));
+    // 2. Neue Strafen hinzufügen
+    for (let i = 0; i < fineCollection.length; i++) {
+        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
+            ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
+            : fineCollection[i].querySelector(".fineText").innerHTML;
+        const trimmedText = fineText.trim();
 
-    // URL und API-Key für JSONBin
-    const apiUrl = "https://api.jsonbin.io/v3/b/DEIN_BIN_ID";  // Ersetze DEIN_BIN_ID mit deinem JSONBin-ID
-    const apiKey = "DEIN_API_KEY";  // Ersetze DEIN_API_KEY mit deinem JSONBin API-Schlüssel
-
-    try {
-        const response = await fetch(apiUrl, {
-            method: 'PUT',  // Oder 'POST' je nach Wunsch
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Master-Key': apiKey,
-            },
-            body: JSON.stringify(finesData),
+        // Aktualisiere alle Zeiträume
+        ["day", "week", "month", "year", "allTime"].forEach(period => {
+            stats[period][trimmedText] = (stats[period][trimmedText] || 0) + 1;
         });
-
-        if (response.ok) {
-            console.log("Strafen erfolgreich an JSONBin gesendet!");
-            selectedFines = [];  // Nach dem Senden, die ausgewählten Strafen zurücksetzen
-        } else {
-            console.error("Fehler beim Hochladen der Strafen:", await response.text());
-        }
-    } catch (error) {
-        console.error("Fehler bei der Kommunikation mit JSONBin:", error);
     }
+
+    stats.lastUpdated = new Date().toISOString();
+
+    // 3. Statistik NUR an JSONBin.io senden (kein localStorage)
+    await saveStats(stats); 
 }
 
 // EventListener für die Strafen-Auswahl in der Tabelle
