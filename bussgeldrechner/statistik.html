@@ -247,46 +247,44 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .map(([name, count]) => ({ name, count }));
         }
 
-        // Diagramm aktualisieren
-        function updateChart(period) {
-            const stats = loadStats();
-            const chartElement = document.getElementById(`chart-${period}`);
-            const data = stats[period] || {};
-            const top10 = getTop10(data);
-            
-            chartElement.innerHTML = '';
-            
-            if (top10.length === 0) {
-                chartElement.innerHTML = '<div class="no-data">Keine Daten verfügbar</div>';
-                return;
-            }
-            
-            // Maximalen Wert für die Skalierung finden
-            const maxCount = Math.max(...top10.map(item => item.count));
-            
-            top10.forEach(item => {
-                const percentage = (item.count / maxCount) * 100;
-                
-                const barItem = document.createElement('div');
-                barItem.className = 'bar-item';
-                
-                // Kürze lange Textstellen
-                let displayName = item.name;
-                if (displayName.length > 50) {
-                    displayName = displayName.substring(0, 47) + '...';
-                }
-                
-                barItem.innerHTML = `
-                    <div class="bar-label" title="${item.name}">${displayName}</div>
-                    <div class="bar-container">
-                        <div class="bar" style="width: ${percentage}%">${item.count}</div>
-                    </div>
-                    <div class="bar-count">${item.count}x</div>
-                `;
-                
-                chartElement.appendChild(barItem);
-            });
+async function updateChart(period) {
+    const stats = await loadStats(); // ✅ richtig abwarten
+    const chartElement = document.getElementById(`chart-${period}`);
+    const data = stats[period] || {};
+    const top10 = getTop10(data);
+
+    chartElement.innerHTML = '';
+
+    if (top10.length === 0) {
+        chartElement.innerHTML = '<div class="no-data">Keine Daten verfügbar</div>';
+        return;
+    }
+
+    const maxCount = Math.max(...top10.map(item => item.count));
+
+    top10.forEach(item => {
+        const percentage = (item.count / maxCount) * 100;
+
+        const barItem = document.createElement('div');
+        barItem.className = 'bar-item';
+
+        let displayName = item.name;
+        if (displayName.length > 50) {
+            displayName = displayName.substring(0, 47) + '...';
         }
+
+        barItem.innerHTML = `
+            <div class="bar-label" title="${item.name}">${displayName}</div>
+            <div class="bar-container">
+                <div class="bar" style="width: ${percentage}%">${item.count}</div>
+            </div>
+            <div class="bar-count">${item.count}x</div>
+        `;
+
+        chartElement.appendChild(barItem);
+    });
+}
+
 
         // Zeitraum anzeigen
         function showTimeframe(period) {
