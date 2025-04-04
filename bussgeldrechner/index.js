@@ -4,6 +4,15 @@
 const BIN_ID = "67ef04308960c979a57dd947"; // Ihre Bin-ID
 const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62"; // Ihr API-Key
 
+// Funktion zur Formatierung des Datums
+function formatDate(date) {
+    const day = String(date.getDate()).padStart(2, '0');   // Tag immer 2-stellig
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // Monat immer 2-stellig
+    const year = date.getFullYear();  // Jahr
+
+    return `${day}.${month}.${year}`;  // Format: "04.04.2025"
+}
+
 // Statistik zum Server senden
 async function addFine(offenseName, period = "day") {
     try {
@@ -20,7 +29,10 @@ async function addFine(offenseName, period = "day") {
         // Statistik aktualisieren
         stats[period][offenseName] = (stats[period][offenseName] || 0) + 1;
         stats.allTime[offenseName] = (stats.allTime[offenseName] || 0) + 1;
-        stats.lastUpdated = new Date().toISOString();
+
+        // Formatierung des Datums für 'lastUpdated'
+        const now = new Date();
+        stats.lastUpdated = formatDate(now);  // Hier wird das Datum formatiert
 
         // Aktualisierte Statistik speichern
         await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
@@ -36,27 +48,47 @@ async function addFine(offenseName, period = "day") {
     }
 }
 
+
 // ====================
 // Angepasste saveSelectedFines()
 // ====================
 async function saveSelectedFines() {
     const fineCollection = document.querySelectorAll(".selected");
-    
+
     for (let i = 0; i < fineCollection.length; i++) {
         const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
             ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
             : fineCollection[i].querySelector(".fineText").innerHTML;
-        
+
         await addFine(fineText.trim(), "day");
     }
 }
 
-// ====================
-// Angepasste copyText()
-// ====================
+// Speichern der ausgewählten Strafen
+let selectedFines = [];
+
+// Diese Funktion wird verwendet, um eine Strafe auszuwählen und die Daten zu speichern.
+function selectFine(row) {
+    const paragraph = row.querySelector('.paragraph').textContent.trim();
+    const fineText = row.querySelector('.fineText').textContent.trim();
+    const wantedAmount = row.querySelector('.wantedAmount').textContent.trim();
+    const fineAmount = row.querySelector('.fineAmount').textContent.trim();
+
+    // Füge die ausgewählte Strafe zur Liste hinzu
+    selectedFines.push({
+        paragraph: paragraph,
+        fineText: fineText,
+        wantedAmount: wantedAmount,
+        fineAmount: fineAmount
+    });
+
+    console.log("Strafe ausgewählt:", paragraph, fineText, wantedAmount, fineAmount);
+}
+
+// Deine copyText Funktion anpassen
 function copyText(event) {
     const now = Date.now();
-    
+
     // Cooldown prüfen
     if (now - lastCopyTime < COPY_COOLDOWN) {
         showCooldownMessage(COPY_COOLDOWN - (now - lastCopyTime));
@@ -79,9 +111,9 @@ function copyText(event) {
             // Erfolgsmeldung anzeigen
             showSuccessNotification(successMessage);
             
-            // Wenn der kopierte Text der Grund ist, Statistik speichern
+            // Wenn der kopierte Text der Grund ist, speichern wir die Strafen in der Statistik
             if (target.closest('#reasonResult')) {
-                saveSelectedFines();
+                saveSelectedFines();  // Speichern der Strafen
             }
         })
         .catch(err => {
@@ -90,6 +122,56 @@ function copyText(event) {
             lastCopyTime = 0;
         });
 }
+
+async function saveSelectedFines() {
+    const fineCollection = document.querySelectorAll(".selected");
+    const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+        headers: { "X-Master-Key": API_KEY }
+    });
+    const data = await response.json();
+    let stats = data.record || {
+        day: {}, week: {}, month: {}, year: {}, allTime: {},
+        lastUpdated: new Date().toISOString()
+    };
+
+    const now = new Date();
+    const today = " " + formatDate(now);
+    const thisWeek = " " + getWeekNumber(now);
+    const thisMonth = " " + now.getFullYear() + '-' + (now.getMonth() + 1);
+    const thisYear = " " + now.getFullYear().toString();
+
+    for (let i = 0; i < fineCollection.length; i++) {
+        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
+            ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
+            : fineCollection[i].querySelector(".fineText").innerHTML;
+        const trimmedText = fineText.trim();
+
+        stats.day[trimmedText + today] = (stats.day[trimmedText + today] || 0) + 1;
+        stats.week[trimmedText + thisWeek] = (stats.week[trimmedText + thisWeek] || 0) + 1;
+        stats.month[trimmedText + thisMonth] = (stats.month[trimmedText + thisMonth] || 0) + 1;
+        stats.year[trimmedText + thisYear] = (stats.year[trimmedText + thisYear] || 0) + 1;
+        stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
+    }
+
+    stats.lastUpdated = formatDate(now);
+    await saveStats(stats);
+}
+
+// Hilfsfunktion für Kalenderwoche (unverändert)
+function getWeekNumber(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+    const week1 = new Date(d.getFullYear(), 0, 4);
+    return d.getFullYear() + '-' + Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
+}
+
+// EventListener für die Strafen-Auswahl in der Tabelle
+document.querySelectorAll('.fine-row').forEach(row => {
+    row.addEventListener('click', () => {
+        selectFine(row);  // Beim Klicken auf eine Zeile wird die Strafe ausgewählt
+    });
+});
 
 // ====================
 // Automatische Statistik-Aktualisierung
@@ -1214,3 +1296,25 @@ document.getElementById('pongIframe')
 document.getElementById('pongIframe')
   .addEventListener('mouseleave', () => 
     document.body.classList.remove('iframe-active'));
+
+// Statistik komplett speichern (für saveSelectedFines())
+async function saveStats(stats) {
+    await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+        method: "PUT",
+        headers: { 
+            "Content-Type": "application/json",
+            "X-Master-Key": API_KEY 
+        },
+        body: JSON.stringify(stats)
+    });
+}
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const stats = await loadStats();
+        const lastUpdatedDate = new Date(stats.lastUpdated);
+        document.getElementById('last-updated').textContent = formatDate(lastUpdatedDate);
+        updateChart('day');
+    } catch (error) {
+        console.error("Initialisierungsfehler:", error);
+    }
+});
