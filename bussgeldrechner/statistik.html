@@ -225,34 +225,41 @@
             }
         }
 
-        // Statistik laden
-        async function loadStats() {
-            try {
-                const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-                    headers: { "X-Master-Key": API_KEY }
-                });
-                if (!response.ok) throw new Error('Network response was not ok');
-                const data = await response.json();
-                return data.record || {
-                    day: {}, 
-                    week: {}, 
-                    month: {}, 
-                    year: {}, 
-                    allTime: {},
-                    lastUpdated: new Date().toISOString()
-                };
-            } catch (error) {
-                console.error("Fehler beim Laden der Statistik:", error);
-                return {
-                    day: {}, 
-                    week: {}, 
-                    month: {}, 
-                    year: {}, 
-                    allTime: {},
-                    lastUpdated: new Date().toISOString()
-                };
-            }
+async function loadStats() {
+    try {
+        const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+            headers: { "X-Master-Key": API_KEY }
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const data = await response.json();
+        console.log("Geladene Daten:", data); // Debug-Ausgabe
+        
+        if (!data.record) {
+            console.warn("Kein record-Objekt in der Antwort gefunden");
+            return {
+                day: {}, 
+                week: {}, 
+                month: {}, 
+                year: {}, 
+                allTime: {},
+                lastUpdated: new Date().toISOString()
+            };
         }
+        
+        return data.record;
+    } catch (error) {
+        console.error("Fehler beim Laden der Statistik:", error);
+        return {
+            day: {}, 
+            week: {}, 
+            month: {}, 
+            year: {}, 
+            allTime: {},
+            lastUpdated: new Date().toISOString()
+        };
+    }
+}
 
         // Statistik speichern
         async function saveStats(stats) {
@@ -266,20 +273,27 @@
             });
         }
 
-        // Top 10 Strafen für einen Zeitraum ermitteln
-        function getTop10(data) {
-            // Verarbeite die Daten, um Datumsanhänge zu entfernen
-            const processedData = {};
-            Object.keys(data).forEach(key => {
-                const cleanKey = key.split('|')[0].trim();
-                processedData[cleanKey] = (processedData[cleanKey] || 0) + data[key];
-            });
-
-            return Object.entries(processedData)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 10)
-                .map(([name, count]) => ({ name, count }));
+function getTop10(data) {
+    const processedData = {};
+    
+    Object.keys(data).forEach(key => {
+        // Entferne alles nach dem letzten Leerzeichen (Datum/Zeitangabe)
+        const cleanKey = key.replace(/\s+\d{1,2}\.\d{1,2}\.\d{4}$/, '')  // Für Tage
+                           .replace(/\s+\d{4}-\d{1,2}$/, '')             // Für Monate
+                           .replace(/\s+\d{4}-\d{1,2}$/, '')             // Für Wochen
+                           .replace(/\s+\d{4}$/, '')                      // Für Jahre
+                           .trim();
+        
+        if (cleanKey) {
+            processedData[cleanKey] = (processedData[cleanKey] || 0) + data[key];
         }
+    });
+
+    return Object.entries(processedData)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([name, count]) => ({ name, count }));
+}
 
         // Diagramm aktualisieren
         async function updateChart(period) {
