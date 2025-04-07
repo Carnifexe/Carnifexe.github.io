@@ -4,13 +4,17 @@
 const BIN_ID = "67ef04308960c979a57dd947"; // Ihre Bin-ID
 const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62"; // Ihr API-Key
 
+// Alte localStorage-Daten bereinigen
+if (localStorage.getItem('fineStats')) {
+    localStorage.removeItem('fineStats');
+}
+
 // Funktion zur Formatierung des Datums
 function formatDate(date) {
-    const day = String(date.getDate()).padStart(2, '0');   // Tag immer 2-stellig
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Monat immer 2-stellig
-    const year = date.getFullYear();  // Jahr
-
-    return `${day}.${month}.${year}`;  // Format: "04.04.2025"
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
 }
 
 // Statistik zum Server senden
@@ -123,6 +127,7 @@ function copyText(event) {
         });
 }
 
+// Aktualisierte Version ohne localStorage
 async function saveSelectedFines() {
     const fineCollection = document.querySelectorAll(".selected");
     const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
@@ -153,7 +158,7 @@ async function saveSelectedFines() {
         stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
     }
 
-    stats.lastUpdated = formatDate(now);
+    stats.lastUpdated = new Date().toISOString();
     await saveStats(stats);
 }
 
@@ -1297,7 +1302,7 @@ document.getElementById('pongIframe')
   .addEventListener('mouseleave', () => 
     document.body.classList.remove('iframe-active'));
 
-// Statistik komplett speichern (für saveSelectedFines())
+// Nur jsonbin.io wird verwendet
 async function saveStats(stats) {
     await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
         method: "PUT",
