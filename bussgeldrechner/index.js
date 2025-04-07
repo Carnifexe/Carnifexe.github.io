@@ -1,98 +1,129 @@
 // ====================
-// JSONBin.io Integration
+// JSONBin.io Integration (überarbeitet)
 // ====================
-const BIN_ID = "67ef04308960c979a57dd947"; // Ihre Bin-ID
-const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62"; // Ihr API-Key
+const BIN_ID = "67ef04308960c979a57dd947";
+const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62";
 
-// Alte localStorage-Daten bereinigen
-if (localStorage.getItem('fineStats')) {
-    localStorage.removeItem('fineStats');
-}
+// Statistik Manager
+const statsManager = new (class {
+    constructor() {
+        this.BIN_ID = BIN_ID;
+        this.API_KEY = API_KEY;
+        this.cache = null;
+        this.lastUpdated = null;
+    }
 
-// Funktion zur Formatierung des Datums
-function formatDate(date) {
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}.${month}.${year}`;
-}
+    async load() {
+        try {
+            const response = await fetch(`https://api.jsonbin.io/v3/b/${this.BIN_ID}/latest`, {
+                headers: { "X-Master-Key": this.API_KEY }
+            });
+            
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            
+            const data = await response.json();
+            this.cache = data.record || this.getEmptyStats();
+            this.lastUpdated = this.cache.lastUpdated;
+            return this.cache;
+        } catch (error) {
+            console.error("Fehler beim Laden der Statistik:", error);
+            this.cache = this.getEmptyStats();
+            return this.cache;
+        }
+    }
 
-// Statistik zum Server senden
-async function addFine(offenseName, period = "day") {
-    try {
-        // Aktuelle Statistik laden
-        const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-            headers: { "X-Master-Key": API_KEY }
-        });
-        const data = await response.json();
-        let stats = data.record || {
-            day: {}, week: {}, month: {}, year: {}, allTime: {},
+    getEmptyStats() {
+        return {
+            entries: [],
             lastUpdated: new Date().toISOString()
         };
-
-        // Statistik aktualisieren
-        stats[period][offenseName] = (stats[period][offenseName] || 0) + 1;
-        stats.allTime[offenseName] = (stats.allTime[offenseName] || 0) + 1;
-
-        // Formatierung des Datums für 'lastUpdated'
-        const now = new Date();
-        stats.lastUpdated = formatDate(now);  // Hier wird das Datum formatiert
-
-        // Aktualisierte Statistik speichern
-        await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-            method: "PUT",
-            headers: { 
-                "Content-Type": "application/json",
-                "X-Master-Key": API_KEY 
-            },
-            body: JSON.stringify(stats)
-        });
-    } catch (error) {
-        console.error("Fehler beim Speichern der Statistik:", error);
     }
-}
 
+    async addFine(offenseName) {
+        if (!this.cache) await this.load();
+        
+        const now = new Date();
+        const newEntry = {
+            offense: offenseName.trim(),
+            timestamp: now.toISOString(),
+            periods: this.getPeriodsForDate(now)
+        };
+        
+        this.cache.entries.push(newEntry);
+        this.cache.lastUpdated = now.toISOString();
+        
+        await this.save();
+        return newEntry;
+    }
 
-// ====================
+    getPeriodsForDate(date) {
+        const periods = ['allTime'];
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const week = this.getWeekNumber(date);
+        
+        periods.push(`year_${year}`);
+        periods.push(`month_${year}-${month}`);
+        periods.push(`week_${year}-${week}`);
+        periods.push(`day_${year}-${month}-${day}`);
+        
+        return periods;
+    }
+
+    async save() {
+        if (!this.cache) return;
+        
+        try {
+            await fetch(`https://api.jsonbin.io/v3/b/${this.BIN_ID}`, {
+                method: "PUT",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "X-Master-Key": this.API_KEY 
+                },
+                body: JSON.stringify(this.cache)
+            });
+        } catch (error) {
+            console.error("Fehler beim Speichern der Statistik:", error);
+            throw error;
+        }
+    }
+
+    getWeekNumber(date) {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+        const week1 = new Date(d.getFullYear(), 0, 4);
+        return Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
+    }
+})();
+
 // Angepasste saveSelectedFines()
-// ====================
 async function saveSelectedFines() {
     const fineCollection = document.querySelectorAll(".selected");
-
+    
+    // Sammle alle Strafen und füge sie in einem Batch hinzu
+    const offenses = [];
     for (let i = 0; i < fineCollection.length; i++) {
         const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
             ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
             : fineCollection[i].querySelector(".fineText").innerHTML;
-
-        await addFine(fineText.trim(), "day");
+        
+        offenses.push(fineText.trim());
+    }
+    
+    // Füge alle Strafen auf einmal hinzu
+    try {
+        await Promise.all(offenses.map(offense => statsManager.addFine(offense)));
+    } catch (error) {
+        console.error("Fehler beim Speichern der Strafen:", error);
     }
 }
 
-// Speichern der ausgewählten Strafen
-let selectedFines = [];
-
-// Diese Funktion wird verwendet, um eine Strafe auszuwählen und die Daten zu speichern.
-function selectFine(row) {
-    const paragraph = row.querySelector('.paragraph').textContent.trim();
-    const fineText = row.querySelector('.fineText').textContent.trim();
-    const wantedAmount = row.querySelector('.wantedAmount').textContent.trim();
-    const fineAmount = row.querySelector('.fineAmount').textContent.trim();
-
-    // Füge die ausgewählte Strafe zur Liste hinzu
-    selectedFines.push({
-        paragraph: paragraph,
-        fineText: fineText,
-        wantedAmount: wantedAmount,
-        fineAmount: fineAmount
-    });
-
-    console.log("Strafe ausgewählt:", paragraph, fineText, wantedAmount, fineAmount);
-}
-
-// Deine copyText Funktion anpassen
+// Modifizierte copyText Funktion
 function copyText(event) {
     const now = Date.now();
-
+    
     // Cooldown prüfen
     if (now - lastCopyTime < COPY_COOLDOWN) {
         showCooldownMessage(COPY_COOLDOWN - (now - lastCopyTime));
@@ -117,7 +148,7 @@ function copyText(event) {
             
             // Wenn der kopierte Text der Grund ist, speichern wir die Strafen in der Statistik
             if (target.closest('#reasonResult')) {
-                saveSelectedFines();  // Speichern der Strafen
+                saveSelectedFines();
             }
         })
         .catch(err => {
@@ -127,7 +158,6 @@ function copyText(event) {
         });
 }
 
-// Aktualisierte Version ohne localStorage
 async function saveSelectedFines() {
     const fineCollection = document.querySelectorAll(".selected");
     const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
@@ -140,10 +170,11 @@ async function saveSelectedFines() {
     };
 
     const now = new Date();
-    const today = " " + formatDate(now);
-    const thisWeek = " " + getWeekNumber(now);
-    const thisMonth = " " + now.getFullYear() + '-' + (now.getMonth() + 1);
-    const thisYear = " " + now.getFullYear().toString();
+    // Konsistente Formatierung mit | als Trennzeichen
+    const today = "|" + formatDate(now);
+    const thisWeek = "|" + getWeekNumber(now);
+    const thisMonth = "|" + now.getFullYear() + '-' + (now.getMonth() + 1);
+    const thisYear = "|" + now.getFullYear().toString();
 
     for (let i = 0; i < fineCollection.length; i++) {
         const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
@@ -151,10 +182,11 @@ async function saveSelectedFines() {
             : fineCollection[i].querySelector(".fineText").innerHTML;
         const trimmedText = fineText.trim();
 
+        // Einheitliches Format mit | als Trennzeichen
         stats.day[trimmedText + today] = (stats.day[trimmedText + today] || 0) + 1;
         stats.week[trimmedText + thisWeek] = (stats.week[trimmedText + thisWeek] || 0) + 1;
-        stats.month[trimmedText + thisMonth] = (stats.month[trimmedText + thisMonth] || 0) + 1;
-        stats.year[trimmedText + thisYear] = (stats.year[trimmedText + thisYear] || 0) + 1;
+        stats.month[trimmedText] = (stats.month[trimmedText] || 0) + 1;
+        stats.year[trimmedText] = (stats.year[trimmedText] || 0) + 1;
         stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
     }
 
@@ -178,16 +210,14 @@ document.querySelectorAll('.fine-row').forEach(row => {
     });
 });
 
-// ====================
 // Automatische Statistik-Aktualisierung
-// ====================
 setInterval(async () => {
-    // Aktualisiere die angezeigte Statistik alle 5 Minuten
-    if (document.querySelector('.timeframe-btn.active')) {
-        const activePeriod = document.querySelector('.timeframe-btn.active').onclick.name.slice(11);
-        await updateChart(activePeriod);
+    try {
+        await statsManager.load();
+    } catch (error) {
+        console.error("Automatische Aktualisierung fehlgeschlagen:", error);
     }
-}, 300000); // 300000ms = 5 Minuten
+}, 300000); // 5 Minuten
 
 // ====================
 // Bestehender Code (unverändert)
