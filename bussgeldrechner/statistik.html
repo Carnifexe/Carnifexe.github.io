@@ -153,6 +153,26 @@
             margin-left: 10px;
         }
 
+        #error-message {
+            display: none;
+            text-align: center;
+            color: #ff6b6b;
+            font-weight: bold;
+            margin: 20px auto;
+        }
+
+        #retry-button {
+            display: none;
+            margin: 10px auto;
+            background-color: #ff6b6b;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
@@ -163,11 +183,11 @@
                 align-items: flex-start;
                 gap: 5px;
             }
-            
+
             .bar-label {
                 width: 100%;
             }
-            
+
             .bar-container {
                 width: 100%;
             }
@@ -197,6 +217,9 @@
             <div class="bar-chart" id="chart-allTime" style="display: none;"></div>
         </div>
 
+        <div id="error-message">Fehler beim Laden der Statistik. Bitte später erneut versuchen.</div>
+        <button id="retry-button" onclick="loadStats()">Erneut laden</button>
+
         <div class="footer">
             Statistik wird automatisch aktualisiert | Stand: <span id="last-updated">Laden...</span>
             <span id="loading-indicator" style="display: none;"><span class="loading-spinner"></span> Aktualisiere...</span>
@@ -204,25 +227,17 @@
     </div>
 
     <script>
-        // Konfiguration
         const BIN_ID = "67ef04308960c979a57dd947";
         const API_KEY = "$2a$10$PjvkvbfgvbIXst5Vbl2Rs./DHygpPWmtyBFdp2iaBVLd1lSghoq62";
-        const AUTO_REFRESH_INTERVAL = 300000; // 5 Minuten
+        const AUTO_REFRESH_INTERVAL = 300000;
 
-        // Globale Variablen
         let currentPeriod = 'day';
         let statsData = {
-            day: {},
-            week: {},
-            month: {},
-            year: {},
-            allTime: {},
+            day: {}, week: {}, month: {}, year: {}, allTime: {},
             lastUpdated: null
         };
 
-        // DOM vollständig geladen
         document.addEventListener('DOMContentLoaded', function() {
-            // Event Listener für Zeitraum-Buttons
             document.querySelectorAll('.timeframe-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     currentPeriod = this.getAttribute('data-period');
@@ -230,73 +245,60 @@
                 });
             });
 
-            // Initialen Datenabruf durchführen
             loadStats();
-            
-            // Automatische Aktualisierung einrichten
             setInterval(loadStats, AUTO_REFRESH_INTERVAL);
         });
 
-        // Daten von der API laden
         async function loadStats() {
             showLoading(true);
-            
             try {
                 const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
                     headers: { "X-Master-Key": API_KEY }
                 });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
                 const result = await response.json();
                 statsData = result.record || {
-                    day: {},
-                    week: {},
-                    month: {},
-                    year: {},
-                    allTime: {},
+                    day: {}, week: {}, month: {}, year: {}, allTime: {},
                     lastUpdated: new Date().toISOString()
                 };
-                
+
                 updateChart(currentPeriod);
                 updateLastUpdated();
+
+                document.getElementById("error-message").style.display = "none";
+                document.getElementById("retry-button").style.display = "none";
             } catch (error) {
                 console.error("Fehler beim Laden der Daten:", error);
-                document.getElementById(`chart-${currentPeriod}`).innerHTML = 
-                    '<div class="no-data">Daten konnten nicht geladen werden</div>';
+                document.getElementById(`chart-${currentPeriod}`).innerHTML = '<div class="no-data">Daten konnten nicht geladen werden</div>';
+                document.getElementById("error-message").style.display = "block";
+                document.getElementById("retry-button").style.display = "inline-block";
             } finally {
                 showLoading(false);
             }
         }
 
-        // Diagramm aktualisieren
         function updateChart(period) {
             const chartElement = document.getElementById(`chart-${period}`);
             const data = statsData[period] || {};
-            
-            // Top 10 Einträge ermitteln
+
             const top10 = Object.entries(data)
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 10)
                 .map(([name, count]) => ({ name, count }));
-            
-            // Chart leeren
+
             chartElement.innerHTML = '';
-            
+
             if (top10.length === 0) {
                 chartElement.innerHTML = '<div class="no-data">Keine Daten verfügbar</div>';
                 return;
             }
-            
-            // Maximalwert für Skalierung
+
             const maxCount = Math.max(...top10.map(item => item.count));
-            
-            // Balken hinzufügen
+
             top10.forEach(item => {
-                const percentage = Math.max(5, (item.count / maxCount) * 100); // Mindestbreite 5%
-                
+                const percentage = Math.max(5, (item.count / maxCount) * 100);
                 const barItem = document.createElement('div');
                 barItem.className = 'bar-item';
                 barItem.innerHTML = `
@@ -306,47 +308,32 @@
                     </div>
                     <div class="bar-count">${item.count}x</div>
                 `;
-                
                 chartElement.appendChild(barItem);
             });
         }
 
-        // Zeitraum anzeigen
         function showTimeframe(period) {
-            // Alle Charts verstecken
             document.querySelectorAll('.bar-chart').forEach(chart => {
                 chart.style.display = 'none';
             });
-            
-            // Aktiven Button markieren
             document.querySelectorAll('.timeframe-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
             document.querySelector(`.timeframe-btn[data-period="${period}"]`).classList.add('active');
-            
-            // Gewählten Chart anzeigen
             document.getElementById(`chart-${period}`).style.display = 'flex';
-            
-            // Daten aktualisieren
             updateChart(period);
         }
 
-        // Letzte Aktualisierung anzeigen
         function updateLastUpdated() {
             if (statsData.lastUpdated) {
                 const date = new Date(statsData.lastUpdated);
                 const formattedDate = date.toLocaleDateString('de-DE', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
+                    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                 });
                 document.getElementById('last-updated').textContent = formattedDate;
             }
         }
 
-        // Ladeanzeige
         function showLoading(show) {
             document.getElementById('loading-indicator').style.display = show ? 'inline-block' : 'none';
         }
