@@ -89,36 +89,17 @@ const statsManager = new (class {
         }
     }
 
-    getWeekNumber(date) {
-        const d = new Date(date);
-        d.setHours(0, 0, 0, 0);
-        d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
-        const week1 = new Date(d.getFullYear(), 0, 4);
-        return Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
-    }
-})();
-
-// Angepasste saveSelectedFines()
-async function saveSelectedFines() {
-    const fineCollection = document.querySelectorAll(".selected");
-    
-    // Sammle alle Strafen und füge sie in einem Batch hinzu
-    const offenses = [];
-    for (let i = 0; i < fineCollection.length; i++) {
-        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
-            ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
-            : fineCollection[i].querySelector(".fineText").innerHTML;
-        
-        offenses.push(fineText.trim());
-    }
-    
-    // Füge alle Strafen auf einmal hinzu
-    try {
-        await Promise.all(offenses.map(offense => statsManager.addFine(offense)));
-    } catch (error) {
-        console.error("Fehler beim Speichern der Strafen:", error);
-    }
+getWeekNumber(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+    const week1 = new Date(d.getFullYear(), 0, 4);
+    return d.getFullYear() + '-' + Math.round(((d - week1) / 86400000 + (week1.getDay() + 6) % 7 - 3) / 7 + 1);
 }
+
+
+
+})();
 
 // Modifizierte copyText Funktion
 function copyText(event) {
@@ -156,42 +137,6 @@ function copyText(event) {
             // Bei Fehler Cooldown zurücksetzen
             lastCopyTime = 0;
         });
-}
-
-async function saveSelectedFines() {
-    const fineCollection = document.querySelectorAll(".selected");
-    const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-        headers: { "X-Master-Key": API_KEY }
-    });
-    const data = await response.json();
-    let stats = data.record || {
-        day: {}, week: {}, month: {}, year: {}, allTime: {},
-        lastUpdated: new Date().toISOString()
-    };
-
-    const now = new Date();
-    // Konsistente Formatierung mit | als Trennzeichen
-    const today = "|" + formatDate(now);
-    const thisWeek = "|" + getWeekNumber(now);
-    const thisMonth = "|" + now.getFullYear() + '-' + (now.getMonth() + 1);
-    const thisYear = "|" + now.getFullYear().toString();
-
-    for (let i = 0; i < fineCollection.length; i++) {
-        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
-            ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
-            : fineCollection[i].querySelector(".fineText").innerHTML;
-        const trimmedText = fineText.trim();
-
-        // Einheitliches Format mit | als Trennzeichen
-        stats.day[trimmedText + today] = (stats.day[trimmedText + today] || 0) + 1;
-        stats.week[trimmedText + thisWeek] = (stats.week[trimmedText + thisWeek] || 0) + 1;
-        stats.month[trimmedText] = (stats.month[trimmedText] || 0) + 1;
-        stats.year[trimmedText] = (stats.year[trimmedText] || 0) + 1;
-        stats.allTime[trimmedText] = (stats.allTime[trimmedText] || 0) + 1;
-    }
-
-    stats.lastUpdated = new Date().toISOString();
-    await saveStats(stats);
 }
 
 // Hilfsfunktion für Kalenderwoche (unverändert)
@@ -250,59 +195,67 @@ function searchFine() {
     }
 }
 
-// Funktion zum Speichern der ausgewählten Strafen im localStorage
 async function saveSelectedFines() {
-    let fineCollection = document.querySelectorAll(".selected");
-    
-    // Lokale Stats laden oder neu erstellen
-    let stats = JSON.parse(localStorage.getItem('fineStats')) || {
-        day: {},
-        week: {},
-        month: {},
-        year: {},
-        allTime: {},
+    const fineCollection = document.querySelectorAll(".selected");
+
+    // 1. Vorhandene Statistik laden
+    let stats = {
+        day: {}, week: {}, month: {}, year: {}, allTime: {},
         lastUpdated: new Date().toISOString()
     };
 
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const thisWeek = getWeekNumber(now);
-    const thisMonth = now.getFullYear() + '-' + (now.getMonth() + 1);
-    const thisYear = now.getFullYear().toString();
+    try {
+        const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+            headers: { "X-Master-Key": API_KEY }
+        });
+        const result = await response.json();
+        if (result.record) stats = result.record;
+    } catch (error) {
+        console.warn("Konnte alte Statistik nicht laden. Neue wird angelegt.");
+    }
 
-    const incrementCounter = (period, key) => {
-        if (!stats[period][key]) {
-            stats[period][key] = 0;
-        }
-        stats[period][key]++;
-    };
+    const now = new Date();
+    const today = "|" + now.toISOString().split('T')[0];
+    const thisWeek = "|" + getWeekNumber(now);
+    const thisMonth = "|" + now.getFullYear() + '-' + (now.getMonth() + 1);
+    const thisYear = "|" + now.getFullYear().toString();
 
     for (let i = 0; i < fineCollection.length; i++) {
-        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>")
+        const fineText = fineCollection[i].querySelector(".fineText").innerHTML.includes("<i>") 
             ? fineCollection[i].querySelector(".fineText").innerHTML.split("<i>")[0]
             : fineCollection[i].querySelector(".fineText").innerHTML;
         const trimmedText = fineText.trim();
 
-        incrementCounter('allTime', trimmedText);
-        incrementCounter('year', trimmedText);
-        incrementCounter('month', trimmedText);
-        incrementCounter('week', trimmedText + thisWeek);
-        incrementCounter('day', trimmedText + today);
+        const increment = (bucket, key) => {
+            if (!stats[bucket][key]) stats[bucket][key] = 0;
+            stats[bucket][key]++;
+        };
+
+        increment("day", trimmedText + today);
+        increment("week", trimmedText + thisWeek);
+        increment("month", trimmedText);
+        increment("year", trimmedText);
+        increment("allTime", trimmedText);
     }
 
-    stats.lastUpdated = now.toISOString();
+    stats.lastUpdated = new Date().toISOString();
 
-    // 1. Lokal speichern
-    localStorage.setItem('fineStats', JSON.stringify(stats));
-
-    // 2. In der Cloud speichern (jsonbin.io)
+    // 2. Speichern
     try {
-        await saveStats(stats); // ⬅️ Hier wird an dein Backend gesendet
-        console.log("Statistik erfolgreich in der Cloud gespeichert.");
+        await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Master-Key": API_KEY
+            },
+            body: JSON.stringify(stats)
+        });
+        console.log("Statistik erfolgreich gespeichert.");
     } catch (err) {
-        console.error("Fehler beim Speichern in die Cloud:", err);
+        console.error("Fehler beim Speichern der Statistik:", err);
     }
 }
+
 
 // Hilfsfunktion zur Berechnung der Kalenderwoche
 function getWeekNumber(date) {
@@ -1332,16 +1285,40 @@ document.getElementById('pongIframe')
   .addEventListener('mouseleave', () => 
     document.body.classList.remove('iframe-active'));
 
-// Nur jsonbin.io wird verwendet
-async function saveStats(stats) {
-    await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-        method: "PUT",
-        headers: { 
-            "Content-Type": "application/json",
-            "X-Master-Key": API_KEY 
-        },
-        body: JSON.stringify(stats)
+async function saveStats(newStats) {
+    try {
+        const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+            headers: { "X-Master-Key": API_KEY }
+        });
+        const existing = await response.json();
+        const mergedStats = mergeStats(existing.record, newStats);
+        
+        await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Master-Key": API_KEY
+            },
+            body: JSON.stringify(mergedStats)
+        });
+    } catch (error) {
+        console.error("Fehler beim Speichern der Statistik:", error);
+    }
+}
+
+function mergeStats(existing, incoming) {
+    const periods = ['day', 'week', 'month', 'year', 'allTime'];
+    const result = { ...existing };
+
+    periods.forEach(period => {
+        if (!result[period]) result[period] = {};
+        for (const key in incoming[period]) {
+            result[period][key] = (result[period][key] || 0) + incoming[period][key];
+        }
     });
+
+    result.lastUpdated = new Date().toISOString();
+    return result;
 }
 document.addEventListener('DOMContentLoaded', async () => {
     try {
